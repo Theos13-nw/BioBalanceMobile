@@ -86,7 +86,7 @@ let homeostasisDisplayTimer = 0;
 const HOMEOSTASIS_DISPLAY_FRAMES = 65;
 let homeostasisLocked = false;
 let greenZoneTimer = 0;                   // counts dt-ticks both hormones are in green zone
-const GREEN_ZONE_REQUIRED = 30 * 60;     // 30 seconds × 60 ticks = 1800 ticks
+const GREEN_ZONE_REQUIRED = 25 * 60;     // 25 seconds × 60 ticks = 1500 ticks
 let phase1Complete    = false;
 let hormoneMist = [];
 let pepsinTimer = 0;
@@ -332,6 +332,45 @@ function setup() {
   sliderX      = GAME_W / 2 - 150;
   smellSliderX = GAME_W / 2 - 200;
   resetNutrientPositions();
+
+  // ── Audio context protection ──────────────────────────────
+  // Mobile browsers suspend the Web Audio context on background/sleep.
+  // Resume it on any user interaction and on visibility restore.
+  // This prevents the distortion cascade from queued-up sounds firing all at once.
+  if (typeof getAudioContext === 'function') {
+    document.addEventListener('visibilitychange', function() {
+      if (document.hidden) {
+        // Page hidden: stop all looping/continuous sounds cleanly
+        if (bgLoop && bgLoop.isPlaying()) { bgLoop.pause(); }
+        if (acidSfx && acidSfx.isPlaying()) acidSfx.stop();
+        if (warningSfx && warningSfx.isPlaying()) warningSfx.stop();
+        if (spraySfx && spraySfx.isPlaying()) spraySfx.stop();
+      } else {
+        // Page visible again: resume audio context then restart bgLoop
+        let ctx = getAudioContext();
+        if (ctx && ctx.state === 'suspended') {
+          ctx.resume().then(function() {
+            if (bgLoop && bgLoopStarted && !bgLoop.isPlaying()) bgLoop.loop();
+          });
+        } else {
+          if (bgLoop && bgLoopStarted && !bgLoop.isPlaying()) bgLoop.loop();
+        }
+        // Reset previousTime so accumulator doesn't spiral on resume
+        previousTime = millis();
+        accumulator  = 0;
+      }
+    });
+
+    // Also resume audio context on any touch/click
+    document.addEventListener('touchstart', function() {
+      let ctx = getAudioContext();
+      if (ctx && ctx.state === 'suspended') ctx.resume();
+    }, { passive: true });
+    document.addEventListener('mousedown', function() {
+      let ctx = getAudioContext();
+      if (ctx && ctx.state === 'suspended') ctx.resume();
+    }, { passive: true });
+  }
 
   for (let i = 0; i < 30; i++) {
     let p = new ProtocolParticle();
@@ -586,21 +625,27 @@ function updateAndDrawPhaseParticles(phaseIdx) {
 // =========================================================
 function draw() {
   // ── Fixed-timestep accumulator ────────────────────────────
-  // Real elapsed time since last frame (capped to prevent spiral of death)
   let now = millis();
   let rawDelta = now - previousTime;
+
+  // If gap > 500ms (tab backgrounded, crash-resume, phone sleep):
+  // discard the accumulated time entirely — do NOT try to catch up
+  if (rawDelta > 500) {
+    previousTime = now;
+    accumulator  = 0;
+    return;   // skip this frame, start fresh next frame
+  }
+
   previousTime = now;
   realFPS = 1000 / max(rawDelta, 1);
   smoothedFPS = lerp(smoothedFPS, realFPS, 0.08);
 
-  let frameTime = min(rawDelta / 1000, 0.05);  // seconds, max 50ms
+  // Hard cap: max 2 logic ticks per display frame (prevents any spiral)
+  let frameTime = min(rawDelta / 1000, FIXED_DT * 2);
   accumulator += frameTime;
 
-  // Run as many fixed-60Hz logic ticks as time allows
-  // This means on a 120Hz phone, 2 real frames pass before 1 logic tick
-  // → gameplay always runs at exactly 60Hz speed
   while (accumulator >= FIXED_DT) {
-    updateGameLogic();       // all state changes happen here at fixed 60Hz
+    updateGameLogic();
     accumulator -= FIXED_DT;
   }
 
@@ -637,11 +682,15 @@ function updateGameLogic() {
   // Spawn timer accumulates in ms; one tick = 16.666ms
   delta = 16.666;
 
-  // BG loop: only start once; never stack multiple .loop() calls
+  // BG loop: start once; periodically enforce correct rate/volume
   if (bgLoop != null && !bgLoopStarted) {
     bgLoop.setVolume(0.05);
+    bgLoop.rate(1.0);   // explicitly lock playback rate to 1x
     bgLoop.loop();
     bgLoopStarted = true;
+  } else if (bgLoop != null && bgLoopStarted && bgLoop.isPlaying()) {
+    // Every tick: silently correct any audio context drift
+    if (bgLoop.rate && bgLoop.rate() !== 1.0) bgLoop.rate(1.0);
   }
 
   transitionAlpha = lerp(transitionAlpha, 255, 1 - pow(1 - 0.08, dt));
@@ -1175,7 +1224,7 @@ function updatePepsinDenaturation(currentPH, inPHWindow) {
     pepsinogenReserve = min(100, pepsinogenReserve + 0.2*dt);
   } else {
     if (inPHWindow && pepsinState === PepsinState.INACTIVE) {
-      pepsinConcentration = min(100, pepsinConcentration + 0.018*dt);  // ~90s at perfect pH
+      pepsinConcentration = min(100, pepsinConcentration + 0.037*dt);  // ~45s at perfect pH
       if (pepsinConcentration >= 60) pepsinState = PepsinState.ACTIVE;
     } else if (!inPHWindow && pepsinState === PepsinState.ACTIVE) {
       if (currentPH > 3.0 && currentPH <= 4.0) {
