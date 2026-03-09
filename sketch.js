@@ -462,8 +462,12 @@ class AromaParticle {
   }
   display(c) {
     noStroke();
+    // Subtle white outer glow for visibility against dark background
+    fill(255, 255, 255, this.alpha * 0.45);
+    ellipse(this.x, this.y, this.size * 1.35, this.size * 1.35);
+    // Main particle
     fill(c[0], c[1], c[2], this.alpha);
-    ellipse(this.x, this.y, this.size, this.size);  // perfect circle, no glow
+    ellipse(this.x, this.y, this.size, this.size);
   }
 }
 
@@ -759,9 +763,11 @@ function updateGameLogic() {
     (mode === MODE_PHASE1 && ulcerRisk > 100) ||
     (mode === MODE_PHASE0 && foodType === 2 && emeticTimer >= EMETIC_THRESHOLD);
   if (isShaking) {
-    shakeIntensity = lerp(shakeIntensity, map(delayedSmell, 0, 100, 0.2, 1.5), 1 - pow(1 - 0.06, dt));
+    // Subtle shake: max intensity 0.8 (was 1.5), slower lerp for smoothness
+    shakeIntensity = lerp(shakeIntensity, map(delayedSmell, 0, 100, 0.1, 0.8), 1 - pow(1 - 0.05, dt));
   } else {
-    shakeIntensity = lerp(shakeIntensity, 0, 0.003);
+    // Fade quickly when warning stops (0.15 vs old 0.003 = ~50× faster decay)
+    shakeIntensity = lerp(shakeIntensity, 0, 0.15);
   }
 
   if (showOverlay) overlayAlpha = lerp(overlayAlpha, 255, 1 - pow(1 - 0.2, dt));
@@ -1728,7 +1734,12 @@ function handleInputStart() {
       if (ix > bx2-bw2/2 && ix < bx2+bw2/2 && iy > by2-bh2/2 && iy < by2+bh2/2) resetPepsin();
     }
     if (phase1Complete && proteinScale < 0.3) {
-      if (ix > GAME_W/2-100 && ix < GAME_W/2+100 && iy > (90+35)-25 && iy < (90+35)+25) { if (successSfx) { successSfx.stop(); successSfx.play(); }  startReflectionGate(); }
+      if (ix > GAME_W/2-100 && ix < GAME_W/2+100 && iy > (90+35)-25 && iy < (90+35)+25) {
+        if (acidSfx && acidSfx.isPlaying()) acidSfx.stop();  // stop acid sound on proceed
+        sfx_wantAcid = false;
+        if (successSfx) { successSfx.stop(); successSfx.play(); }
+        startReflectionGate();
+      }
     }
     let sliderY = GAME_H-110, sliderStart = GAME_W/2-150, sliderEnd = GAME_W/2+150;
     if (iy > sliderY-30 && iy < sliderY+30 && ix > sliderX-30 && ix < sliderX+30)
