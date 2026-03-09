@@ -206,6 +206,7 @@ const GAME_H = 720;    // virtual canvas height
 let scaleF  = 1;       // scale factor (< 1 on small screens)
 let offsetX = 0;       // left letterbox offset
 let offsetY = 0;       // top  letterbox offset
+let dt      = 1;       // deltaTime normalizer — keeps speed same at any fps
 
 // ── TOUCH/DRAG STATE ──────────────────────────────────────
 let isDraggingSmellSlider = false;
@@ -323,10 +324,10 @@ function setup() {
 }
 
 function _calcScale() {
-  // Scale uniformly to fit width — no stretching, no side bars
-  // Small top/bottom bars are acceptable on taller phones
-  scaleF  = windowWidth / GAME_W;
-  offsetX = 0;
+  // Uniform scale — fit whichever dimension is tighter
+  // No stretching ever. Small bars on one axis are fine.
+  scaleF  = min(windowWidth / GAME_W, windowHeight / GAME_H);
+  offsetX = (windowWidth  - GAME_W * scaleF) / 2;
   offsetY = (windowHeight - GAME_H * scaleF) / 2;
 }
 
@@ -582,7 +583,10 @@ function drawSimulationLoop() {
     bgLoop.loop();  bgLoop.setVolume(0.05);  bgLoopStarted = true;
   }
 
-  transitionAlpha = lerp(transitionAlpha, 255, 0.08);
+  // Normalize all per-frame increments to 60fps regardless of actual framerate
+  dt = constrain(deltaTime / 16.667, 0.5, 3.0);
+
+  transitionAlpha = lerp(transitionAlpha, 255, 0.08*dt);
   organPulse      = 1.0 + sin(frameCount * 0.05) * 0.015;
   connectionGlow  = (sin(frameCount * 0.05) + 1) / 2.0;
 
@@ -703,21 +707,21 @@ function phase0() {
     smellSliderX = constrain(getInputX(), sStart, sEnd);
 
   let inputSmell = map(smellSliderX, sStart, sEnd, 0, 100);
-  delayedSmell = lerp(delayedSmell, inputSmell, 0.015);
+  delayedSmell = lerp(delayedSmell, inputSmell, 0.015*dt);
 
   if (foodType === 1) {
-    salivaLevel = lerp(salivaLevel, map(inputSmell, 0, 100, 40, 170), 0.02);
+    salivaLevel = lerp(salivaLevel, map(inputSmell, 0, 100, 40, 170), 0.02*dt);
     if (salivaLevel > 168 && inputSmell >= 99) salivaLevel = 170;
-    cephalicAcid = lerp(cephalicAcid, map(delayedSmell, 0, 100, 0, 150), 0.01);
+    cephalicAcid = lerp(cephalicAcid, map(delayedSmell, 0, 100, 0, 150), 0.01*dt);
   } else if (foodType === 2) {
-    salivaLevel  = lerp(salivaLevel, 5, 0.02);
-    cephalicAcid = lerp(cephalicAcid, 0, 0.1);
+    salivaLevel  = lerp(salivaLevel, 5, 0.02*dt);
+    cephalicAcid = lerp(cephalicAcid, 0, 0.1*dt);
   }
 
   let metabolismReady   = (insulinLevel > 20 && hepaticGlucoseOutput < 60);
   let inActivationWindow = (foodType === 1 && inputSmell >= 99 &&
                             salivaLevel >= 170 && metabolismReady && !hasSwallowed);
-  cephalicTimer = inActivationWindow ? min(60, cephalicTimer + 1) : 0;
+  cephalicTimer = inActivationWindow ? min(60, cephalicTimer + dt) : 0;
   let cephalicActive = (cephalicTimer >= 60);
 
   let guideY = 90, buttonY = 130;
@@ -749,8 +753,8 @@ function phase0() {
     p0Text = "SMELL THE FOOD: MOVE THE SCENT SLIDER TO START!";  p0Color = color(200);
   } else if (foodType === 2) {
     cephalicReady = false;
-    if (inputSmell >= 60) emeticTimer = min(EMETIC_THRESHOLD, emeticTimer + 1);
-    else                  emeticTimer = max(0, emeticTimer - 2);
+    if (inputSmell >= 60) emeticTimer = min(EMETIC_THRESHOLD, emeticTimer + dt);
+    else                  emeticTimer = max(0, emeticTimer - 2 * dt);
     if (emeticTimer >= EMETIC_THRESHOLD) { if (warningSfx && !warningSfx.isPlaying()) warningSfx.play(); }
     else                                  { if (warningSfx && warningSfx.isPlaying())  warningSfx.stop(); }
     if      (delayedSmell < 30)              p0Text = "SOMETHING SMELLS ODD...";
@@ -866,10 +870,10 @@ function phase1() {
 
   let currentPH = map(sliderX, sliderStart, sliderEnd, 7.0, 1.0);
   stomachAcid = map(currentPH, 7.0, 1.0, 0, 255);
-  ulcerRisk   = (currentPH < 1.5) ? min(110, ulcerRisk + 2) : max(0, ulcerRisk - 10);
+  ulcerRisk   = (currentPH < 1.5) ? min(110, ulcerRisk + 2*dt) : max(0, ulcerRisk - 10*dt);
 
   let inPHWindow = (currentPH >= 1.5 && currentPH <= 3.0);
-  pepsinTimer = inPHWindow ? min(60, pepsinTimer + 1) : 0;
+  pepsinTimer = inPHWindow ? min(60, pepsinTimer + dt) : 0;
 
   enzymeActive = (pepsinTimer >= 60 && pepsinState === PepsinState.ACTIVE);
   updatePepsinDenaturation(currentPH, inPHWindow);
@@ -885,7 +889,7 @@ function phase1() {
 
   if (proteinImg != null) {
     let pAlpha = enzymeActive ? map(proteinScale, 1.0, 0.0, 255, 0) : 200;
-    if (enzymeActive) proteinScale = max(0.0, proteinScale - 0.005);
+    if (enzymeActive) proteinScale = max(0.0, proteinScale - 0.005*dt);
     else if (proteinScale < 1.0 && pepsinState !== PepsinState.ACTIVE)
       proteinScale = min(1.0, proteinScale + 0.02);
     if (proteinScale > 0.01 && pAlpha > 1) {
@@ -980,26 +984,26 @@ function resetPepsin() {
 
 function updatePepsinDenaturation(currentPH, inPHWindow) {
   if (currentPH > 5.0 && pepsinConcentration > 0) {
-    pepsinConcentration = max(0, pepsinConcentration - 2);
+    pepsinConcentration = max(0, pepsinConcentration - 2*dt);
     if (pepsinConcentration <= 0 && pepsinState !== PepsinState.DENATURED) {
       pepsinState    = PepsinState.DENATURED;
       phase1Complete = false;
       if (denatureSfx) denatureSfx.play();
     }
   } else if (currentPH > 4.0 && currentPH <= 5.0 && pepsinConcentration > 0) {
-    pepsinConcentration = max(0, pepsinConcentration - 0.5);
+    pepsinConcentration = max(0, pepsinConcentration - 0.5*dt);
   }
 
   if (pepsinState === PepsinState.DENATURED) {
-    pepsinogenReserve = min(100, pepsinogenReserve + 0.2);
+    pepsinogenReserve = min(100, pepsinogenReserve + 0.2*dt);
   } else {
     if (inPHWindow && pepsinState === PepsinState.INACTIVE) {
-      pepsinConcentration = min(100, pepsinConcentration + 1.5);
+      pepsinConcentration = min(100, pepsinConcentration + 1.5*dt);
       if (pepsinConcentration >= 60) pepsinState = PepsinState.ACTIVE;
     } else if (!inPHWindow && pepsinState === PepsinState.ACTIVE) {
       if (currentPH > 3.0 && currentPH <= 4.0) {
         pepsinState = PepsinState.PARTIAL;
-        pepsinConcentration = max(0, pepsinConcentration - 1.0);
+        pepsinConcentration = max(0, pepsinConcentration - 1.0*dt);
       } else if (currentPH > 4.0 || currentPH < 1.5) {
         pepsinState = PepsinState.INACTIVE;  pepsinConcentration = 0;  pepsinTimer = 0;
       }
@@ -1089,7 +1093,7 @@ function phase2() {
     homeostasisLocked  = true;  homeostasisDisplayTimer = HOMEOSTASIS_DISPLAY_FRAMES;
   }
   if (homeostasisDisplayTimer > 0) {
-    homeostasisDisplayTimer--;
+    homeostasisDisplayTimer -= dt;
     if (homeostasisDisplayTimer <= 0) homeostasisLocked = false;
   }
   if (homeostasisReached && !homeostasisLocked && !thresholdMet) {
@@ -1124,12 +1128,12 @@ function phase2() {
   if (mouseIsPressed && (sprayType === 1 || sprayType === 2)) {
     if (spraySfx && !spraySfx.isPlaying()) spraySfx.play();
     if (sprayType === 1) {
-      secretinLevel = min(secretinLevel + 4.5, 200);
+      secretinLevel = min(secretinLevel + 4.5*dt, 200);
       for (let i = 0; i < 3; i++)
         hormoneMist.push(new Mist(GAME_W * 0.15 + 80, GAME_H / 2 + 50 + yOffset,
                                    random(5, 10), random(-2, 2), [0, 150, 255]));
     } else {
-      cckLevel = min(cckLevel + 4.5, 200);
+      cckLevel = min(cckLevel + 4.5*dt, 200);
       for (let i = 0; i < 3; i++)
         hormoneMist.push(new Mist(GAME_W * 0.85 - 80, GAME_H / 2 + 50 + yOffset,
                                    random(-10, -5), random(-2, 2), [255, 180, 0]));
@@ -1141,8 +1145,8 @@ function phase2() {
   updateMist();
 
   if (!homeostasisLocked) {
-    secretinLevel = max(secretinLevel - decayRate, 0);
-    cckLevel      = max(cckLevel      - decayRate, 0);
+    secretinLevel = max(secretinLevel - decayRate*dt, 0);
+    cckLevel      = max(cckLevel      - decayRate*dt, 0);
   }
 
   drawMeter(GAME_W / 2 - 250, GAME_H - 110 + yOffset, secretinLevel, "Secretin (Acid Reducer)", color(0, 180, 255));
@@ -1178,7 +1182,7 @@ function phase3() {
 
   let allAbsorbed = glucoseSorted && sodiumSGLTSorted && sodiumNHE3Sorted && lipidSorted;
   if (allAbsorbed) {
-    phase3ProceedDelay++;
+    phase3ProceedDelay += dt;
     if (phase3ProceedDelay < PHASE3_PROCEED_DELAY_FRAMES) {
       fill(0, 255, 150, 150 + sin(frameCount * 0.2) * 105);
       textStyle(BOLD);  textSize(22);  textAlign(CENTER);
