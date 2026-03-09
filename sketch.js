@@ -206,7 +206,10 @@ const GAME_H = 720;    // virtual canvas height
 let scaleF  = 1;       // scale factor (< 1 on small screens)
 let offsetX = 0;       // left letterbox offset
 let offsetY = 0;       // top  letterbox offset
-let dt      = 1;       // deltaTime normalizer — keeps speed same at any fps
+let dt      = 1;       // deltaTime normalizer
+// Detect mobile — on small screens we slow timers slightly
+// because animations look faster on smaller displays
+const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 
 // ── TOUCH/DRAG STATE ──────────────────────────────────────
 let isDraggingSmellSlider = false;
@@ -297,7 +300,6 @@ function preload() {
 function setup() {
   createCanvas(windowWidth, windowHeight);
   frameRate(60);       // FIX: lock to 60fps — mobile screens run at 90/120hz
-  pixelDensity(1);     // FIX: prevent retina doubling on mobile
   imageMode(CENTER);
   rectMode(CENTER);
   _calcScale();
@@ -583,8 +585,10 @@ function drawSimulationLoop() {
     bgLoop.loop();  bgLoop.setVolume(0.05);  bgLoopStarted = true;
   }
 
-  // Normalize all per-frame increments to 60fps regardless of actual framerate
-  dt = constrain(deltaTime / 16.667, 0.5, 3.0);
+  // Normalize per-frame increments to 60fps
+  // On mobile, apply 0.6x speed so game feels same pace on smaller screen
+  let speedMult = isMobile ? 0.6 : 1.0;
+  dt = constrain((deltaTime / 16.667) * speedMult, 0.1, 2.0);
 
   transitionAlpha = lerp(transitionAlpha, 255, 0.08*dt);
   organPulse      = 1.0 + sin(frameCount * 0.05) * 0.015;
