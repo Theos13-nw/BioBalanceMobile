@@ -12,7 +12,7 @@
 let bgLoop, clickSfx, acidSfx, successSfx, spraySfx, dragSfx,
     warningSfx, reportSfx, denatureSfx, bounceSfx, nhe3Sfx,
     wrongSfx, correctSfx, swallowSfx, chewSfx;
-let bgLoopStarted = false;
+let bgLoopStarted = false;  // only set to true once — never reset (prevents loop stacking)
 
 // ── AUDIO FLAGS ────────────────────────────────────────────
 let cephalicSuccessPlayed = false;   // FIX: was missing from doc2 globals
@@ -373,10 +373,10 @@ function getInputY() {
 class PhaseParticle {
   constructor(col) {
     this.x = random(GAME_W);  this.y = random(GAME_H);
-    this.vx = random(-0.2, 0.2);  this.vy = random(-0.2, 0.2);
+    this.vx = random(-0.04, 0.04);  this.vy = random(-0.04, 0.04);  // 5× slower
     this.size = random(2, 6);  this.alpha = random(15, 40);
     this.c = col;
-    this.pulseSpeed  = random(0.01, 0.03);
+    this.pulseSpeed  = random(0.002, 0.006);  // 5× slower pulse
     this.pulseOffset = random(TWO_PI);
   }
   update() {
@@ -385,10 +385,10 @@ class PhaseParticle {
     if (this.x > GAME_W + 10)   this.x = -10;
     if (this.y < -10)          this.y = GAME_H + 10;
     if (this.y > GAME_H + 10)  this.y = -10;
-    if (random(1) < 0.3 * dt) {
-      this.vx += random(-0.05, 0.05);  this.vy += random(-0.05, 0.05);
-      this.vx = constrain(this.vx, -0.3, 0.3);
-      this.vy = constrain(this.vy, -0.3, 0.3);
+    if (random(1) < 0.06 * dt) {  // 5× less frequent nudge
+      this.vx += random(-0.01, 0.01);  this.vy += random(-0.01, 0.01);
+      this.vx = constrain(this.vx, -0.06, 0.06);
+      this.vy = constrain(this.vy, -0.06, 0.06);
     }
     this.alpha = 25 + sin(millis() * this.pulseSpeed * 0.06 + this.pulseOffset) * 15;
   }
@@ -404,16 +404,16 @@ class PhaseParticle {
 class AromaParticle {
   constructor(x, y) {
     this.x = x;  this.y = y;
-    this.vx    = random(-1.5, -2.5);  this.vy = random(-0.8, -1.5);
+    this.vx    = random(-0.4, -0.8);  this.vy = random(-0.2, -0.5);  // 3× slower drift
     this.alpha = random(25, 50);      this.size = random(3, 6);
   }
   update(targetX, targetY) {
     let dx = targetX - this.x,  dy = targetY - this.y;
     let d  = sqrt(dx * dx + dy * dy);
-    if (d > 30) { this.x += ((dx / d) * 2.5 + this.vx * 0.25) * dt;
-                  this.y += ((dy / d) * 2.5 + this.vy * 0.25) * dt; }
-    else { this.alpha -= 1.5 * dt; }
-    this.alpha -= 0.2 * dt;
+    if (d > 30) { this.x += ((dx / d) * 0.7 + this.vx * 0.15) * dt;  // 3× slower travel
+                  this.y += ((dy / d) * 0.7 + this.vy * 0.15) * dt; }
+    else { this.alpha -= 0.5 * dt; }
+    this.alpha -= 0.07 * dt;  // fade slower too
   }
   display(c) {
     noStroke();
@@ -425,13 +425,13 @@ class AromaParticle {
 class ProtocolParticle {
   constructor() {
     this.x = random(GAME_W);  this.y = GAME_H + 20;
-    this.vy = random(0.5, 2);  this.alpha = random(50, 150);
+    this.vy = random(0.1, 0.4);  this.alpha = random(50, 150);  // 5× slower
     this.size = random(2, 6);
   }
   update() {
     this.y -= this.vy * dt;
     if (this.y < -20) { this.y = GAME_H + 20;  this.x = random(GAME_W); }
-    this.alpha = 100 + sin(millis() * 0.003 + this.x * 0.01) * 50;
+    this.alpha = 100 + sin(millis() * 0.0006 + this.x * 0.01) * 50;  // 5× slower pulse
   }
   display() {
     noStroke();  fill(0, 255, 200, this.alpha);
@@ -442,13 +442,13 @@ class ProtocolParticle {
 class ReportParticle {
   constructor() {
     this.x = random(GAME_W);  this.y = GAME_H + random(10, 100);
-    this.vy = random(0.3, 1.2);  this.alpha = random(50, 150);
+    this.vy = random(0.06, 0.24);  this.alpha = random(50, 150);  // 5× slower
     this.size = random(3, 8);
   }
   update() {
     this.y -= this.vy * dt;
     if (this.y < -20) { this.y = GAME_H + 20;  this.x = random(GAME_W); }
-    this.alpha = 80 + sin(millis() * 0.00038 + this.x * 0.01) * 40;
+    this.alpha = 80 + sin(millis() * 0.000076 + this.x * 0.01) * 40;  // 5× slower pulse
   }
   display() {
     noStroke();  fill(112, 240, 240, this.alpha);
@@ -637,8 +637,11 @@ function updateGameLogic() {
   // Spawn timer accumulates in ms; one tick = 16.666ms
   delta = 16.666;
 
-  if (bgLoop != null && !bgLoopStarted && !bgLoop.isPlaying()) {
-    bgLoop.loop();  bgLoop.setVolume(0.05);  bgLoopStarted = true;
+  // BG loop: only start once; never stack multiple .loop() calls
+  if (bgLoop != null && !bgLoopStarted) {
+    bgLoop.setVolume(0.05);
+    bgLoop.loop();
+    bgLoopStarted = true;
   }
 
   transitionAlpha = lerp(transitionAlpha, 255, 1 - pow(1 - 0.08, dt));
@@ -649,7 +652,7 @@ function updateGameLogic() {
     (mode === MODE_PHASE1 && ulcerRisk > 100) ||
     (mode === MODE_PHASE0 && foodType === 2 && emeticTimer >= EMETIC_THRESHOLD);
   if (isShaking) {
-    shakeIntensity = lerp(shakeIntensity, map(delayedSmell, 0, 100, 0.5, 4.0), 1 - pow(1 - 0.1, dt));
+    shakeIntensity = lerp(shakeIntensity, map(delayedSmell, 0, 100, 0.2, 1.5), 1 - pow(1 - 0.06, dt));
   } else {
     shakeIntensity = lerp(shakeIntensity, 0, 0.003);
   }
@@ -1172,7 +1175,7 @@ function updatePepsinDenaturation(currentPH, inPHWindow) {
     pepsinogenReserve = min(100, pepsinogenReserve + 0.2*dt);
   } else {
     if (inPHWindow && pepsinState === PepsinState.INACTIVE) {
-      pepsinConcentration = min(100, pepsinConcentration + 0.7*dt);
+      pepsinConcentration = min(100, pepsinConcentration + 0.018*dt);  // ~90s at perfect pH
       if (pepsinConcentration >= 60) pepsinState = PepsinState.ACTIVE;
     } else if (!inPHWindow && pepsinState === PepsinState.ACTIVE) {
       if (currentPH > 3.0 && currentPH <= 4.0) {
@@ -1448,7 +1451,12 @@ function updateMist() {
 // FINAL REPORT
 // =========================================================
 function drawFinalReport() {
-  if (!reportPlayed && reportSfx != null) { reportSfx.play();  reportPlayed = true; }
+  if (!reportPlayed && reportSfx != null) {
+    if (reportSfx.isPlaying()) reportSfx.stop();
+    reportSfx.setVolume(0.6);
+    reportSfx.play();
+    reportPlayed = true;
+  }
 
   if (reportGradientBuffer.GAME_W !== GAME_W || reportGradientBuffer.GAME_H !== GAME_H) {
     reportGradientBuffer = createGraphics(GAME_W, GAME_H);
