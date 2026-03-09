@@ -567,7 +567,7 @@ function draw() {
   let now = millis();
   dt = (now - previousTime) / 1000;   // seconds since last frame
   previousTime = now;
-  dt = min(dt, 0.1);                  // cap: avoid huge jumps after tab-switch/pause
+  dt = min(dt, 1/30);                 // cap at ~2 frames equiv, prevents lerp overshoot
   dt *= 60;                           // normalise: dt=1 at 60fps, dt=2 at 120fps etc.
   if (isMobile) dt *= 0.85;           // perceptual compensation — small screens feel faster
 
@@ -600,7 +600,7 @@ function drawSimulationLoop() {
 
   // dt is already computed in draw() — no recalculation needed here
 
-  transitionAlpha = lerp(transitionAlpha, 255, 0.08 * dt / 60);
+  transitionAlpha = lerp(transitionAlpha, 255, 0.08 * dt);
   organPulse      = 1.0 + sin(frameCount * 0.05) * 0.015;
   connectionGlow  = (sin(frameCount * 0.05) + 1) / 2.0;
 
@@ -609,11 +609,11 @@ function drawSimulationLoop() {
     (mode === MODE_PHASE1 && ulcerRisk > 100) ||
     (mode === MODE_PHASE0 && foodType === 2 && emeticTimer >= EMETIC_THRESHOLD);
   if (isShaking) {
-    shakeIntensity = lerp(shakeIntensity, map(delayedSmell, 0, 100, 0.5, 4.0), 0.1 * dt / 60);
+    shakeIntensity = lerp(shakeIntensity, map(delayedSmell, 0, 100, 0.5, 4.0), 0.1 * dt);
     shakeX = random(-shakeIntensity, shakeIntensity);
     shakeY = random(-shakeIntensity, shakeIntensity);
   } else {
-    shakeIntensity = lerp(shakeIntensity, 0, 0.2 * dt / 60);
+    shakeIntensity = lerp(shakeIntensity, 0, 0.2 * dt);
   }
 
   push();
@@ -643,8 +643,8 @@ function drawSimulationLoop() {
   }
   noTint();
 
-  if (showOverlay) overlayAlpha = lerp(overlayAlpha, 255, 0.2 * dt / 60);
-  else             overlayAlpha = lerp(overlayAlpha, 0, 0.3 * dt / 60);
+  if (showOverlay) overlayAlpha = lerp(overlayAlpha, 255, 0.2 * dt);
+  else             overlayAlpha = lerp(overlayAlpha, 0, 0.3 * dt);
   if (overlayAlpha > 1) {
     fill(0, map(overlayAlpha, 0, 255, 0, 235));
     rect(GAME_W / 2, GAME_H / 2, GAME_W, GAME_H);
@@ -705,7 +705,7 @@ function phase0() {
   }
 
   if (foodType > 0) {
-    foodScale = lerp(foodScale, 1.0, 0.15 * dt / 60);
+    foodScale = lerp(foodScale, 1.0, 0.15 * dt);
     push();
     translate(foodX, foodY);
     scale(foodScale);
@@ -721,15 +721,15 @@ function phase0() {
     smellSliderX = constrain(getInputX(), sStart, sEnd);
 
   let inputSmell = map(smellSliderX, sStart, sEnd, 0, 100);
-  delayedSmell = lerp(delayedSmell, inputSmell, 0.015 * dt / 60);
+  delayedSmell = lerp(delayedSmell, inputSmell, 0.015 * dt);
 
   if (foodType === 1) {
-    salivaLevel = lerp(salivaLevel, map(inputSmell, 0, 100, 40, 170), 0.02 * dt / 60);
+    salivaLevel = lerp(salivaLevel, map(inputSmell, 0, 100, 40, 170), 0.02 * dt);
     if (salivaLevel > 168 && inputSmell >= 99) salivaLevel = 170;
-    cephalicAcid = lerp(cephalicAcid, map(delayedSmell, 0, 100, 0, 150), 0.01 * dt / 60);
+    cephalicAcid = lerp(cephalicAcid, map(delayedSmell, 0, 100, 0, 150), 0.01 * dt);
   } else if (foodType === 2) {
-    salivaLevel  = lerp(salivaLevel, 5, 0.02 * dt / 60);
-    cephalicAcid = lerp(cephalicAcid, 0, 0.1 * dt / 60);
+    salivaLevel  = lerp(salivaLevel, 5, 0.02 * dt);
+    cephalicAcid = lerp(cephalicAcid, 0, 0.1 * dt);
   }
 
   let metabolismReady   = (insulinLevel > 20 && hepaticGlucoseOutput < 60);
@@ -805,17 +805,17 @@ function phase0() {
 function updateCephalicMetabolismFast() {
   if (foodType === 1) {
     let cal = map(delayedSmell, 0, 100, 0, 500);
-    insulinLevel            = lerp(insulinLevel, cal * 0.08, 0.05 * dt / 60);
-    hepaticGlucoseOutput    = lerp(hepaticGlucoseOutput, max(20, 100 - insulinLevel * 1.5), 0.03 * dt / 60);
+    insulinLevel            = lerp(insulinLevel, cal * 0.08, 0.05 * dt);
+    hepaticGlucoseOutput    = lerp(hepaticGlucoseOutput, max(20, 100 - insulinLevel * 1.5), 0.03 * dt);
     peripheralGlucoseUptake = map(insulinLevel, 0, 40, 0, 100);
   } else if (foodType === 2) {
-    insulinLevel            = lerp(insulinLevel, 0, 0.1 * dt / 60);
-    hepaticGlucoseOutput    = lerp(hepaticGlucoseOutput, 150, 0.05 * dt / 60);
-    peripheralGlucoseUptake = lerp(peripheralGlucoseUptake, 0, 0.1 * dt / 60);
+    insulinLevel            = lerp(insulinLevel, 0, 0.1 * dt);
+    hepaticGlucoseOutput    = lerp(hepaticGlucoseOutput, 150, 0.05 * dt);
+    peripheralGlucoseUptake = lerp(peripheralGlucoseUptake, 0, 0.1 * dt);
   } else {
-    insulinLevel            = lerp(insulinLevel, 0, 0.05 * dt / 60);
-    hepaticGlucoseOutput    = lerp(hepaticGlucoseOutput, 100, 0.02 * dt / 60);
-    peripheralGlucoseUptake = lerp(peripheralGlucoseUptake, 0, 0.05 * dt / 60);
+    insulinLevel            = lerp(insulinLevel, 0, 0.05 * dt);
+    hepaticGlucoseOutput    = lerp(hepaticGlucoseOutput, 100, 0.02 * dt);
+    peripheralGlucoseUptake = lerp(peripheralGlucoseUptake, 0, 0.05 * dt);
   }
 }
 
