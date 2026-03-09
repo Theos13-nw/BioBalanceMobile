@@ -445,8 +445,8 @@ class PhaseParticle {
 class AromaParticle {
   constructor(x, y) {
     this.x = x;  this.y = y;
-    this.vx    = random(-0.08, -0.16);  this.vy = random(-0.04, -0.10);  // 5× slower drift
-    this.alpha = random(25, 50);        this.size = random(3, 6);
+    this.vx    = random(-0.08, -0.16);  this.vy = random(-0.04, -0.10);
+    this.alpha = random(12, 28);        this.size = random(2, 4);  // subtle: low alpha, small
   }
   update(targetX, targetY) {
     let dx = targetX - this.x,  dy = targetY - this.y;
@@ -636,9 +636,9 @@ function soundTick() {
       mode === MODE_MECHANICS ||
       quizState === 1
     );
-    // Knowledge check: extra subtle. Other allowed screens: normal.
+    // Knowledge check: very subtle. Other allowed screens: quiet ambient.
     let targetVol = !onAllowedScreen ? 0
-                  : (quizState === 1 ? 0.018 : 0.045);
+                  : (quizState === 1 ? 0.010 : 0.025);
 
     // Smooth fade (~1.5s in, ~1.5s out)
     bgLoopVolCurrent += (targetVol - bgLoopVolCurrent) * 0.025;
@@ -808,15 +808,15 @@ function updatePhase0Logic() {
   updateCephalicMetabolismFast();
 
   if (foodType > 0) {
-    let spawnIntervalMs = map(delayedSmell, 0, 100, 167, 33);
+    let spawnIntervalMs = map(delayedSmell, 0, 100, 500, 120);
     aromaSpawnTimer += delta;
     if (aromaSpawnTimer >= spawnIntervalMs) {
       aromaSpawnTimer = 0;
       let foodX = GAME_W * 0.85, foodY = GAME_H / 2 + 20;
       let emissionX = foodX - 60, emissionY = foodY - 40;
-      let cnt = int(map(delayedSmell, 0, 100, 1, 3));
+        let cnt = delayedSmell > 70 ? 2 : 1;
       for (let i = 0; i < cnt; i++)
-        aromaParticles.push(new AromaParticle(emissionX - random(0, 40), emissionY + random(-20, 20)));
+        aromaParticles.push(new AromaParticle(emissionX - random(0, 30), emissionY + random(-15, 15)));
     }
   }
 
@@ -849,6 +849,9 @@ function updatePhase0Logic() {
     if (inputSmellNow >= 60) emeticTimer = min(EMETIC_THRESHOLD, emeticTimer + 0.15);
     else                     emeticTimer = max(0, emeticTimer - 2 * dt);
     sfx_wantWarning = (emeticTimer >= EMETIC_THRESHOLD);
+  } else {
+    sfx_wantWarning = false;
+    if (warningSfx && warningSfx.isPlaying()) warningSfx.stop();
   }
 }
 
@@ -864,6 +867,8 @@ function updatePhase1Logic() {
   let inPHWindow = (currentPH >= 1.5 && currentPH <= 3.0);
   pepsinTimer = inPHWindow ? min(60, pepsinTimer + dt) : 0;
   enzymeActive = (pepsinTimer >= 60 && pepsinState === PepsinState.ACTIVE);
+  sfx_wantAcid = enzymeActive;
+  if (!enzymeActive && acidSfx && acidSfx.isPlaying()) acidSfx.stop();
   updatePepsinDenaturation(currentPH, inPHWindow);
 
   if (proteinImg != null && enzymeActive)
@@ -1179,7 +1184,7 @@ function phase1() {
   }
 
   let pX = GAME_W / 2 + 110, pY = GAME_H / 2 + 40;
-  sfx_wantAcid = enzymeActive;  // actual play/stop handled in soundTick()
+  // sfx_wantAcid managed in updatePhase1Logic()
 
   if (proteinImg != null) {
     let pAlpha = enzymeActive ? map(proteinScale, 1.0, 0.0, 255, 0) : 200;
@@ -1621,11 +1626,13 @@ function drawFinalReport() {
     }
   }
 
-  fill(150, 200, 200);  textSize(14);  textAlign(CENTER);
+  fill(200, 230, 255);  textSize(15);  textAlign(CENTER);  textStyle(BOLD);
   text("Select a phase button below to read its detailed report", GAME_W / 2, GAME_H - 25);
-  fill(0, 255, 200);  textSize(16);  textAlign(LEFT);
-  text("System Designer: Altheo Cardillo",                        40, GAME_H - 60);
-  text("Educational Biology Simulation — Digestive System",       40, GAME_H - 40);
+  textStyle(NORMAL);
+  fill(255, 255, 255);  textSize(15);  textAlign(LEFT);
+  text("System Designer: Altheo Cardillo",                        40, GAME_H - 55);
+  fill(180, 220, 255);  textSize(13);
+  text("Educational Biology Simulation — Digestive System",       40, GAME_H - 38);
 }
 
 // =========================================================
@@ -2093,10 +2100,10 @@ function drawLicenseScreen() {
 // UTILITY DRAW FUNCTIONS
 // =========================================================
 function drawFooter() {
-  textAlign(LEFT);   // FIX: reset at start
-  fill(180);  textStyle(NORMAL);  textSize(12);
-  text(developer, 20, GAME_H - 15);
-  textAlign(CENTER); // restore for everything else
+  noStroke();
+  fill(100, 150, 180);  textStyle(NORMAL);  textSize(14);
+  textAlign(CENTER);
+  text(developer, GAME_W / 2, GAME_H - 15);
 }
 
 function drawPersistentReturnButton() {
