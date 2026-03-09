@@ -416,6 +416,30 @@ function setup() {
     p.y = random(GAME_H);
     reportParticles.push(p);
   }
+
+  // ── Pre-cache font metrics to prevent text-jump on first draw ──
+  // p5.js calculates textWidth/bounding boxes on first render of each string.
+  // Drawing them off-screen once here prevents the visible layout jump
+  // that occurs when proceed buttons / status text first appear in a phase.
+  push();
+  textSize(28);  textAlign(CENTER, CENTER);
+  fill(0, 0, 0, 0);  noStroke();  // fully transparent — invisible
+  let _dummyStrings = [
+    "PROCEED", "FOOD SWALLOWED — READY TO CONTINUE!",
+    "PROTEIN FULLY DIGESTED — READY TO PROCEED",
+    "HORMONES BALANCED — PROCEED", "ALL NUTRIENTS ABSORBED",
+    "CORRECT", "INCORRECT", "Score: 0 / 5 Correct",
+    "KNOWLEDGE CHECK", "ATTEMPT #1 — 80% MAXIMUM",
+    "FIRST ATTEMPT — 100% MASTERY AVAILABLE",
+    "STOMACH LINING IN DANGER — ULCER RISK HIGH!",
+    "ENZYME SHAPE BROKEN — PEPSIN STOPPED WORKING!",
+    "DIGESTING PROTEIN NOW!", "READY!", "YOUR DIGESTIVE REPORT"
+  ];
+  for (let s of _dummyStrings) { text(s, -9999, -9999); }
+  for (let sz of [12, 14, 16, 18, 20, 22, 24, 28, 32, 40, 48, 60, 72]) {
+    textSize(sz);  text("X", -9999, -9999);  // cache every text size used
+  }
+  pop();
 }
 
 function _calcScale() {
@@ -752,7 +776,7 @@ function draw() {
   if (quizState === 1)   { drawReflectionGate(); pop(); return; }
   renderGame();
   drawPersistentReturnButton();
-  if (mode !== MODE_TITLE && !showLicenseScreen) drawFooter();
+  if (!showLicenseScreen) drawFooter();  // footer on all modes including title
 
   // FPS debug removed — gameplay confirmed stable
 
@@ -1161,9 +1185,10 @@ function drawMetabolicPanelWithSaliva(x, y) {
   fill(255, 100, 150);  rect(x - 120 + map(insulinLevel, 0, 50, 0, 240) / 2, y - 10, map(insulinLevel, 0, 50, 0, 240), 20, 5);
   fill(255);  textSize(10);  text("INSULIN LEVEL: " + nf(insulinLevel, 0, 1), x, y - 25);
 
-  // Liver glucose bar
+  // Liver glucose bar — high output = full bar (biologically correct)
   fill(30, 40, 60);  rect(x, y + 35, 240, 20, 5);
-  let hw = map(hepaticGlucoseOutput, 0, 150, 240, 0);
+  let hw = map(hepaticGlucoseOutput, 0, 150, 0, 240);  // FIXED: high value = full bar
+  // Color: red when high (liver dumping too much), yellow mid, green when suppressed by insulin
   fill(hepaticGlucoseOutput < 60 ? color(0, 255, 150) : hepaticGlucoseOutput < 100 ? color(255, 255, 0) : color(255, 100, 100));
   rect(x - 120 + hw / 2, y + 35, hw, 20, 5);
   fill(255);  text("LIVER GLUCOSE: " + nf(hepaticGlucoseOutput, 0, 1) + "%", x, y + 20);
@@ -1311,11 +1336,16 @@ function updatePepsinDenaturation(currentPH, inPHWindow) {
   }
 
   if (pepsinState === PepsinState.DENATURED) {
-    pepsinogenReserve = min(100, pepsinogenReserve + 0.2*dt);
+    // Denatured: reserve stays where it is — only restored by player pressing RESTORE PEPSIN
   } else {
     if (inPHWindow && pepsinState === PepsinState.INACTIVE) {
       pepsinConcentration = min(100, pepsinConcentration + 0.037*dt);  // ~45s at perfect pH
+      // Consume pepsinogen reserve as it converts to active pepsin (biologically accurate)
+      pepsinogenReserve   = max(0,   pepsinogenReserve   - 0.037*dt);
       if (pepsinConcentration >= 60) pepsinState = PepsinState.ACTIVE;
+    } else if (inPHWindow && pepsinState === PepsinState.ACTIVE) {
+      // Still in pH window and active — continue slowly consuming reserve during digestion
+      pepsinogenReserve = max(0, pepsinogenReserve - 0.008*dt);
     } else if (!inPHWindow && pepsinState === PepsinState.ACTIVE) {
       if (currentPH > 3.0 && currentPH <= 4.0) {
         pepsinState = PepsinState.PARTIAL;
@@ -1652,12 +1682,9 @@ function drawFinalReport() {
   }
 
   fill(220, 240, 255);  textSize(15);  textAlign(CENTER);  textStyle(BOLD);
-  text("Select a phase button below to read its detailed report", GAME_W / 2, GAME_H - 25);
+  text("Select a phase button below to read its detailed report", GAME_W / 2, GAME_H - 48);
   textStyle(NORMAL);
-  fill(255, 255, 255);  textSize(15);  textAlign(LEFT);
-  text("System Designer: Altheo Cardillo",                        40, GAME_H - 55);
-  fill(180, 220, 255);  textSize(13);
-  text("Educational Biology Simulation — Digestive System",       40, GAME_H - 38);
+  // Developer credit now handled by drawFooter() — no duplicate text here
 }
 
 // =========================================================
@@ -2132,8 +2159,9 @@ function drawLicenseScreen() {
 function drawFooter() {
   noStroke();
   fill(100, 150, 180);  textStyle(NORMAL);  textSize(14);
-  textAlign(CENTER);
-  text(developer, GAME_W / 2, GAME_H - 15);
+  textAlign(LEFT);
+  text(developer, 20, GAME_H - 15);
+  textAlign(CENTER);  // restore default
 }
 
 function drawPersistentReturnButton() {
