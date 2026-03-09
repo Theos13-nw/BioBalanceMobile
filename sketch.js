@@ -12,8 +12,7 @@
 let bgLoop, clickSfx, acidSfx, successSfx, spraySfx, dragSfx,
     warningSfx, reportSfx, denatureSfx, bounceSfx, nhe3Sfx,
     wrongSfx, correctSfx, swallowSfx, chewSfx;
-let bgLoopStarted    = false;   // only set to true once — never reset (prevents loop stacking)
-let bgLoopVolCurrent = 0;       // actual smoothed volume applied each tick
+let bgLoopStarted = false;  // only set to true once — never reset (prevents loop stacking)
 
 // ── AUDIO FLAGS ────────────────────────────────────────────
 let cephalicSuccessPlayed = false;   // FIX: was missing from doc2 globals
@@ -352,12 +351,15 @@ function setup() {
         if (warningSfx && warningSfx.isPlaying()) warningSfx.stop();
         if (spraySfx && spraySfx.isPlaying()) spraySfx.stop();
       } else {
-        // Page visible again: resume audio context, let volume manager handle bgLoop
+        // Page visible again: resume audio context then restart bgLoop
         let ctx = getAudioContext();
         if (ctx && ctx.state === 'suspended') {
-          ctx.resume();
+          ctx.resume().then(function() {
+            if (bgLoop && bgLoopStarted && !bgLoop.isPlaying()) bgLoop.loop();
+          });
+        } else {
+          if (bgLoop && bgLoopStarted && !bgLoop.isPlaying()) bgLoop.loop();
         }
-        bgLoopVolCurrent = 0;  // restart fade-in smoothly from silence
         previousTime = millis();
         accumulator  = 0;
       }
@@ -446,7 +448,7 @@ class AromaParticle {
   constructor(x, y) {
     this.x = x;  this.y = y;
     this.vx    = random(-0.08, -0.16);  this.vy = random(-0.04, -0.10);
-    this.alpha = random(12, 28);        this.size = random(2, 4);  // subtle: low alpha, small
+    this.alpha = random(25, 50);        this.size = random(3, 6);
   }
   update(targetX, targetY) {
     let dx = targetX - this.x,  dy = targetY - this.y;
@@ -628,36 +630,18 @@ function updateAndDrawPhaseParticles(phaseIdx) {
 // Throttled to ~4× per second to prevent Web Audio API overload on mobile.
 // =========================================================
 function soundTick() {
-  // ── BG loop volume manager (every frame, smooth fade) ───────
-  if (bgLoop != null && bgLoopStarted) {
-    let onAllowedScreen = (
-      mode === MODE_TITLE     ||
-      mode === MODE_JOURNEY   ||
-      mode === MODE_MECHANICS ||
-      quizState === 1
-    );
-    // Knowledge check: very subtle. Other allowed screens: quiet ambient.
-    let targetVol = !onAllowedScreen ? 0
-                  : (quizState === 1 ? 0.010 : 0.025);
-
-    // Smooth fade (~1.5s in, ~1.5s out)
-    bgLoopVolCurrent += (targetVol - bgLoopVolCurrent) * 0.025;
-
-    if (bgLoopVolCurrent < 0.002) {
-      // Fully silent — pause to save Web Audio resources
-      if (bgLoop.isPlaying()) bgLoop.pause();
-    } else {
-      // Audible — resume if paused, lock rate, set volume
-      if (!bgLoop.isPlaying()) { bgLoop.rate(1.0); bgLoop.loop(); }
-      bgLoop.setVolume(bgLoopVolCurrent);
-      if (bgLoop.rate && bgLoop.rate() !== 1.0) bgLoop.rate(1.0);
-    }
-  }
-
-  // ── Throttled one-shot sound checks (~4× per second) ────────
   soundTickTimer++;
-  if (soundTickTimer < 15) return;
+  if (soundTickTimer < 15) return;   // only act every 15 frames (~4× per second)
   soundTickTimer = 0;
+
+  // BG loop health check — enforce rate to prevent drift
+  if (bgLoop && bgLoopStarted && !bgLoop.isPlaying()) {
+    bgLoop.setVolume(0.05);
+    bgLoop.rate(1.0);
+    bgLoop.loop();
+  } else if (bgLoop && bgLoopStarted && bgLoop.isPlaying()) {
+    if (bgLoop.rate && bgLoop.rate() !== 1.0) bgLoop.rate(1.0);
+  }
 
   // Warning sound
   if (sfx_wantWarning) {
@@ -746,9 +730,9 @@ function updateGameLogic() {
   // Spawn timer accumulates in ms; one tick = 16.666ms
   delta = 16.666;
 
-  // BG loop: started silently on first tick; volume managed by soundTick()
+  // BG loop: start once; rate locked to prevent drift
   if (bgLoop != null && !bgLoopStarted) {
-    bgLoop.setVolume(0);
+    bgLoop.setVolume(0.05);
     bgLoop.rate(1.0);
     bgLoop.loop();
     bgLoopStarted = true;
@@ -808,15 +792,15 @@ function updatePhase0Logic() {
   updateCephalicMetabolismFast();
 
   if (foodType > 0) {
-    let spawnIntervalMs = map(delayedSmell, 0, 100, 500, 120);
+    let spawnIntervalMs = map(delayedSmell, 0, 100, 167, 33);
     aromaSpawnTimer += delta;
     if (aromaSpawnTimer >= spawnIntervalMs) {
       aromaSpawnTimer = 0;
       let foodX = GAME_W * 0.85, foodY = GAME_H / 2 + 20;
       let emissionX = foodX - 60, emissionY = foodY - 40;
-        let cnt = delayedSmell > 70 ? 2 : 1;
+        let cnt = int(map(delayedSmell, 0, 100, 1, 3));
       for (let i = 0; i < cnt; i++)
-        aromaParticles.push(new AromaParticle(emissionX - random(0, 30), emissionY + random(-15, 15)));
+        aromaParticles.push(new AromaParticle(emissionX - random(0, 40), emissionY + random(-20, 20)));
     }
   }
 
@@ -849,9 +833,6 @@ function updatePhase0Logic() {
     if (inputSmellNow >= 60) emeticTimer = min(EMETIC_THRESHOLD, emeticTimer + 0.15);
     else                     emeticTimer = max(0, emeticTimer - 2 * dt);
     sfx_wantWarning = (emeticTimer >= EMETIC_THRESHOLD);
-  } else {
-    sfx_wantWarning = false;
-    if (warningSfx && warningSfx.isPlaying()) warningSfx.stop();
   }
 }
 
@@ -867,8 +848,6 @@ function updatePhase1Logic() {
   let inPHWindow = (currentPH >= 1.5 && currentPH <= 3.0);
   pepsinTimer = inPHWindow ? min(60, pepsinTimer + dt) : 0;
   enzymeActive = (pepsinTimer >= 60 && pepsinState === PepsinState.ACTIVE);
-  sfx_wantAcid = enzymeActive;
-  if (!enzymeActive && acidSfx && acidSfx.isPlaying()) acidSfx.stop();
   updatePepsinDenaturation(currentPH, inPHWindow);
 
   if (proteinImg != null && enzymeActive)
@@ -1184,7 +1163,7 @@ function phase1() {
   }
 
   let pX = GAME_W / 2 + 110, pY = GAME_H / 2 + 40;
-  // sfx_wantAcid managed in updatePhase1Logic()
+  sfx_wantAcid = enzymeActive;  // actual play/stop handled in soundTick()
 
   if (proteinImg != null) {
     let pAlpha = enzymeActive ? map(proteinScale, 1.0, 0.0, 255, 0) : 200;
@@ -1626,13 +1605,11 @@ function drawFinalReport() {
     }
   }
 
-  fill(200, 230, 255);  textSize(15);  textAlign(CENTER);  textStyle(BOLD);
+  fill(150, 200, 200);  textSize(14);  textAlign(CENTER);
   text("Select a phase button below to read its detailed report", GAME_W / 2, GAME_H - 25);
-  textStyle(NORMAL);
-  fill(255, 255, 255);  textSize(15);  textAlign(LEFT);
-  text("System Designer: Altheo Cardillo",                        40, GAME_H - 55);
-  fill(180, 220, 255);  textSize(13);
-  text("Educational Biology Simulation — Digestive System",       40, GAME_H - 38);
+  fill(0, 255, 200);  textSize(16);  textAlign(LEFT);
+  text("System Designer: Altheo Cardillo",                        40, GAME_H - 60);
+  text("Educational Biology Simulation — Digestive System",       40, GAME_H - 40);
 }
 
 // =========================================================
@@ -2100,10 +2077,10 @@ function drawLicenseScreen() {
 // UTILITY DRAW FUNCTIONS
 // =========================================================
 function drawFooter() {
-  noStroke();
-  fill(100, 150, 180);  textStyle(NORMAL);  textSize(14);
+  textAlign(LEFT);
+  fill(180);  textStyle(NORMAL);  textSize(12);
+  text(developer, 20, GAME_H - 15);
   textAlign(CENTER);
-  text(developer, GAME_W / 2, GAME_H - 15);
 }
 
 function drawPersistentReturnButton() {
