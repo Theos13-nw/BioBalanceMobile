@@ -85,6 +85,8 @@ let homeostasisJustReached  = false;
 let homeostasisDisplayTimer = 0;
 const HOMEOSTASIS_DISPLAY_FRAMES = 65;
 let homeostasisLocked = false;
+let greenZoneTimer = 0;                   // counts dt-ticks both hormones are in green zone
+const GREEN_ZONE_REQUIRED = 30 * 60;     // 30 seconds × 60 ticks = 1800 ticks
 let phase1Complete    = false;
 let hormoneMist = [];
 let pepsinTimer = 0;
@@ -767,17 +769,24 @@ function updatePhase1Logic() {
 
 function updatePhase2Logic() {
   let thresholdMet = (secretinLevel >= 150 && cckLevel >= 150);
-  if (thresholdMet && !homeostasisReached) {
-    homeostasisReached = true;  homeostasisJustReached = true;
-    homeostasisLocked  = true;  homeostasisDisplayTimer = HOMEOSTASIS_DISPLAY_FRAMES;
+
+  // Count up greenZoneTimer only while BOTH hormones are in green zone
+  // Reset to 0 the instant either drops below threshold
+  if (thresholdMet) {
+    greenZoneTimer += dt;
+  } else {
+    greenZoneTimer = 0;
   }
-  if (homeostasisDisplayTimer > 0) {
-    homeostasisDisplayTimer -= dt;
-    if (homeostasisDisplayTimer <= 0) homeostasisLocked = false;
+
+  // Homeostasis reached only after sustaining green for full 30 seconds
+  if (greenZoneTimer >= GREEN_ZONE_REQUIRED && !homeostasisReached) {
+    homeostasisReached     = true;
+    homeostasisJustReached = true;
+    homeostasisLocked      = false;  // unlock proceed immediately
+    homeostasisDisplayTimer = 0;
   }
-  if (homeostasisReached && !homeostasisLocked && !thresholdMet) {
-    homeostasisReached = false;  homeostasisJustReached = false;
-  }
+  // If hormones drop after reaching homeostasis, keep it reached (don't un-reach)
+  // but if they drop before the 30s, greenZoneTimer already resets above
 
   if (mouseIsPressed && (sprayType === 1 || sprayType === 2)) {
     if (spraySfx && !spraySfx.isPlaying()) spraySfx.play();
@@ -785,7 +794,7 @@ function updatePhase2Logic() {
     if (sprayType === 1) {
       secretinLevel = min(secretinLevel + 1.0, 200);
       for (let i = 0; i < 3; i++)
-        hormoneMist.push(new Mist(GAME_W*0.015+80, GAME_H/2+50+yOffset, random(5,10), random(-2,2), [0,150,255]));
+        hormoneMist.push(new Mist(GAME_W*0.15+80, GAME_H/2+50+yOffset, random(5,10), random(-2,2), [0,150,255]));
     } else {
       cckLevel = min(cckLevel + 1.0, 200);
       for (let i = 0; i < 3; i++)
@@ -1255,13 +1264,20 @@ function phase2() {
   let thresholdMet = (secretinLevel >= 150 && cckLevel >= 150);
 
   textAlign(CENTER);
-  if (homeostasisReached && homeostasisDisplayTimer <= 0) {
+  if (homeostasisReached) {
     fill(0, 255, 150);  textStyle(BOLD);  textSize(22);
     text("ACID NEUTRALIZED — READY FOR NUTRIENT ABSORPTION!", GAME_W / 2, warningY);  textStyle(NORMAL);
     drawProceedButton(GAME_W / 2, warningY + 45);
-  } else if (homeostasisReached && homeostasisDisplayTimer > 0) {
+  } else if (greenZoneTimer > 0) {
+    // Actively counting — show progress bar
+    let pct = greenZoneTimer / GREEN_ZONE_REQUIRED;
     fill(0, 255, 150, 150 + sin(millis() * 0.004) * 105);  textStyle(BOLD);  textSize(22);
-    text("HORMONES BALANCED — WAIT FOR ABSORPTION TO BEGIN...", GAME_W / 2, warningY);  textStyle(NORMAL);
+    text("HORMONES BALANCED — HOLD FOR " + nf((GREEN_ZONE_REQUIRED - greenZoneTimer) / 60, 0, 0) + "s MORE...", GAME_W / 2, warningY);  textStyle(NORMAL);
+    // Progress bar
+    fill(30, 40, 60);  stroke(255, 80);  strokeWeight(1);
+    rect(GAME_W / 2, warningY + 40, 400, 18, 5);
+    fill(0, 255, 150);  noStroke();
+    rect(GAME_W / 2 - 200 + pct * 200, warningY + 40, pct * 400, 18, 5);
   } else {
     let p2T = (secretinLevel <= 150 && cckLevel <= 150) ? "TOO MUCH ACID AND FAT! SPRAY BOTH HORMONES!" :
               (secretinLevel <= 150)                    ? "TOO MUCH STOMACH ACID HERE — SPRAY SECRETIN!" :
@@ -1269,7 +1285,7 @@ function phase2() {
     fill(255);  textStyle(BOLD);  textSize(22);  text(p2T, GAME_W / 2, warningY);  textStyle(NORMAL);
   }
 
-  drawHormoneButton(GAME_W * 0.015, GAME_H / 2 + 50 + yOffset, "SECRETIN", color(0, 150, 255), sprayType === 1, hormone1Img);
+  drawHormoneButton(GAME_W * 0.15, GAME_H / 2 + 50 + yOffset, "SECRETIN", color(0, 150, 255), sprayType === 1, hormone1Img);
   drawHormoneButton(GAME_W * 0.85, GAME_H / 2 + 50 + yOffset, "CCK",      color(255, 180, 0), sprayType === 2, hormone2Img);
 
   // FIX: secretinLevel/cckLevel range is 0–200; divide by 2 to show 0–100%
@@ -1363,7 +1379,7 @@ function handleNutrientPhysicsStrict(zoneX, zoneW, zoneH, capY, nheY, lacY) {
   // --- Glucose → capillary ---
   if (!draggingGlucose && !glucoseSorted) {
     if (pointInZone(glucoseX, glucoseY, zoneX, capY, zoneW, zoneH)) {
-      gTimer += 0.005;
+      gTimer += 1.0 / 1800.0;   // ~30 seconds at 60 ticks/s
       if (gTimer >= 1.0) { glucoseSorted = true; capillaryPulse = 30; triggerBurst(glucoseX, glucoseY, [0,255,0]); if (correctSfx) correctSfx.play(); }
     } else if (pointInZone(glucoseX, glucoseY, zoneX, nheY, zoneW, zoneH) ||
                pointInZone(glucoseX, glucoseY, zoneX, lacY, zoneW, zoneH)) {
@@ -1376,7 +1392,7 @@ function handleNutrientPhysicsStrict(zoneX, zoneW, zoneH, capY, nheY, lacY) {
   if (!draggingSodiumSGLT && !sodiumSGLTSorted) {
     if (pointInZone(sodiumSGLTX, sodiumSGLTY, zoneX, capY, zoneW, zoneH)) {
       let speedMult = dist(sodiumSGLTX, sodiumSGLTY, glucoseX, glucoseY) < 80 ? 2.0 : 1.0;
-      sGLTTimer += 0.005 * speedMult;
+      sGLTTimer += (1.0 / 1800.0) * speedMult;   // ~30 seconds
       if (sGLTTimer >= 1.0) { sodiumSGLTSorted = true; capillaryPulse = 30; triggerBurst(sodiumSGLTX, sodiumSGLTY, [0,200,150]); if (correctSfx) correctSfx.play(); }
     } else if (pointInZone(sodiumSGLTX, sodiumSGLTY, zoneX, nheY, zoneW, zoneH) ||
                pointInZone(sodiumSGLTX, sodiumSGLTY, zoneX, lacY, zoneW, zoneH)) {
@@ -1388,7 +1404,7 @@ function handleNutrientPhysicsStrict(zoneX, zoneW, zoneH, capY, nheY, lacY) {
   // --- Sodium NHE3 → exchanger ---
   if (!draggingSodiumNHE3 && !sodiumNHE3Sorted) {
     if (pointInZone(sodiumNH3X, sodiumNH3Y, zoneX, nheY, zoneW, zoneH)) {
-      nhe3Timer += 0.004;
+      nhe3Timer += 1.0 / 1800.0;   // ~30 seconds
       if (nhe3Timer >= 1.0) { sodiumNHE3Sorted = true; nhe3Pulse = 30; triggerBurst(sodiumNH3X, sodiumNH3Y, [0,100,200]); if (nhe3Sfx) nhe3Sfx.play(); if (correctSfx) correctSfx.play(); }
     } else if (pointInZone(sodiumNH3X, sodiumNH3Y, zoneX, capY, zoneW, zoneH) ||
                pointInZone(sodiumNH3X, sodiumNH3Y, zoneX, lacY, zoneW, zoneH)) {
@@ -1400,7 +1416,7 @@ function handleNutrientPhysicsStrict(zoneX, zoneW, zoneH, capY, nheY, lacY) {
   // --- Lipid → lacteal ---
   if (!draggingLipid && !lipidSorted) {
     if (pointInZone(lipidX, lipidY, zoneX, lacY, zoneW, zoneH)) {
-      lTimer += 0.005;
+      lTimer += 1.0 / 1800.0;   // ~30 seconds
       if (lTimer >= 1.0) { lipidSorted = true; lactealPulse = 30; triggerBurst(lipidX, lipidY, [255,255,180]); if (correctSfx) correctSfx.play(); }
     } else if (pointInZone(lipidX, lipidY, zoneX, capY, zoneW, zoneH) ||
                pointInZone(lipidX, lipidY, zoneX, nheY, zoneW, zoneH)) {
@@ -1599,9 +1615,9 @@ function handleInputStart() {
 
   if (mode === MODE_PHASE2) {
     let yOffset = 40, warningY = 130;
-    if (ix > GAME_W*0.015-100 && ix < GAME_W*0.015+100 && iy > GAME_H/2+50+yOffset-80 && iy < GAME_H/2+50+yOffset+80) sprayType = 1;
+    if (ix > GAME_W*0.15-100 && ix < GAME_W*0.15+100 && iy > GAME_H/2+50+yOffset-80 && iy < GAME_H/2+50+yOffset+80) sprayType = 1;
     else if (ix > GAME_W*0.85-100 && ix < GAME_W*0.85+100 && iy > GAME_H/2+50+yOffset-80 && iy < GAME_H/2+50+yOffset+80) sprayType = 2;
-    if (homeostasisReached && homeostasisDisplayTimer <= 0) {
+    if (homeostasisReached) {
       if (ix > GAME_W/2-100 && ix < GAME_W/2+100 && iy > (warningY+45)-25 && iy < (warningY+45)+25) { if (successSfx) successSfx.play();  startReflectionGate(); }
     }
   }
@@ -2420,7 +2436,7 @@ function resetSimulationToPhaseStart() {
   } else if (mode===MODE_PHASE2) {
     secretinLevel=0;  cckLevel=0;  homeostasisReached=false;
     homeostasisJustReached=false;  homeostasisDisplayTimer=0;
-    homeostasisLocked=false;  hormoneMist=[];
+    homeostasisLocked=false;  greenZoneTimer=0;  hormoneMist=[];
     phase2ButtonSuccessPlayed=false;  phase2ProceedSoundPlayed=false;
   } else if (mode===MODE_PHASE3) {
     glucoseSorted=false;  sodiumSGLTSorted=false;
