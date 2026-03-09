@@ -79,7 +79,7 @@ let proteinScale  = 1.0;
 let ulcerRisk     = 0;
 let sliderX;
 let sprayType     = 0;
-let secretinLevel = 0, cckLevel = 0, decayRate = 0.55;
+let secretinLevel = 0, cckLevel = 0, decayRate = 0.30;
 let homeostasisReached      = false;
 let homeostasisJustReached  = false;
 let homeostasisDisplayTimer = 0;
@@ -126,7 +126,7 @@ let sodiumNH3VX  = 0, sodiumNH3VY  = 0;
 let lipidVX    = 0, lipidVY    = 0;
 
 let phase3ProceedDelay = 0;
-const PHASE3_PROCEED_DELAY_FRAMES = 45;
+const PHASE3_PROCEED_DELAY_FRAMES = 90;
 let dragOffsetX = 0, dragOffsetY = 0;
 
 // ── JOURNEY MAP ────────────────────────────────────────────
@@ -312,7 +312,7 @@ function preload() {
 // SETUP
 // =========================================================
 function setup() {
-  pixelDensity(1);      // Prevents GPU overload on mobile
+  pixelDensity(2);      // 2x pixel density for crisp text/images on high-DPI phones
   createCanvas(windowWidth, windowHeight);
   noSmooth();           // Sharper pixel edges, less blur on mobile upscaling
   frameRate(60);        // Request 60fps cap
@@ -716,9 +716,9 @@ function updatePhase0Logic() {
   delayedSmell = lerp(delayedSmell, inputSmell, 1 - pow(1 - 0.015, dt));
 
   if (foodType === 1) {
-    salivaLevel  = lerp(salivaLevel, map(inputSmell, 0, 100, 40, 170), 1 - pow(1 - 0.012, dt));
+    salivaLevel  = lerp(salivaLevel, map(inputSmell, 0, 100, 40, 170), 1 - pow(1 - 0.007, dt));
     if (salivaLevel > 168 && inputSmell >= 99) salivaLevel = 170;
-    cephalicAcid = lerp(cephalicAcid, map(delayedSmell, 0, 100, 0, 150), 1 - pow(1 - 0.01, dt));
+    cephalicAcid = lerp(cephalicAcid, map(delayedSmell, 0, 100, 0, 150), 1 - pow(1 - 0.005, dt));
   } else if (foodType === 2) {
     salivaLevel  = lerp(salivaLevel, 5, 1 - pow(1 - 0.02, dt));
     cephalicAcid = lerp(cephalicAcid, 0, 1 - pow(1 - 0.1, dt));
@@ -745,7 +745,7 @@ function updatePhase1Logic() {
 
   let currentPH = map(sliderX, sliderStart, sliderEnd, 7.0, 1.0);
   stomachAcid = map(currentPH, 7.0, 1.0, 0, 255);
-  ulcerRisk   = (currentPH < 1.5) ? min(110, ulcerRisk + 2*dt) : max(0, ulcerRisk - 10*dt);
+  ulcerRisk   = (currentPH < 1.5) ? min(110, ulcerRisk + 1*dt) : max(0, ulcerRisk - 5*dt);
 
   let inPHWindow = (currentPH >= 1.5 && currentPH <= 3.0);
   pepsinTimer = inPHWindow ? min(60, pepsinTimer + dt) : 0;
@@ -753,7 +753,7 @@ function updatePhase1Logic() {
   updatePepsinDenaturation(currentPH, inPHWindow);
 
   if (proteinImg != null && enzymeActive)
-    proteinScale = max(0.0, proteinScale - 0.003 * dt);
+    proteinScale = max(0.0, proteinScale - 0.0015 * dt);
   else if (proteinScale < 1.0 && pepsinState !== PepsinState.ACTIVE)
     proteinScale = min(1.0, proteinScale + 0.02);
 
@@ -783,11 +783,11 @@ function updatePhase2Logic() {
     if (spraySfx && !spraySfx.isPlaying()) spraySfx.play();
     let yOffset = 40;
     if (sprayType === 1) {
-      secretinLevel = min(secretinLevel + 3.0*dt, 200);
+      secretinLevel = min(secretinLevel + 2.0*dt, 200);
       for (let i = 0; i < 3; i++)
         hormoneMist.push(new Mist(GAME_W*0.15+80, GAME_H/2+50+yOffset, random(5,10), random(-2,2), [0,150,255]));
     } else {
-      cckLevel = min(cckLevel + 3.0*dt, 200);
+      cckLevel = min(cckLevel + 2.0*dt, 200);
       for (let i = 0; i < 3; i++)
         hormoneMist.push(new Mist(GAME_W*0.85-80, GAME_H/2+50+yOffset, random(-10,-5), random(-2,2), [255,180,0]));
     }
@@ -974,8 +974,8 @@ function phase0() {
 function updateCephalicMetabolismFast() {
   if (foodType === 1) {
     let cal = map(delayedSmell, 0, 100, 0, 500);
-    insulinLevel            = lerp(insulinLevel, cal * 0.08, 1 - pow(1 - 0.05, dt));
-    hepaticGlucoseOutput    = lerp(hepaticGlucoseOutput, max(20, 100 - insulinLevel * 1.5), 1 - pow(1 - 0.03, dt));
+    insulinLevel            = lerp(insulinLevel, cal * 0.08, 1 - pow(1 - 0.025, dt));
+    hepaticGlucoseOutput    = lerp(hepaticGlucoseOutput, max(20, 100 - insulinLevel * 1.5), 1 - pow(1 - 0.015, dt));
     peripheralGlucoseUptake = map(insulinLevel, 0, 40, 0, 100);
   } else if (foodType === 2) {
     insulinLevel            = lerp(insulinLevel, 0, 1 - pow(1 - 0.1, dt));
@@ -1071,7 +1071,7 @@ function phase1() {
   // Bubbles updated in logic tick; just display here
   for (let ab of acidBubbles) ab.display();
 
-  drawPepsinPanelBig(GAME_W - 140, GAME_H / 2, currentPH, inPHWindow, enzymeActive);
+  drawPepsinPanelBig(140, GAME_H / 2, currentPH, inPHWindow, enzymeActive);
 
   let phC = lerpColor(color(0, 150, 255), color(255, 0, 0), map(currentPH, 7, 1, 0, 1));
   stroke(255, 150);  strokeWeight(4);
@@ -1163,7 +1163,7 @@ function updatePepsinDenaturation(currentPH, inPHWindow) {
     pepsinogenReserve = min(100, pepsinogenReserve + 0.2*dt);
   } else {
     if (inPHWindow && pepsinState === PepsinState.INACTIVE) {
-      pepsinConcentration = min(100, pepsinConcentration + 1.5*dt);
+      pepsinConcentration = min(100, pepsinConcentration + 0.7*dt);
       if (pepsinConcentration >= 60) pepsinState = PepsinState.ACTIVE;
     } else if (!inPHWindow && pepsinState === PepsinState.ACTIVE) {
       if (currentPH > 3.0 && currentPH <= 4.0) {
@@ -1363,7 +1363,7 @@ function handleNutrientPhysicsStrict(zoneX, zoneW, zoneH, capY, nheY, lacY) {
   // --- Glucose → capillary ---
   if (!draggingGlucose && !glucoseSorted) {
     if (pointInZone(glucoseX, glucoseY, zoneX, capY, zoneW, zoneH)) {
-      gTimer += 0.03;
+      gTimer += 0.015;
       if (gTimer >= 1.0) { glucoseSorted = true; capillaryPulse = 30; triggerBurst(glucoseX, glucoseY, [0,255,0]); if (correctSfx) correctSfx.play(); }
     } else if (pointInZone(glucoseX, glucoseY, zoneX, nheY, zoneW, zoneH) ||
                pointInZone(glucoseX, glucoseY, zoneX, lacY, zoneW, zoneH)) {
@@ -1376,7 +1376,7 @@ function handleNutrientPhysicsStrict(zoneX, zoneW, zoneH, capY, nheY, lacY) {
   if (!draggingSodiumSGLT && !sodiumSGLTSorted) {
     if (pointInZone(sodiumSGLTX, sodiumSGLTY, zoneX, capY, zoneW, zoneH)) {
       let speedMult = dist(sodiumSGLTX, sodiumSGLTY, glucoseX, glucoseY) < 80 ? 2.0 : 1.0;
-      sGLTTimer += 0.03 * speedMult;
+      sGLTTimer += 0.015 * speedMult;
       if (sGLTTimer >= 1.0) { sodiumSGLTSorted = true; capillaryPulse = 30; triggerBurst(sodiumSGLTX, sodiumSGLTY, [0,200,150]); if (correctSfx) correctSfx.play(); }
     } else if (pointInZone(sodiumSGLTX, sodiumSGLTY, zoneX, nheY, zoneW, zoneH) ||
                pointInZone(sodiumSGLTX, sodiumSGLTY, zoneX, lacY, zoneW, zoneH)) {
@@ -1388,7 +1388,7 @@ function handleNutrientPhysicsStrict(zoneX, zoneW, zoneH, capY, nheY, lacY) {
   // --- Sodium NHE3 → exchanger ---
   if (!draggingSodiumNHE3 && !sodiumNHE3Sorted) {
     if (pointInZone(sodiumNH3X, sodiumNH3Y, zoneX, nheY, zoneW, zoneH)) {
-      nhe3Timer += 0.025;
+      nhe3Timer += 0.012;
       if (nhe3Timer >= 1.0) { sodiumNHE3Sorted = true; nhe3Pulse = 30; triggerBurst(sodiumNH3X, sodiumNH3Y, [0,100,200]); if (nhe3Sfx) nhe3Sfx.play(); if (correctSfx) correctSfx.play(); }
     } else if (pointInZone(sodiumNH3X, sodiumNH3Y, zoneX, capY, zoneW, zoneH) ||
                pointInZone(sodiumNH3X, sodiumNH3Y, zoneX, lacY, zoneW, zoneH)) {
@@ -1400,7 +1400,7 @@ function handleNutrientPhysicsStrict(zoneX, zoneW, zoneH, capY, nheY, lacY) {
   // --- Lipid → lacteal ---
   if (!draggingLipid && !lipidSorted) {
     if (pointInZone(lipidX, lipidY, zoneX, lacY, zoneW, zoneH)) {
-      lTimer += 0.03;
+      lTimer += 0.015;
       if (lTimer >= 1.0) { lipidSorted = true; lactealPulse = 30; triggerBurst(lipidX, lipidY, [255,255,180]); if (correctSfx) correctSfx.play(); }
     } else if (pointInZone(lipidX, lipidY, zoneX, capY, zoneW, zoneH) ||
                pointInZone(lipidX, lipidY, zoneX, nheY, zoneW, zoneH)) {
@@ -2235,7 +2235,9 @@ function drawReflectionGate() {
       let tw = textWidth(ch);
       let bw3 = min(GAME_W-100, max(500, tw+80)), bh3 = 80;
       let y   = 370 + i * 115;
-      let hov = feedbackTimer <= 0 &&  // no highlight while feedback showing
+      // hov: only highlight while actively pressing AND no feedback showing
+      // mouseIsPressed covers both mouse and touch (false after finger lifts)
+      let hov = feedbackTimer <= 0 && mouseIsPressed &&
                getInputX()>cx-bw3/2 && getInputX()<cx+bw3/2 &&
                getInputY()>y-bh3/2  && getInputY()<y+bh3/2;
       fill(hov?color(25,50,80):color(15,30,50));
