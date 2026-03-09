@@ -321,7 +321,10 @@ function setup() {
 }
 
 function _calcScale() {
-  scaleF  = min(windowWidth / GAME_W, windowHeight / GAME_H);
+  // Scale to fill the full screen width — no black side bars
+  scaleF  = windowWidth / GAME_W;
+  // If that makes height overflow, scale to fit height instead
+  if (GAME_H * scaleF > windowHeight) scaleF = windowHeight / GAME_H;
   offsetX = (windowWidth  - GAME_W * scaleF) / 2;
   offsetY = (windowHeight - GAME_H * scaleF) / 2;
 }
@@ -693,6 +696,11 @@ function phase0() {
   }
 
   let sStart = GAME_W / 2 - 200, sEnd = GAME_W / 2 + 200, sliderY = GAME_H - 150;
+
+  // FIX: update smellSliderX position while dragging
+  if (isDraggingSmellSlider)
+    smellSliderX = constrain(getInputX(), sStart, sEnd);
+
   let inputSmell = map(smellSliderX, sStart, sEnd, 0, 100);
   delayedSmell = lerp(delayedSmell, inputSmell, 0.015);
 
@@ -759,7 +767,7 @@ function phase0() {
   if (!hasSwallowed && cephalicReady && !isChewing)
     drawNextButton(GAME_W / 2, buttonY, "CHEW FOOD");
 
-  drawMetabolicPanelWithSaliva(GAME_W - 160, GAME_H / 2);
+  drawMetabolicPanelWithSaliva(160, GAME_H / 2);
 
   stroke(0, 255, 200);  strokeWeight(4);
   line(sStart, sliderY, sEnd, sliderY);
