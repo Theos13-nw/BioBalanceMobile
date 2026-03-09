@@ -649,7 +649,7 @@ function updateGameLogic() {
   if (isShaking) {
     shakeIntensity = lerp(shakeIntensity, map(delayedSmell, 0, 100, 0.5, 4.0), 1 - pow(1 - 0.1, dt));
   } else {
-    shakeIntensity = lerp(shakeIntensity, 0, 0.01);
+    shakeIntensity = lerp(shakeIntensity, 0, 0.003);
   }
 
   if (showOverlay) overlayAlpha = lerp(overlayAlpha, 255, 1 - pow(1 - 0.2, dt));
@@ -785,7 +785,7 @@ function updatePhase2Logic() {
     if (sprayType === 1) {
       secretinLevel = min(secretinLevel + 1.0, 200);
       for (let i = 0; i < 3; i++)
-        hormoneMist.push(new Mist(GAME_W*0.035+80, GAME_H/2+50+yOffset, random(5,10), random(-2,2), [0,150,255]));
+        hormoneMist.push(new Mist(GAME_W*0.015+80, GAME_H/2+50+yOffset, random(5,10), random(-2,2), [0,150,255]));
     } else {
       cckLevel = min(cckLevel + 1.0, 200);
       for (let i = 0; i < 3; i++)
@@ -1269,12 +1269,12 @@ function phase2() {
     fill(255);  textStyle(BOLD);  textSize(22);  text(p2T, GAME_W / 2, warningY);  textStyle(NORMAL);
   }
 
-  drawHormoneButton(GAME_W * 0.035, GAME_H / 2 + 50 + yOffset, "SECRETIN", color(0, 150, 255), sprayType === 1, hormone1Img);
+  drawHormoneButton(GAME_W * 0.015, GAME_H / 2 + 50 + yOffset, "SECRETIN", color(0, 150, 255), sprayType === 1, hormone1Img);
   drawHormoneButton(GAME_W * 0.85, GAME_H / 2 + 50 + yOffset, "CCK",      color(255, 180, 0), sprayType === 2, hormone2Img);
 
   // FIX: secretinLevel/cckLevel range is 0–200; divide by 2 to show 0–100%
   fill(0, 180, 255);  textSize(14);  textAlign(CENTER);
-  text("Secretin: " + int(secretinLevel / 2) + "% (need 75%)", GAME_W * 0.035, GAME_H / 2 + 50 + yOffset + 100);
+  text("Secretin: " + int(secretinLevel / 2) + "% (need 75%)", GAME_W * 0.015, GAME_H / 2 + 50 + yOffset + 100);
   fill(255, 200, 0);
   text("CCK: " + int(cckLevel / 2) + "% (need 75%)", GAME_W * 0.85, GAME_H / 2 + 50 + yOffset + 100);
 
@@ -1599,7 +1599,7 @@ function handleInputStart() {
 
   if (mode === MODE_PHASE2) {
     let yOffset = 40, warningY = 130;
-    if (ix > GAME_W*0.035-100 && ix < GAME_W*0.035+100 && iy > GAME_H/2+50+yOffset-80 && iy < GAME_H/2+50+yOffset+80) sprayType = 1;
+    if (ix > GAME_W*0.015-100 && ix < GAME_W*0.015+100 && iy > GAME_H/2+50+yOffset-80 && iy < GAME_H/2+50+yOffset+80) sprayType = 1;
     else if (ix > GAME_W*0.85-100 && ix < GAME_W*0.85+100 && iy > GAME_H/2+50+yOffset-80 && iy < GAME_H/2+50+yOffset+80) sprayType = 2;
     if (homeostasisReached && homeostasisDisplayTimer <= 0) {
       if (ix > GAME_W/2-100 && ix < GAME_W/2+100 && iy > (warningY+45)-25 && iy < (warningY+45)+25) { if (successSfx) successSfx.play();  startReflectionGate(); }
