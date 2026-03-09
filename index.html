@@ -3,9 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
   <title>BioBalance</title>
+
   <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.4/p5.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.4/addons/p5.sound.min.js"></script>
+
   <style>
     html, body {
       margin: 0;
@@ -18,9 +22,14 @@
     }
     canvas {
       display: block;
-      width: 100% !important;
-      height: 100% !important;
-      object-fit: contain;
+      width: 100vw !important;
+      height: 100vh !important;
+      position: fixed;
+      top: 0;
+      left: 0;
+      image-rendering: crisp-edges;
+      image-rendering: -webkit-optimize-contrast;
+      object-fit: fill;
     }
   </style>
 </head>
