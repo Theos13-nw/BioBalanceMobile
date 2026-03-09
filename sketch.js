@@ -295,6 +295,8 @@ function preload() {
 // =========================================================
 function setup() {
   createCanvas(windowWidth, windowHeight);
+  frameRate(60);       // FIX: lock to 60fps — mobile screens run at 90/120hz
+  pixelDensity(1);     // FIX: prevent retina doubling on mobile
   imageMode(CENTER);
   rectMode(CENTER);
   _calcScale();
@@ -321,11 +323,9 @@ function setup() {
 }
 
 function _calcScale() {
-  // Scale to fill the full screen width — no black side bars
+  // Always fill the full screen width — stretch to fit, slight crop on height is ok
   scaleF  = windowWidth / GAME_W;
-  // If that makes height overflow, scale to fit height instead
-  if (GAME_H * scaleF > windowHeight) scaleF = windowHeight / GAME_H;
-  offsetX = (windowWidth  - GAME_W * scaleF) / 2;
+  offsetX = 0;
   offsetY = (windowHeight - GAME_H * scaleF) / 2;
 }
 
