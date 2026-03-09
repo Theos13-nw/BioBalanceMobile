@@ -12,7 +12,8 @@
 let bgLoop, clickSfx, acidSfx, successSfx, spraySfx, dragSfx,
     warningSfx, reportSfx, denatureSfx, bounceSfx, nhe3Sfx,
     wrongSfx, correctSfx, swallowSfx, chewSfx;
-let bgLoopStarted = false;  // only set to true once — never reset (prevents loop stacking)
+let bgLoopStarted    = false;   // only set to true once — never reset (prevents loop stacking)
+let bgLoopVolCurrent = 0;       // actual smoothed volume applied each tick
 
 // ── AUDIO FLAGS ────────────────────────────────────────────
 let cephalicSuccessPlayed = false;   // FIX: was missing from doc2 globals
@@ -221,6 +222,11 @@ let delta = 16.666;               // kept for spawn timers (ms per tick = 16.666
 let realFPS = 60;
 let smoothedFPS = 60;
 let isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+let soundTickTimer = 0;   // throttle sound management to ~4×/sec
+// Sound state flags — set by logic, acted on by soundTick() once per frame
+let sfx_wantWarning  = false;
+let sfx_wantAcid     = false;
+let sfx_wantSpray    = false;
 
 // ── TOUCH/DRAG STATE ──────────────────────────────────────
 let isDraggingSmellSlider = false;
@@ -346,16 +352,12 @@ function setup() {
         if (warningSfx && warningSfx.isPlaying()) warningSfx.stop();
         if (spraySfx && spraySfx.isPlaying()) spraySfx.stop();
       } else {
-        // Page visible again: resume audio context then restart bgLoop
+        // Page visible again: resume audio context, let volume manager handle bgLoop
         let ctx = getAudioContext();
         if (ctx && ctx.state === 'suspended') {
-          ctx.resume().then(function() {
-            if (bgLoop && bgLoopStarted && !bgLoop.isPlaying()) bgLoop.loop();
-          });
-        } else {
-          if (bgLoop && bgLoopStarted && !bgLoop.isPlaying()) bgLoop.loop();
+          ctx.resume();
         }
-        // Reset previousTime so accumulator doesn't spiral on resume
+        bgLoopVolCurrent = 0;  // restart fade-in smoothly from silence
         previousTime = millis();
         accumulator  = 0;
       }
@@ -412,22 +414,22 @@ function getInputY() {
 class PhaseParticle {
   constructor(col) {
     this.x = random(GAME_W);  this.y = random(GAME_H);
-    this.vx = random(-0.04, 0.04);  this.vy = random(-0.04, 0.04);  // 5× slower
+    this.vx = random(-0.013, 0.013);  this.vy = random(-0.013, 0.013);  // 15× slower total
     this.size = random(2, 6);  this.alpha = random(15, 40);
     this.c = col;
-    this.pulseSpeed  = random(0.002, 0.006);  // 5× slower pulse
+    this.pulseSpeed  = random(0.0006, 0.002);  // 15× slower pulse
     this.pulseOffset = random(TWO_PI);
   }
   update() {
-    this.x += this.vx * 0.2 * dt;  this.y += this.vy * 0.2 * dt;
+    this.x += this.vx * 0.067 * dt;  this.y += this.vy * 0.067 * dt;
     if (this.x < -10)          this.x = GAME_W + 10;
     if (this.x > GAME_W + 10)   this.x = -10;
     if (this.y < -10)          this.y = GAME_H + 10;
     if (this.y > GAME_H + 10)  this.y = -10;
-    if (random(1) < 0.06 * dt) {  // 5× less frequent nudge
-      this.vx += random(-0.01, 0.01);  this.vy += random(-0.01, 0.01);
-      this.vx = constrain(this.vx, -0.06, 0.06);
-      this.vy = constrain(this.vy, -0.06, 0.06);
+    if (random(1) < 0.02 * dt) {
+      this.vx += random(-0.003, 0.003);  this.vy += random(-0.003, 0.003);
+      this.vx = constrain(this.vx, -0.02, 0.02);
+      this.vy = constrain(this.vy, -0.02, 0.02);
     }
     this.alpha = 25 + sin(millis() * this.pulseSpeed * 0.06 + this.pulseOffset) * 15;
   }
@@ -443,16 +445,16 @@ class PhaseParticle {
 class AromaParticle {
   constructor(x, y) {
     this.x = x;  this.y = y;
-    this.vx    = random(-0.4, -0.8);  this.vy = random(-0.2, -0.5);  // 3× slower drift
-    this.alpha = random(25, 50);      this.size = random(3, 6);
+    this.vx    = random(-0.08, -0.16);  this.vy = random(-0.04, -0.10);  // 5× slower drift
+    this.alpha = random(25, 50);        this.size = random(3, 6);
   }
   update(targetX, targetY) {
     let dx = targetX - this.x,  dy = targetY - this.y;
     let d  = sqrt(dx * dx + dy * dy);
-    if (d > 30) { this.x += ((dx / d) * 0.7 + this.vx * 0.15) * dt;  // 3× slower travel
-                  this.y += ((dy / d) * 0.7 + this.vy * 0.15) * dt; }
-    else { this.alpha -= 0.5 * dt; }
-    this.alpha -= 0.07 * dt;  // fade slower too
+    if (d > 30) { this.x += ((dx / d) * 0.14 + this.vx * 0.03) * dt;  // 5× slower travel
+                  this.y += ((dy / d) * 0.14 + this.vy * 0.03) * dt; }
+    else { this.alpha -= 0.1 * dt; }
+    this.alpha -= 0.014 * dt;  // fade much slower
   }
   display(c) {
     noStroke();
@@ -464,13 +466,13 @@ class AromaParticle {
 class ProtocolParticle {
   constructor() {
     this.x = random(GAME_W);  this.y = GAME_H + 20;
-    this.vy = random(0.1, 0.4);  this.alpha = random(50, 150);  // 5× slower
+    this.vy = random(0.033, 0.133);  this.alpha = random(50, 150);  // 15× slower total
     this.size = random(2, 6);
   }
   update() {
     this.y -= this.vy * dt;
     if (this.y < -20) { this.y = GAME_H + 20;  this.x = random(GAME_W); }
-    this.alpha = 100 + sin(millis() * 0.0006 + this.x * 0.01) * 50;  // 5× slower pulse
+    this.alpha = 100 + sin(millis() * 0.0002 + this.x * 0.01) * 50;
   }
   display() {
     noStroke();  fill(0, 255, 200, this.alpha);
@@ -481,13 +483,13 @@ class ProtocolParticle {
 class ReportParticle {
   constructor() {
     this.x = random(GAME_W);  this.y = GAME_H + random(10, 100);
-    this.vy = random(0.06, 0.24);  this.alpha = random(50, 150);  // 5× slower
+    this.vy = random(0.02, 0.08);  this.alpha = random(50, 150);  // 15× slower total
     this.size = random(3, 8);
   }
   update() {
     this.y -= this.vy * dt;
     if (this.y < -20) { this.y = GAME_H + 20;  this.x = random(GAME_W); }
-    this.alpha = 80 + sin(millis() * 0.000076 + this.x * 0.01) * 40;  // 5× slower pulse
+    this.alpha = 80 + sin(millis() * 0.000025 + this.x * 0.01) * 40;
   }
   display() {
     noStroke();  fill(112, 240, 240, this.alpha);
@@ -621,6 +623,65 @@ function updateAndDrawPhaseParticles(phaseIdx) {
 }
 
 // =========================================================
+// SOUND TICK — called once per display frame (NOT per logic tick)
+// Manages all continuous/looping sounds based on flags set by logic.
+// Throttled to ~4× per second to prevent Web Audio API overload on mobile.
+// =========================================================
+function soundTick() {
+  // ── BG loop volume manager (every frame, smooth fade) ───────
+  if (bgLoop != null && bgLoopStarted) {
+    let onAllowedScreen = (
+      mode === MODE_TITLE     ||
+      mode === MODE_JOURNEY   ||
+      mode === MODE_MECHANICS ||
+      quizState === 1
+    );
+    // Knowledge check: extra subtle. Other allowed screens: normal.
+    let targetVol = !onAllowedScreen ? 0
+                  : (quizState === 1 ? 0.018 : 0.045);
+
+    // Smooth fade (~1.5s in, ~1.5s out)
+    bgLoopVolCurrent += (targetVol - bgLoopVolCurrent) * 0.025;
+
+    if (bgLoopVolCurrent < 0.002) {
+      // Fully silent — pause to save Web Audio resources
+      if (bgLoop.isPlaying()) bgLoop.pause();
+    } else {
+      // Audible — resume if paused, lock rate, set volume
+      if (!bgLoop.isPlaying()) { bgLoop.rate(1.0); bgLoop.loop(); }
+      bgLoop.setVolume(bgLoopVolCurrent);
+      if (bgLoop.rate && bgLoop.rate() !== 1.0) bgLoop.rate(1.0);
+    }
+  }
+
+  // ── Throttled one-shot sound checks (~4× per second) ────────
+  soundTickTimer++;
+  if (soundTickTimer < 15) return;
+  soundTickTimer = 0;
+
+  // Warning sound
+  if (sfx_wantWarning) {
+    if (warningSfx && !warningSfx.isPlaying()) warningSfx.play();
+  } else {
+    if (warningSfx && warningSfx.isPlaying()) warningSfx.stop();
+  }
+
+  // Acid sound
+  if (sfx_wantAcid) {
+    if (acidSfx && !acidSfx.isPlaying()) acidSfx.play();
+  } else {
+    if (acidSfx && acidSfx.isPlaying()) acidSfx.stop();
+  }
+
+  // Spray sound
+  if (sfx_wantSpray) {
+    if (spraySfx && !spraySfx.isPlaying()) spraySfx.play();
+  } else {
+    if (spraySfx && spraySfx.isPlaying()) spraySfx.stop();
+  }
+}
+
+// =========================================================
 // DRAW LOOP
 // =========================================================
 function draw() {
@@ -648,6 +709,9 @@ function draw() {
     updateGameLogic();
     accumulator -= FIXED_DT;
   }
+
+  // Sound management: once per display frame, throttled
+  soundTick();
 
   // ── Landscape lock ───────────────────────────────────────
   if (windowWidth < windowHeight) {
@@ -682,15 +746,12 @@ function updateGameLogic() {
   // Spawn timer accumulates in ms; one tick = 16.666ms
   delta = 16.666;
 
-  // BG loop: start once; periodically enforce correct rate/volume
+  // BG loop: started silently on first tick; volume managed by soundTick()
   if (bgLoop != null && !bgLoopStarted) {
-    bgLoop.setVolume(0.05);
-    bgLoop.rate(1.0);   // explicitly lock playback rate to 1x
+    bgLoop.setVolume(0);
+    bgLoop.rate(1.0);
     bgLoop.loop();
     bgLoopStarted = true;
-  } else if (bgLoop != null && bgLoopStarted && bgLoop.isPlaying()) {
-    // Every tick: silently correct any audio context drift
-    if (bgLoop.rate && bgLoop.rate() !== 1.0) bgLoop.rate(1.0);
   }
 
   transitionAlpha = lerp(transitionAlpha, 255, 1 - pow(1 - 0.08, dt));
@@ -787,8 +848,7 @@ function updatePhase0Logic() {
     let inputSmellNow = map(smellSliderX, GAME_W/2-200, GAME_W/2+200, 0, 100);
     if (inputSmellNow >= 60) emeticTimer = min(EMETIC_THRESHOLD, emeticTimer + 0.15);
     else                     emeticTimer = max(0, emeticTimer - 2 * dt);
-    if (emeticTimer >= EMETIC_THRESHOLD) { if (warningSfx && !warningSfx.isPlaying()) warningSfx.play(); }
-    else                                  { if (warningSfx && warningSfx.isPlaying())  warningSfx.stop(); }
+    sfx_wantWarning = (emeticTimer >= EMETIC_THRESHOLD);
   }
 }
 
@@ -841,7 +901,7 @@ function updatePhase2Logic() {
   // but if they drop before the 30s, greenZoneTimer already resets above
 
   if (mouseIsPressed && (sprayType === 1 || sprayType === 2)) {
-    if (spraySfx && !spraySfx.isPlaying()) spraySfx.play();
+    sfx_wantSpray = true;
     let yOffset = 40;
     if (sprayType === 1) {
       secretinLevel = min(secretinLevel + 1.0, 200);
@@ -853,7 +913,7 @@ function updatePhase2Logic() {
         hormoneMist.push(new Mist(GAME_W*0.85-80, GAME_H/2+50+yOffset, random(-10,-5), random(-2,2), [255,180,0]));
     }
   } else {
-    if (spraySfx && spraySfx.isPlaying()) spraySfx.stop();
+    sfx_wantSpray = false;
   }
 
   if (!homeostasisLocked) {
@@ -1119,7 +1179,7 @@ function phase1() {
   }
 
   let pX = GAME_W / 2 + 110, pY = GAME_H / 2 + 40;
-  if (enzymeActive && acidSfx != null && !acidSfx.isPlaying()) acidSfx.play();
+  sfx_wantAcid = enzymeActive;  // actual play/stop handled in soundTick()
 
   if (proteinImg != null) {
     let pAlpha = enzymeActive ? map(proteinScale, 1.0, 0.0, 255, 0) : 200;
@@ -1149,9 +1209,9 @@ function phase1() {
   if (ulcerRisk > 100) {
     fill(255, 0, 0);  textStyle(BOLD);  textSize(22);
     text("STOMACH LINING IN DANGER — ULCER RISK HIGH!", GAME_W / 2, statusY);  textStyle(NORMAL);
-    if (warningSfx && !warningSfx.isPlaying()) warningSfx.play();
+    sfx_wantWarning = true;
   } else {
-    if (warningSfx && warningSfx.isPlaying()) warningSfx.stop();
+    sfx_wantWarning = false;
 
     if (pepsinState === PepsinState.DENATURED) {
       fill(255, 50, 50);  textStyle(BOLD);  textSize(22);
@@ -1342,7 +1402,7 @@ function phase2() {
 
   // FIX: secretinLevel/cckLevel range is 0–200; divide by 2 to show 0–100%
   fill(0, 180, 255);  textSize(14);  textAlign(CENTER);
-  text("Secretin: " + int(secretinLevel / 2) + "% (need 75%)", GAME_W * 0.015, GAME_H / 2 + 50 + yOffset + 100);
+  text("Secretin: " + int(secretinLevel / 2) + "% (need 75%)", GAME_W * 0.15, GAME_H / 2 + 50 + yOffset + 100);
   fill(255, 200, 0);
   text("CCK: " + int(cckLevel / 2) + "% (need 75%)", GAME_W * 0.85, GAME_H / 2 + 50 + yOffset + 100);
 
