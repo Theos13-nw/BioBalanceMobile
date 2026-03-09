@@ -1,12 +1,29 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <style>body { margin: 0; overflow: hidden; }</style>
-</head>
-<body>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>BioBalance – p5.js</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/addons/p5.sound.min.js"></script>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #000; /* Black bg blends seamlessly with letterbox bars */
+      touch-action: none; /* Prevent scroll/pinch-zoom */
+    }
+    canvas {
+      display: block;
+      /* Do NOT set width/height 100% here — p5 controls the canvas size.
+         Forcing CSS 100% stretches the canvas visually and causes blurring. */
+    }
+  </style>
+</head>
+<body>
   <script src="sketch.js"></script>
 </body>
 </html>
