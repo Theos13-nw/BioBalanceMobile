@@ -378,7 +378,7 @@ class PhaseParticle {
     this.pulseOffset = random(TWO_PI);
   }
   update() {
-    this.x += this.vx * 0.1 * dt;  this.y += this.vy * 0.1 * dt;
+    this.x += this.vx * 0.2 * dt;  this.y += this.vy * 0.2 * dt;
     if (this.x < -10)          this.x = GAME_W + 10;
     if (this.x > GAME_W + 10)   this.x = -10;
     if (this.y < -10)          this.y = GAME_H + 10;
@@ -394,7 +394,7 @@ class PhaseParticle {
     noStroke();
     fill(this.c[0], this.c[1], this.c[2], this.alpha);
     ellipse(this.x, this.y, this.size, this.size);
-    fill(this.c[0], this.c[1], this.c[2], this.alpha * 0.1);
+    fill(this.c[0], this.c[1], this.c[2], this.alpha * 0.2);
     ellipse(this.x, this.y, this.size * 1.5, this.size * 1.5);
   }
 }
@@ -408,8 +408,8 @@ class AromaParticle {
   update(targetX, targetY) {
     let dx = targetX - this.x,  dy = targetY - this.y;
     let d  = sqrt(dx * dx + dy * dy);
-    if (d > 30) { this.x += ((dx / d) * 2.5 + this.vx * 0.15) * dt;
-                  this.y += ((dy / d) * 2.5 + this.vy * 0.15) * dt; }
+    if (d > 30) { this.x += ((dx / d) * 2.5 + this.vx * 0.25) * dt;
+                  this.y += ((dy / d) * 2.5 + this.vy * 0.25) * dt; }
     else { this.alpha -= 1.5 * dt; }
     this.alpha -= 0.2 * dt;
   }
@@ -446,7 +446,7 @@ class ReportParticle {
   update() {
     this.y -= this.vy * dt;
     if (this.y < -20) { this.y = GAME_H + 20;  this.x = random(GAME_W); }
-    this.alpha = 80 + sin(millis() * 0.0018 + this.x * 0.01) * 40;
+    this.alpha = 80 + sin(millis() * 0.00038 + this.x * 0.01) * 40;
   }
   display() {
     noStroke();  fill(112, 240, 240, this.alpha);
@@ -464,7 +464,7 @@ class SuccessParticle {
     this.c = Array.isArray(c) ? c : [red(c), green(c), blue(c)];
   }
   update() {
-    this.x += this.vx * 0.1 * dt;  this.y += this.vy * 0.1 * dt;
+    this.x += this.vx * 0.2 * dt;  this.y += this.vy * 0.2 * dt;
     this.vy += 0.08 * dt;    this.alpha -= 1.2 * dt;  this.size *= pow(0.992, dt);
   }
   display() {
@@ -480,7 +480,7 @@ class Mist {
     this.x = x;  this.y = y;  this.vx = vx;  this.vy = vy;  this.c = c;
     this.alpha = 200;  this.size = random(3, 10);
   }
-  update() { this.x += this.vx * 0.1 * dt;  this.y += this.vy * 0.1 * dt;  this.alpha = lerp(this.alpha, 0, 1 - pow(1 - 0.15, dt)); }
+  update() { this.x += this.vx * 0.2 * dt;  this.y += this.vy * 0.2 * dt;  this.alpha = lerp(this.alpha, 0, 1 - pow(1 - 0.15, dt)); }
   display() {
     noStroke();
     fill(this.c[0], this.c[1], this.c[2], this.alpha);
@@ -492,7 +492,7 @@ class Bubble {
   constructor(x, y, size, speed, c) {
     this.x = x;  this.y = y;  this.size = size;  this.speed = speed;  this.c = c;
   }
-  update() { this.y -= this.speed * dt;  this.x += sin(millis() * 0.0012) * 0.5 * dt; }
+  update() { this.y -= this.speed * dt;  this.x += sin(millis() * 0.00032) * 0.5 * dt; }
   display() {
     // FIX: honour alpha channel when present
     let a = (this.c.length >= 4) ? this.c[3] : 255;
@@ -589,7 +589,7 @@ function draw() {
   let rawDelta = now - previousTime;
   previousTime = now;
   realFPS = 1000 / max(rawDelta, 1);
-  smoothedFPS = lerp(smoothedFPS, realFPS,0.001);
+  smoothedFPS = lerp(smoothedFPS, realFPS, 0.08);
 
   let frameTime = min(rawDelta / 1000, 0.05);  // seconds, max 50ms
   accumulator += frameTime;
@@ -640,7 +640,7 @@ function updateGameLogic() {
   }
 
   transitionAlpha = lerp(transitionAlpha, 255, 1 - pow(1 - 0.08, dt));
-  organPulse      = 1.0 + sin(millis() * 0.0009) * 0.015;
+  organPulse      = 1.0 + sin(millis() * 0.0009) * 0.005;
   connectionGlow  = (sin(millis() * 0.0009) + 1) / 2.0;
 
   let isShaking =
@@ -649,7 +649,7 @@ function updateGameLogic() {
   if (isShaking) {
     shakeIntensity = lerp(shakeIntensity, map(delayedSmell, 0, 100, 0.5, 4.0), 1 - pow(1 - 0.1, dt));
   } else {
-    shakeIntensity = lerp(shakeIntensity, 0, 0.03);
+    shakeIntensity = lerp(shakeIntensity, 0, 0.01);
   }
 
   if (showOverlay) overlayAlpha = lerp(overlayAlpha, 255, 1 - pow(1 - 0.2, dt));
@@ -713,14 +713,14 @@ function updatePhase0Logic() {
   }
   let sStart = GAME_W / 2 - 200, sEnd = GAME_W / 2 + 200;
   let inputSmell = map(smellSliderX, sStart, sEnd, 0, 100);
-  delayedSmell = lerp(delayedSmell, inputSmell, 1 - pow(1 - 0.015, dt));
+  delayedSmell = lerp(delayedSmell, inputSmell, 1 - pow(1 - 0.005, dt));
 
   if (foodType === 1) {
     salivaLevel  = lerp(salivaLevel, map(inputSmell, 0, 100, 40, 170), 0.004);
     if (salivaLevel > 168 && inputSmell >= 99) salivaLevel = 170;
     cephalicAcid = lerp(cephalicAcid, map(delayedSmell, 0, 100, 0, 150), 1 - pow(1 - 0.005, dt));
   } else if (foodType === 2) {
-    salivaLevel  = lerp(salivaLevel, 5, 1 - pow(1 - 0.02, dt));
+    salivaLevel  = lerp(salivaLevel, 5, 1 - pow(1 - 0.002, dt));
     cephalicAcid = lerp(cephalicAcid, 0, 1 - pow(1 - 0.1, dt));
   }
 
@@ -753,9 +753,9 @@ function updatePhase1Logic() {
   updatePepsinDenaturation(currentPH, inPHWindow);
 
   if (proteinImg != null && enzymeActive)
-    proteinScale = max(0.0, proteinScale - 0.0015);
+    proteinScale = max(0.0, proteinScale - 0.00035);
   else if (proteinScale < 1.0 && pepsinState !== PepsinState.ACTIVE)
-    proteinScale = min(1.0, proteinScale + 0.02);
+    proteinScale = min(1.0, proteinScale + 0.002);
 
   bubbleSpawnTimer += delta;
   if (enzymeActive && bubbleSpawnTimer >= 83) {
@@ -785,7 +785,7 @@ function updatePhase2Logic() {
     if (sprayType === 1) {
       secretinLevel = min(secretinLevel + 1.0, 200);
       for (let i = 0; i < 3; i++)
-        hormoneMist.push(new Mist(GAME_W*0.15+80, GAME_H/2+50+yOffset, random(5,10), random(-2,2), [0,150,255]));
+        hormoneMist.push(new Mist(GAME_W*0.035+80, GAME_H/2+50+yOffset, random(5,10), random(-2,2), [0,150,255]));
     } else {
       cckLevel = min(cckLevel + 1.0, 200);
       for (let i = 0; i < 3; i++)
@@ -831,7 +831,7 @@ function renderGame() {
 
   let bgColor1 = color(10, 15, 30);
   if (mode === MODE_PHASE1 && ulcerRisk > 100) {
-    bgColor1 = lerpColor(color(10, 15, 30), color(50, 10, 10), (sin(millis() * 0.0012) + 1) / 2.0);
+    bgColor1 = lerpColor(color(10, 15, 30), color(50, 10, 10), (sin(millis() * 0.00032) + 1) / 2.0);
   } else if (mode === MODE_PHASE0 && foodType === 2 && emeticTimer >= EMETIC_THRESHOLD) {
     bgColor1 = lerpColor(color(10, 15, 30), color(25, 60, 25), map(delayedSmell, 0, 100, 0, 1.0));
   } else if (mode === MODE_JOURNEY || mode === MODE_MECHANICS || mode === MODE_TITLE) {
@@ -881,13 +881,13 @@ function phase0() {
     scale(organPulse);
     if (foodType === 1 && insulinLevel > 10) {
       let g = map(insulinLevel, 0, 50, 50, 180);
-      fill(255, 100, 150, g + sin(millis() * 0.0012) * 40);  noStroke();
+      fill(255, 100, 150, g + sin(millis() * 0.00032) * 40);  noStroke();
       ellipse(0, -20, 160, 140);
       fill(255, 150, 200, g * 0.6);
       ellipse(0, -20, 100, 90);
     }
     if (foodType === 1 && salivaLevel > 150) {
-      fill(0, 255, 200, 50 + sin(millis() * 0.0012) * 50);  noStroke();
+      fill(0, 255, 200, 50 + sin(millis() * 0.00032) * 50);  noStroke();
       ellipse(0, -50, 120, 100);
     }
     if (foodType === 2 && emeticTimer >= EMETIC_THRESHOLD) {
@@ -926,7 +926,7 @@ function phase0() {
   } else if (foodType === 1 && cephalicActive) {
     cephalicReady = true;
     p0Text  = "BRAIN SIGNAL SENT — VAGUS NERVE ACTIVATED!";
-    p0Color = color(0, 255, 150, 150 + sin(millis() * 0.012) * 105);
+    p0Color = color(0, 255, 150, 150 + sin(millis() * 0.004) * 105);
   } else if (foodType === 1 && inputSmell >= 99 && salivaLevel >= 170 && !metabolismReady) {
     cephalicReady = false;
     p0Text = "SALIVA READY — YOUR BODY IS GETTING READY...";  p0Color = color(255, 200, 0);
@@ -974,8 +974,8 @@ function phase0() {
 function updateCephalicMetabolismFast() {
   if (foodType === 1) {
     let cal = map(delayedSmell, 0, 100, 0, 500);
-    insulinLevel            = lerp(insulinLevel, cal * 0.08, 1 - pow(1 - 0.025, dt));
-    hepaticGlucoseOutput    = lerp(hepaticGlucoseOutput, max(20, 100 - insulinLevel * 1.5), 1 - pow(1 - 0.015, dt));
+    insulinLevel            = lerp(insulinLevel, cal * 0.08, 1 - pow(1 - 0.0025, dt));
+    hepaticGlucoseOutput    = lerp(hepaticGlucoseOutput, max(20, 100 - insulinLevel * 1.5), 1 - pow(1 - 0.005, dt));
     peripheralGlucoseUptake = map(insulinLevel, 0, 40, 0, 100);
   } else if (foodType === 2) {
     insulinLevel            = lerp(insulinLevel, 0, 1 - pow(1 - 0.1, dt));
@@ -983,7 +983,7 @@ function updateCephalicMetabolismFast() {
     peripheralGlucoseUptake = lerp(peripheralGlucoseUptake, 0, 1 - pow(1 - 0.1, dt));
   } else {
     insulinLevel            = lerp(insulinLevel, 0, 1 - pow(1 - 0.05, dt));
-    hepaticGlucoseOutput    = lerp(hepaticGlucoseOutput, 100, 1 - pow(1 - 0.02, dt));
+    hepaticGlucoseOutput    = lerp(hepaticGlucoseOutput, 100, 1 - pow(1 - 0.002, dt));
     peripheralGlucoseUptake = lerp(peripheralGlucoseUptake, 0, 1 - pow(1 - 0.05, dt));
   }
 }
@@ -1000,7 +1000,7 @@ function drawMetabolicPanelWithSaliva(x, y) {
   let sw = map(salivaLevel, 0, 170, 0, 240);
   fill(0, 200, 255);  rect(x - 120 + sw / 2, y - 60, sw, 40, 5);
   if (salivaLevel >= 170) {
-    stroke(0, 255, 255, 100 + (sin(millis() * 0.0012) + 1) / 2.0 * 155);
+    stroke(0, 255, 255, 100 + (sin(millis() * 0.00032) + 1) / 2.0 * 155);
     strokeWeight(3);  noFill();  rect(x, y - 60, 240, 40, 5);  noStroke();
   }
   fill(0, 255, 255);  textStyle(BOLD);  textSize(12);  text("SALIVA", x, y - 85);  textStyle(NORMAL);
@@ -1101,7 +1101,7 @@ function phase1() {
       textStyle(BOLD);  textSize(22);
       text("WARNING: PEPSIN ABOUT TO BREAK DOWN — LOWER THE ACID!", GAME_W / 2, statusY);  textStyle(NORMAL);
     } else if (currentPH < 1.5) {
-      fill(255, (sin(millis() * 0.012) + 1) / 2.0 * 100, 0);
+      fill(255, (sin(millis() * 0.004) + 1) / 2.0 * 100, 0);
       textStyle(BOLD);  textSize(22);
       text("DANGER: TOO MUCH ACID — MOVE SLIDER LEFT!", GAME_W / 2, statusY);  textStyle(NORMAL);
     } else if (inPHWindow && !enzymeActive) {
@@ -1132,7 +1132,7 @@ function drawRestorePepsinButton(x, y) {
   let hover = (getInputX() > x - bw / 2 && getInputX() < x + bw / 2 &&
                getInputY() > y - bh / 2 && getInputY() < y + bh / 2);
   fill(hover ? 120 : 60, 200);
-  stroke(255, 50, 50, 150 + sin(millis() * 0.0012) * 100);  strokeWeight(3);
+  stroke(255, 50, 50, 150 + sin(millis() * 0.00032) * 100);  strokeWeight(3);
   rect(x, y, bw, bh, 10);
   fill(255);  textAlign(CENTER, CENTER);  text("RESTORE PEPSIN", x, y - 3);  textStyle(NORMAL);
 }
@@ -1192,7 +1192,7 @@ function drawPepsinPanelBig(x, y, currentPH, inPHWindow, enzymeActive) {
   let phW = map(currentPH, 7, 1, 0, 240);
   fill(phC);  rect(x - 120 + phW / 2, y - 40, phW, 40, 5);
   if (inPHWindow) {
-    stroke(0, 255, 150, 100 + (sin(millis() * 0.0012) + 1) / 2.0 * 155);
+    stroke(0, 255, 150, 100 + (sin(millis() * 0.00032) + 1) / 2.0 * 155);
     strokeWeight(3);  noFill();  rect(x, y - 40, 240, 40, 5);  noStroke();
   }
   fill(phC);  textStyle(BOLD);  textSize(12);
@@ -1260,7 +1260,7 @@ function phase2() {
     text("ACID NEUTRALIZED — READY FOR NUTRIENT ABSORPTION!", GAME_W / 2, warningY);  textStyle(NORMAL);
     drawProceedButton(GAME_W / 2, warningY + 45);
   } else if (homeostasisReached && homeostasisDisplayTimer > 0) {
-    fill(0, 255, 150, 150 + sin(millis() * 0.012) * 105);  textStyle(BOLD);  textSize(22);
+    fill(0, 255, 150, 150 + sin(millis() * 0.004) * 105);  textStyle(BOLD);  textSize(22);
     text("HORMONES BALANCED — WAIT FOR ABSORPTION TO BEGIN...", GAME_W / 2, warningY);  textStyle(NORMAL);
   } else {
     let p2T = (secretinLevel <= 150 && cckLevel <= 150) ? "TOO MUCH ACID AND FAT! SPRAY BOTH HORMONES!" :
@@ -1269,12 +1269,12 @@ function phase2() {
     fill(255);  textStyle(BOLD);  textSize(22);  text(p2T, GAME_W / 2, warningY);  textStyle(NORMAL);
   }
 
-  drawHormoneButton(GAME_W * 0.15, GAME_H / 2 + 50 + yOffset, "SECRETIN", color(0, 150, 255), sprayType === 1, hormone1Img);
+  drawHormoneButton(GAME_W * 0.035, GAME_H / 2 + 50 + yOffset, "SECRETIN", color(0, 150, 255), sprayType === 1, hormone1Img);
   drawHormoneButton(GAME_W * 0.85, GAME_H / 2 + 50 + yOffset, "CCK",      color(255, 180, 0), sprayType === 2, hormone2Img);
 
   // FIX: secretinLevel/cckLevel range is 0–200; divide by 2 to show 0–100%
   fill(0, 180, 255);  textSize(14);  textAlign(CENTER);
-  text("Secretin: " + int(secretinLevel / 2) + "% (need 75%)", GAME_W * 0.15, GAME_H / 2 + 50 + yOffset + 100);
+  text("Secretin: " + int(secretinLevel / 2) + "% (need 75%)", GAME_W * 0.035, GAME_H / 2 + 50 + yOffset + 100);
   fill(255, 200, 0);
   text("CCK: " + int(cckLevel / 2) + "% (need 75%)", GAME_W * 0.85, GAME_H / 2 + 50 + yOffset + 100);
 
@@ -1314,7 +1314,7 @@ function phase3() {
   let allAbsorbed = glucoseSorted && sodiumSGLTSorted && sodiumNHE3Sorted && lipidSorted;
   if (allAbsorbed) {
     if (phase3ProceedDelay < PHASE3_PROCEED_DELAY_FRAMES) {
-      fill(0, 255, 150, 150 + sin(millis() * 0.012) * 105);
+      fill(0, 255, 150, 150 + sin(millis() * 0.004) * 105);
       textStyle(BOLD);  textSize(22);  textAlign(CENTER);
       text("COMPLETING THE PROCESS — WAIT...", GAME_W / 2, 105);  textStyle(NORMAL);
     } else {
@@ -1363,7 +1363,7 @@ function handleNutrientPhysicsStrict(zoneX, zoneW, zoneH, capY, nheY, lacY) {
   // --- Glucose → capillary ---
   if (!draggingGlucose && !glucoseSorted) {
     if (pointInZone(glucoseX, glucoseY, zoneX, capY, zoneW, zoneH)) {
-      gTimer += 0.015;
+      gTimer += 0.005;
       if (gTimer >= 1.0) { glucoseSorted = true; capillaryPulse = 30; triggerBurst(glucoseX, glucoseY, [0,255,0]); if (correctSfx) correctSfx.play(); }
     } else if (pointInZone(glucoseX, glucoseY, zoneX, nheY, zoneW, zoneH) ||
                pointInZone(glucoseX, glucoseY, zoneX, lacY, zoneW, zoneH)) {
@@ -1376,7 +1376,7 @@ function handleNutrientPhysicsStrict(zoneX, zoneW, zoneH, capY, nheY, lacY) {
   if (!draggingSodiumSGLT && !sodiumSGLTSorted) {
     if (pointInZone(sodiumSGLTX, sodiumSGLTY, zoneX, capY, zoneW, zoneH)) {
       let speedMult = dist(sodiumSGLTX, sodiumSGLTY, glucoseX, glucoseY) < 80 ? 2.0 : 1.0;
-      sGLTTimer += 0.015 * speedMult;
+      sGLTTimer += 0.005 * speedMult;
       if (sGLTTimer >= 1.0) { sodiumSGLTSorted = true; capillaryPulse = 30; triggerBurst(sodiumSGLTX, sodiumSGLTY, [0,200,150]); if (correctSfx) correctSfx.play(); }
     } else if (pointInZone(sodiumSGLTX, sodiumSGLTY, zoneX, nheY, zoneW, zoneH) ||
                pointInZone(sodiumSGLTX, sodiumSGLTY, zoneX, lacY, zoneW, zoneH)) {
@@ -1388,7 +1388,7 @@ function handleNutrientPhysicsStrict(zoneX, zoneW, zoneH, capY, nheY, lacY) {
   // --- Sodium NHE3 → exchanger ---
   if (!draggingSodiumNHE3 && !sodiumNHE3Sorted) {
     if (pointInZone(sodiumNH3X, sodiumNH3Y, zoneX, nheY, zoneW, zoneH)) {
-      nhe3Timer += 0.006;
+      nhe3Timer += 0.004;
       if (nhe3Timer >= 1.0) { sodiumNHE3Sorted = true; nhe3Pulse = 30; triggerBurst(sodiumNH3X, sodiumNH3Y, [0,100,200]); if (nhe3Sfx) nhe3Sfx.play(); if (correctSfx) correctSfx.play(); }
     } else if (pointInZone(sodiumNH3X, sodiumNH3Y, zoneX, capY, zoneW, zoneH) ||
                pointInZone(sodiumNH3X, sodiumNH3Y, zoneX, lacY, zoneW, zoneH)) {
@@ -1400,7 +1400,7 @@ function handleNutrientPhysicsStrict(zoneX, zoneW, zoneH, capY, nheY, lacY) {
   // --- Lipid → lacteal ---
   if (!draggingLipid && !lipidSorted) {
     if (pointInZone(lipidX, lipidY, zoneX, lacY, zoneW, zoneH)) {
-      lTimer += 0.015;
+      lTimer += 0.005;
       if (lTimer >= 1.0) { lipidSorted = true; lactealPulse = 30; triggerBurst(lipidX, lipidY, [255,255,180]); if (correctSfx) correctSfx.play(); }
     } else if (pointInZone(lipidX, lipidY, zoneX, capY, zoneW, zoneH) ||
                pointInZone(lipidX, lipidY, zoneX, nheY, zoneW, zoneH)) {
@@ -1432,7 +1432,7 @@ function updateMist() {
 // FINAL REPORT
 // =========================================================
 function drawFinalReport() {
-  if (!reportPlayed && reportSfx && !reportSfx.isPlaying()) { reportSfx.play(); reportPlayed = true; }
+  if (!reportPlayed && reportSfx != null) { reportSfx.play();  reportPlayed = true; }
 
   if (reportGradientBuffer.GAME_W !== GAME_W || reportGradientBuffer.GAME_H !== GAME_H) {
     reportGradientBuffer = createGraphics(GAME_W, GAME_H);
@@ -1472,7 +1472,7 @@ function drawFinalReport() {
     let bx = startX + i * btnSpacing;
     let isActive = (currentReportSlide === i), isDone = phaseCompleted[i];
     if (isActive) {
-      noFill();  stroke(255, 255, 255, 150 + sin(millis() * 0.0012) * 100);  strokeWeight(4);
+      noFill();  stroke(255, 255, 255, 150 + sin(millis() * 0.00032) * 100);  strokeWeight(4);
       rect(bx, btnY, 200, 100, 12);
     }
     fill(isActive ? color(0, 100, 100) : isDone ? color(0, 80, 80) : color(20, 40, 50), 220);
@@ -1599,7 +1599,7 @@ function handleInputStart() {
 
   if (mode === MODE_PHASE2) {
     let yOffset = 40, warningY = 130;
-    if (ix > GAME_W*0.15-100 && ix < GAME_W*0.15+100 && iy > GAME_H/2+50+yOffset-80 && iy < GAME_H/2+50+yOffset+80) sprayType = 1;
+    if (ix > GAME_W*0.035-100 && ix < GAME_W*0.035+100 && iy > GAME_H/2+50+yOffset-80 && iy < GAME_H/2+50+yOffset+80) sprayType = 1;
     else if (ix > GAME_W*0.85-100 && ix < GAME_W*0.85+100 && iy > GAME_H/2+50+yOffset-80 && iy < GAME_H/2+50+yOffset+80) sprayType = 2;
     if (homeostasisReached && homeostasisDisplayTimer <= 0) {
       if (ix > GAME_W/2-100 && ix < GAME_W/2+100 && iy > (warningY+45)-25 && iy < (warningY+45)+25) { if (successSfx) successSfx.play();  startReflectionGate(); }
@@ -1751,7 +1751,7 @@ function drawControlProtocol() {
 
   let bx4=GAME_W-80, by4=GAME_H-80, br=60;
   let hov = dist(getInputX(),getInputY(),bx4,by4)<br;
-  let pulse4 = (sin(millis()*0.006)+1)/2.0;
+  let pulse4 = (sin(millis()*0.002)+1)/2.0;
   noFill();  stroke(0,255,200, hov?200:80+pulse4*60);  strokeWeight(hov?8:4);
   ellipse(bx4,by4,br*2+20,br*2+20);
   fill(hov?color(0,200,160):color(0,100,100),240);
@@ -1809,7 +1809,7 @@ function drawJourneyMap() {
 
   if (selectedPhase >= 0) {
     let sx = GAME_W/2-450+selectedPhase*300, sy = GAME_H/2-50;
-    noFill();  stroke(255,255,0, 150+sin(millis()*0.006)*105);  strokeWeight(3);
+    noFill();  stroke(255,255,0, 150+sin(millis()*0.002)*105);  strokeWeight(3);
     ellipse(sx,sy,120,120);
   }
 
@@ -1824,7 +1824,7 @@ function drawJourneyMap() {
   text("Score: " + nf(sysInt,0,1)+"%", 80, GAME_H-135);
 
   if (done === 4) {
-    fill(0,255,200, 100+(sin(millis()*0.006)+1)/2.0*155);
+    fill(0,255,200, 100+(sin(millis()*0.002)+1)/2.0*155);
     textStyle(BOLD);  textSize(28);  textAlign(CENTER);
     text("DIGESTION COMPLETE!", GAME_W-200, GAME_H-130);  textStyle(NORMAL);
   }
@@ -1871,7 +1871,7 @@ function drawPhaseNode(x, y, phaseIndex) {
   textAlign(CENTER, CENTER);
   if (isCompleted) {
     if (phaseEfficiency[phaseIndex] === 100) {
-      noFill();  stroke(255,215,0, 150+sin(millis()*0.006)*105);  strokeWeight(4);
+      noFill();  stroke(255,215,0, 150+sin(millis()*0.002)*105);  strokeWeight(4);
       ellipse(x,y,baseSize+35,baseSize+35);  fill(255,215,0);
     } else { fill(phaseEfficiency[phaseIndex]===90 ? color(220,220,255) : color(phaseColors[phaseIndex][0],phaseColors[phaseIndex][1],phaseColors[phaseIndex][2])); }
     textStyle(BOLD);  textSize(24);  text(nf(phaseEfficiency[phaseIndex],0,0)+"%", x, y);
@@ -2010,7 +2010,7 @@ function drawNutrient(img, x, y, label, c, sorted, dragging, t) {
 function drawProceedButton(x, y) {
   let bw=200, bh=50;
   let hov=getInputX()>x-bw/2&&getInputX()<x+bw/2&&getInputY()>y-bh/2&&getInputY()<y+bh/2;
-  fill(hov?80:40,200);  stroke(0,255,200, 150+sin(millis()*0.006)*100);  strokeWeight(3);
+  fill(hov?80:40,200);  stroke(0,255,200, 150+sin(millis()*0.002)*100);  strokeWeight(3);
   rect(x,y,bw,bh,10);  fill(255);  textStyle(BOLD);  textSize(20);  textAlign(CENTER,CENTER);
   text("PROCEED",x,y-3);  textStyle(NORMAL);
 }
@@ -2018,7 +2018,7 @@ function drawProceedButton(x, y) {
 function drawNextButton(x, y, label) {
   let bw=200, bh=50;
   let hov=getInputX()>x-bw/2&&getInputX()<x+bw/2&&getInputY()>y-bh/2&&getInputY()<y+bh/2;
-  fill(hov?80:40,200);  stroke(0,255,200, 150+sin(millis()*0.006)*100);  strokeWeight(3);
+  fill(hov?80:40,200);  stroke(0,255,200, 150+sin(millis()*0.002)*100);  strokeWeight(3);
   rect(x,y,bw,bh,10);  fill(255);  textStyle(BOLD);  textSize(20);  textAlign(CENTER,CENTER);
   text(label,x,y-3);  textStyle(NORMAL);
 }
@@ -2271,7 +2271,7 @@ function drawReflectionGate() {
   // ── Sub-state 1: success ──────────────────────────────
   } else if (quizSubState === 1) {
     fill(0,20,10,220);  noStroke();  rect(cx,GAME_H/2,GAME_W,GAME_H);
-    let pulse3=(sin(millis()*0.006)+1)/2.0;
+    let pulse3=(sin(millis()*0.002)+1)/2.0;
     fill(0,255,150, 200+pulse3*55);  textStyle(BOLD);  textSize(56);  textAlign(CENTER,CENTER);
     text("GREAT JOB!", cx, GAME_H/2-80);
 
