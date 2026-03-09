@@ -206,10 +206,9 @@ const GAME_H = 720;    // virtual canvas height
 let scaleF  = 1;       // scale factor (< 1 on small screens)
 let offsetX = 0;       // left letterbox offset
 let offsetY = 0;       // top  letterbox offset
-let dt      = 1;       // deltaTime normalizer
-// Detect mobile — on small screens we slow timers slightly
-// because animations look faster on smaller displays
-const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+let previousTime = 0;  // millis() at last frame, for true deltaTime
+let dt = 1;            // delta time normalised to 60fps (1.0 = 60fps speed)
+let isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 
 // ── TOUCH/DRAG STATE ──────────────────────────────────────
 let isDraggingSmellSlider = false;
@@ -298,11 +297,14 @@ function preload() {
 // SETUP
 // =========================================================
 function setup() {
+  pixelDensity(window.devicePixelRatio || 1); // Sharp on retina/HD mobile screens
   createCanvas(windowWidth, windowHeight);
-  frameRate(60);       // FIX: lock to 60fps — mobile screens run at 90/120hz
+  frameRate(60);        // Request 60fps; dt normalises regardless of actual fps
   imageMode(CENTER);
   rectMode(CENTER);
   _calcScale();
+
+  previousTime = millis(); // Initialise for millis()-based dt
 
   bgGradientBuffer     = createGraphics(GAME_W, GAME_H);
   reportGradientBuffer = createGraphics(GAME_W, GAME_H);
@@ -561,17 +563,28 @@ function updateAndDrawPhaseParticles(phaseIdx) {
 // DRAW LOOP
 // =========================================================
 function draw() {
-  background(0);  // black letterbox bars on any side
+  // ── True delta-time (millis-based, immune to frameRate fluctuations) ──
+  let now = millis();
+  dt = (now - previousTime) / 1000;   // seconds since last frame
+  previousTime = now;
+  dt = min(dt, 0.1);                  // cap: avoid huge jumps after tab-switch/pause
+  dt *= 60;                           // normalise: dt=1 at 60fps, dt=2 at 120fps etc.
+  if (isMobile) dt *= 0.85;           // perceptual compensation — small screens feel faster
+
+  // ── Landscape lock (outside virtual canvas so always readable) ──
+  if (windowWidth < windowHeight) {
+    background(5, 15, 35);
+    fill(0, 255, 200);  textSize(24);  textAlign(CENTER, CENTER);
+    text("Please rotate your device to landscape", width / 2, height / 2);
+    return;
+  }
+
+  // ── Virtual canvas: letterbox + scale ──
+  background(0);  // black fills any letterbox bars
   push();
   translate(offsetX, offsetY);
   scale(scaleF);
 
-  if (windowWidth < windowHeight) {
-    background(5, 15, 35);
-    fill(0, 255, 200);  textSize(24);  textAlign(CENTER, CENTER);
-    text("Please rotate your device to landscape", GAME_W / 2, GAME_H / 2);
-    pop();  return;
-  }
   if (showLicenseScreen) { drawLicenseScreen(); pop(); return; }
   if (quizState === 1)   { drawReflectionGate(); pop(); return; }
   drawSimulationLoop();
@@ -585,12 +598,9 @@ function drawSimulationLoop() {
     bgLoop.loop();  bgLoop.setVolume(0.05);  bgLoopStarted = true;
   }
 
-  // Normalize per-frame increments to 60fps
-  // On mobile, apply 0.6x speed so game feels same pace on smaller screen
-  let speedMult = isMobile ? 0.6 : 1.0;
-  dt = constrain((deltaTime / 16.667) * speedMult, 0.1, 2.0);
+  // dt is already computed in draw() — no recalculation needed here
 
-  transitionAlpha = lerp(transitionAlpha, 255, 0.08*dt);
+  transitionAlpha = lerp(transitionAlpha, 255, 0.08 * dt / 60);
   organPulse      = 1.0 + sin(frameCount * 0.05) * 0.015;
   connectionGlow  = (sin(frameCount * 0.05) + 1) / 2.0;
 
@@ -599,11 +609,11 @@ function drawSimulationLoop() {
     (mode === MODE_PHASE1 && ulcerRisk > 100) ||
     (mode === MODE_PHASE0 && foodType === 2 && emeticTimer >= EMETIC_THRESHOLD);
   if (isShaking) {
-    shakeIntensity = lerp(shakeIntensity, map(delayedSmell, 0, 100, 0.5, 4.0), 0.1);
+    shakeIntensity = lerp(shakeIntensity, map(delayedSmell, 0, 100, 0.5, 4.0), 0.1 * dt / 60);
     shakeX = random(-shakeIntensity, shakeIntensity);
     shakeY = random(-shakeIntensity, shakeIntensity);
   } else {
-    shakeIntensity = lerp(shakeIntensity, 0, 0.2);
+    shakeIntensity = lerp(shakeIntensity, 0, 0.2 * dt / 60);
   }
 
   push();
@@ -633,8 +643,8 @@ function drawSimulationLoop() {
   }
   noTint();
 
-  if (showOverlay) overlayAlpha = lerp(overlayAlpha, 255, 0.2);
-  else             overlayAlpha = lerp(overlayAlpha, 0, 0.3);
+  if (showOverlay) overlayAlpha = lerp(overlayAlpha, 255, 0.2 * dt / 60);
+  else             overlayAlpha = lerp(overlayAlpha, 0, 0.3 * dt / 60);
   if (overlayAlpha > 1) {
     fill(0, map(overlayAlpha, 0, 255, 0, 235));
     rect(GAME_W / 2, GAME_H / 2, GAME_W, GAME_H);
@@ -695,7 +705,7 @@ function phase0() {
   }
 
   if (foodType > 0) {
-    foodScale = lerp(foodScale, 1.0, 0.15);
+    foodScale = lerp(foodScale, 1.0, 0.15 * dt / 60);
     push();
     translate(foodX, foodY);
     scale(foodScale);
@@ -711,15 +721,15 @@ function phase0() {
     smellSliderX = constrain(getInputX(), sStart, sEnd);
 
   let inputSmell = map(smellSliderX, sStart, sEnd, 0, 100);
-  delayedSmell = lerp(delayedSmell, inputSmell, 0.015*dt);
+  delayedSmell = lerp(delayedSmell, inputSmell, 0.015 * dt / 60);
 
   if (foodType === 1) {
-    salivaLevel = lerp(salivaLevel, map(inputSmell, 0, 100, 40, 170), 0.02*dt);
+    salivaLevel = lerp(salivaLevel, map(inputSmell, 0, 100, 40, 170), 0.02 * dt / 60);
     if (salivaLevel > 168 && inputSmell >= 99) salivaLevel = 170;
-    cephalicAcid = lerp(cephalicAcid, map(delayedSmell, 0, 100, 0, 150), 0.01*dt);
+    cephalicAcid = lerp(cephalicAcid, map(delayedSmell, 0, 100, 0, 150), 0.01 * dt / 60);
   } else if (foodType === 2) {
-    salivaLevel  = lerp(salivaLevel, 5, 0.02*dt);
-    cephalicAcid = lerp(cephalicAcid, 0, 0.1*dt);
+    salivaLevel  = lerp(salivaLevel, 5, 0.02 * dt / 60);
+    cephalicAcid = lerp(cephalicAcid, 0, 0.1 * dt / 60);
   }
 
   let metabolismReady   = (insulinLevel > 20 && hepaticGlucoseOutput < 60);
@@ -795,17 +805,17 @@ function phase0() {
 function updateCephalicMetabolismFast() {
   if (foodType === 1) {
     let cal = map(delayedSmell, 0, 100, 0, 500);
-    insulinLevel            = lerp(insulinLevel, cal * 0.08, 0.05);
-    hepaticGlucoseOutput    = lerp(hepaticGlucoseOutput, max(20, 100 - insulinLevel * 1.5), 0.03);
+    insulinLevel            = lerp(insulinLevel, cal * 0.08, 0.05 * dt / 60);
+    hepaticGlucoseOutput    = lerp(hepaticGlucoseOutput, max(20, 100 - insulinLevel * 1.5), 0.03 * dt / 60);
     peripheralGlucoseUptake = map(insulinLevel, 0, 40, 0, 100);
   } else if (foodType === 2) {
-    insulinLevel            = lerp(insulinLevel, 0, 0.1);
-    hepaticGlucoseOutput    = lerp(hepaticGlucoseOutput, 150, 0.05);
-    peripheralGlucoseUptake = lerp(peripheralGlucoseUptake, 0, 0.1);
+    insulinLevel            = lerp(insulinLevel, 0, 0.1 * dt / 60);
+    hepaticGlucoseOutput    = lerp(hepaticGlucoseOutput, 150, 0.05 * dt / 60);
+    peripheralGlucoseUptake = lerp(peripheralGlucoseUptake, 0, 0.1 * dt / 60);
   } else {
-    insulinLevel            = lerp(insulinLevel, 0, 0.05);
-    hepaticGlucoseOutput    = lerp(hepaticGlucoseOutput, 100, 0.02);
-    peripheralGlucoseUptake = lerp(peripheralGlucoseUptake, 0, 0.05);
+    insulinLevel            = lerp(insulinLevel, 0, 0.05 * dt / 60);
+    hepaticGlucoseOutput    = lerp(hepaticGlucoseOutput, 100, 0.02 * dt / 60);
+    peripheralGlucoseUptake = lerp(peripheralGlucoseUptake, 0, 0.05 * dt / 60);
   }
 }
 
