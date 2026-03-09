@@ -208,10 +208,15 @@ let scaleY  = 1;       // vertical stretch factor
 let scaleF  = 1;       // uniform scale (kept for compat)
 let offsetX = 0;       // always 0 in stretch mode
 let offsetY = 0;       // always 0 in stretch mode
-let previousTime = 0;  // millis() at last frame
-let dt = 1;            // delta/16.666 — 1.0 at 60fps, 0.5 at 120fps, 2.0 at 30fps
-let delta = 16.666;    // raw ms since last frame (for spawn timers)
-let realFPS = 60;      // measured fps for debug display
+// ── Fixed-timestep accumulator ────────────────────────────
+let previousTime  = 0;
+let accumulator   = 0;
+const FIXED_DT    = 1 / 60;      // 16.666 ms — one logic tick
+const TARGET_FPS  = 60;
+let dt = 1;                       // kept for lerp rates (= 1.0 per logic tick)
+let delta = 16.666;               // kept for spawn timers (ms per tick = 16.666)
+let realFPS = 60;
+let smoothedFPS = 60;
 let isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 
 // ── TOUCH/DRAG STATE ──────────────────────────────────────
@@ -565,28 +570,36 @@ function initPhaseParticles(phaseIdx) {
   for (let i = 0; i < 25; i++) map2[phaseIdx].push(new PhaseParticle(phaseColors[phaseIdx]));
 }
 
+// updateAndDrawPhaseParticles: kept for backward compat; used only in phases that 
+// still call it explicitly. Particles are updated by updateGameLogic each tick.
 function updateAndDrawPhaseParticles(phaseIdx) {
   let map2 = [phase0Particles, phase1Particles, phase2Particles, phase3Particles];
   if (phaseIdx < 0 || phaseIdx > 3) return;
-  for (let p of map2[phaseIdx]) { p.update();  p.display(); }
+  for (let p of map2[phaseIdx]) p.display();  // update is handled in updateGameLogic()
 }
 
 // =========================================================
 // DRAW LOOP
 // =========================================================
-// ── FPS smoothing ─────────────────────────────────────────
-let smoothedFPS = 60;
-
 function draw() {
-  // ── True millis-based delta time ─────────────────────────
+  // ── Fixed-timestep accumulator ────────────────────────────
+  // Real elapsed time since last frame (capped to prevent spiral of death)
   let now = millis();
   let rawDelta = now - previousTime;
   previousTime = now;
-  // constrain: 8ms=120fps cap, 33ms=30fps floor (matches doc's 0.008–0.033s)
-  delta = constrain(rawDelta, 8, 33);
-  dt = delta / 16.666;               // 1.0 at 60fps, 0.5 at 120fps, 2.0 at 30fps
   realFPS = 1000 / max(rawDelta, 1);
-  smoothedFPS = lerp(smoothedFPS, realFPS, 0.1);  // smoothed for display
+  smoothedFPS = lerp(smoothedFPS, realFPS, 0.08);
+
+  let frameTime = min(rawDelta / 1000, 0.05);  // seconds, max 50ms
+  accumulator += frameTime;
+
+  // Run as many fixed-60Hz logic ticks as time allows
+  // This means on a 120Hz phone, 2 real frames pass before 1 logic tick
+  // → gameplay always runs at exactly 60Hz speed
+  while (accumulator >= FIXED_DT) {
+    updateGameLogic();       // all state changes happen here at fixed 60Hz
+    accumulator -= FIXED_DT;
+  }
 
   // ── Landscape lock ───────────────────────────────────────
   if (windowWidth < windowHeight) {
@@ -596,7 +609,7 @@ function draw() {
     return;
   }
 
-  // ── Virtual canvas ───────────────────────────────────────
+  // ── Render once per actual display frame ─────────────────
   background(0);
   push();
   translate(offsetX, offsetY);
@@ -604,39 +617,215 @@ function draw() {
 
   if (showLicenseScreen) { drawLicenseScreen(); pop(); return; }
   if (quizState === 1)   { drawReflectionGate(); pop(); return; }
-  drawSimulationLoop();
+  renderGame();
   drawPersistentReturnButton();
   if (mode !== MODE_TITLE && !showLicenseScreen) drawFooter();
 
-  // ── FPS debug display (remove after testing) ─────────────
-  fill(255, 220, 0, 200);  noStroke();  textSize(18);  textAlign(LEFT, TOP);
-  text("FPS: " + nf(smoothedFPS, 1, 0), 10, 10);
+  // ── FPS debug (keep until confirmed stable on device) ────
+  noStroke();  fill(255, 220, 0, 220);  textSize(18);  textAlign(LEFT, TOP);
+  text("Logic@60Hz | Display: " + nf(smoothedFPS, 1, 0) + " fps", 10, 10);
 
   pop();
 }
 
-function drawSimulationLoop() {
+// ── All state-changing logic at fixed 60Hz ─────────────────
+// dt = 1.0 always (one tick = one 60fps frame worth of change)
+function updateGameLogic() {
+  dt = 1.0;  // Fixed: always exactly one 60fps tick
+
+  // Spawn timer accumulates in ms; one tick = 16.666ms
+  delta = 16.666;
+
   if (bgLoop != null && !bgLoopStarted && !bgLoop.isPlaying()) {
     bgLoop.loop();  bgLoop.setVolume(0.05);  bgLoopStarted = true;
   }
-
-  // dt is already computed in draw() — no recalculation needed here
 
   transitionAlpha = lerp(transitionAlpha, 255, 1 - pow(1 - 0.08, dt));
   organPulse      = 1.0 + sin(millis() * 0.003) * 0.015;
   connectionGlow  = (sin(millis() * 0.003) + 1) / 2.0;
 
-  let shakeX = 0, shakeY = 0;
   let isShaking =
     (mode === MODE_PHASE1 && ulcerRisk > 100) ||
     (mode === MODE_PHASE0 && foodType === 2 && emeticTimer >= EMETIC_THRESHOLD);
   if (isShaking) {
     shakeIntensity = lerp(shakeIntensity, map(delayedSmell, 0, 100, 0.5, 4.0), 1 - pow(1 - 0.1, dt));
-    shakeX = random(-shakeIntensity, shakeIntensity);
-    shakeY = random(-shakeIntensity, shakeIntensity);
   } else {
     shakeIntensity = lerp(shakeIntensity, 0, 1 - pow(1 - 0.2, dt));
   }
+
+  if (showOverlay) overlayAlpha = lerp(overlayAlpha, 255, 1 - pow(1 - 0.2, dt));
+  else             overlayAlpha = lerp(overlayAlpha, 0,   1 - pow(1 - 0.3, dt));
+
+  // Phase-specific logic updates
+  if (!showLicenseScreen && quizState !== 1) {
+    switch (mode) {
+      case MODE_PHASE0: updatePhase0Logic(); break;
+      case MODE_PHASE1: updatePhase1Logic(); break;
+      case MODE_PHASE2: updatePhase2Logic(); break;
+      case MODE_PHASE3: updatePhase3Logic(); break;
+    }
+    // Update all active particles
+    updateAndTickPhaseParticles();
+    for (let i = aromaParticles.length - 1; i >= 0; i--) {
+      aromaParticles[i].update(
+        GAME_W * 0.35,   // headX
+        GAME_H / 2 - 40  // headY
+      );
+      if (aromaParticles[i].alpha <= 0) aromaParticles.splice(i, 1);
+    }
+    for (let i = acidBubbles.length - 1; i >= 0; i--) {
+      acidBubbles[i].update();
+      let pY = GAME_H / 2 + 40;
+      if (acidBubbles[i].y < pY - 100) acidBubbles.splice(i, 1);
+    }
+    for (let i = successParticles.length - 1; i >= 0; i--) {
+      successParticles[i].update();
+      if (successParticles[i].isDead()) successParticles.splice(i, 1);
+    }
+    for (let i = hormoneMist.length - 1; i >= 0; i--) {
+      hormoneMist[i].update();
+      if (hormoneMist[i].alpha <= 5) hormoneMist.splice(i, 1);
+    }
+  }
+}
+
+// ── Phase logic extracted from drawing functions ───────────
+function updatePhase0Logic() {
+  updateCephalicMetabolismFast();
+
+  if (foodType > 0) {
+    let spawnIntervalMs = map(delayedSmell, 0, 100, 167, 33);
+    aromaSpawnTimer += delta;
+    if (aromaSpawnTimer >= spawnIntervalMs) {
+      aromaSpawnTimer = 0;
+      let foodX = GAME_W * 0.85, foodY = GAME_H / 2 + 20;
+      let emissionX = foodX - 60, emissionY = foodY - 40;
+      let cnt = int(map(delayedSmell, 0, 100, 1, 3));
+      for (let i = 0; i < cnt; i++)
+        aromaParticles.push(new AromaParticle(emissionX - random(0, 40), emissionY + random(-20, 20)));
+    }
+  }
+
+  if (foodType > 0) foodScale = lerp(foodScale, 1.0, 1 - pow(1 - 0.15, dt));
+
+  if (isDraggingSmellSlider) {
+    let sStart = GAME_W / 2 - 200, sEnd = GAME_W / 2 + 200;
+    smellSliderX = constrain(getInputX(), sStart, sEnd);
+  }
+  let sStart = GAME_W / 2 - 200, sEnd = GAME_W / 2 + 200;
+  let inputSmell = map(smellSliderX, sStart, sEnd, 0, 100);
+  delayedSmell = lerp(delayedSmell, inputSmell, 1 - pow(1 - 0.015, dt));
+
+  if (foodType === 1) {
+    salivaLevel  = lerp(salivaLevel, map(inputSmell, 0, 100, 40, 170), 1 - pow(1 - 0.02, dt));
+    if (salivaLevel > 168 && inputSmell >= 99) salivaLevel = 170;
+    cephalicAcid = lerp(cephalicAcid, map(delayedSmell, 0, 100, 0, 150), 1 - pow(1 - 0.01, dt));
+  } else if (foodType === 2) {
+    salivaLevel  = lerp(salivaLevel, 5, 1 - pow(1 - 0.02, dt));
+    cephalicAcid = lerp(cephalicAcid, 0, 1 - pow(1 - 0.1, dt));
+  }
+
+  let metabolismReady    = (insulinLevel > 20 && hepaticGlucoseOutput < 60);
+  let inActivationWindow = (foodType === 1 && inputSmell >= 99 &&
+                            salivaLevel >= 170 && metabolismReady && !hasSwallowed);
+  cephalicTimer = inActivationWindow ? min(60, cephalicTimer + dt) : 0;
+
+  if (foodType === 2) {
+    let inputSmellNow = map(smellSliderX, GAME_W/2-200, GAME_W/2+200, 0, 100);
+    if (inputSmellNow >= 60) emeticTimer = min(EMETIC_THRESHOLD, emeticTimer + dt);
+    else                     emeticTimer = max(0, emeticTimer - 2 * dt);
+    if (emeticTimer >= EMETIC_THRESHOLD) { if (warningSfx && !warningSfx.isPlaying()) warningSfx.play(); }
+    else                                  { if (warningSfx && warningSfx.isPlaying())  warningSfx.stop(); }
+  }
+}
+
+function updatePhase1Logic() {
+  let sliderStart = GAME_W / 2 - 150, sliderEnd = GAME_W / 2 + 150;
+  if (!phase1Complete && isDraggingPHSlider)
+    sliderX = constrain(getInputX(), sliderStart, sliderEnd);
+
+  let currentPH = map(sliderX, sliderStart, sliderEnd, 7.0, 1.0);
+  stomachAcid = map(currentPH, 7.0, 1.0, 0, 255);
+  ulcerRisk   = (currentPH < 1.5) ? min(110, ulcerRisk + 2*dt) : max(0, ulcerRisk - 10*dt);
+
+  let inPHWindow = (currentPH >= 1.5 && currentPH <= 3.0);
+  pepsinTimer = inPHWindow ? min(60, pepsinTimer + dt) : 0;
+  enzymeActive = (pepsinTimer >= 60 && pepsinState === PepsinState.ACTIVE);
+  updatePepsinDenaturation(currentPH, inPHWindow);
+
+  if (proteinImg != null && enzymeActive)
+    proteinScale = max(0.0, proteinScale - 0.005 * dt);
+  else if (proteinScale < 1.0 && pepsinState !== PepsinState.ACTIVE)
+    proteinScale = min(1.0, proteinScale + 0.02);
+
+  bubbleSpawnTimer += delta;
+  if (enzymeActive && bubbleSpawnTimer >= 83) {
+    bubbleSpawnTimer = 0;
+    let pX = GAME_W / 2 + 110, pY = GAME_H / 2 + 40;
+    acidBubbles.push(new Bubble(pX + random(-60, 60), pY + 80, random(6, 14), random(1, 5), [180, 255, 0, 180]));
+  }
+}
+
+function updatePhase2Logic() {
+  let thresholdMet = (secretinLevel >= 150 && cckLevel >= 150);
+  if (thresholdMet && !homeostasisReached) {
+    homeostasisReached = true;  homeostasisJustReached = true;
+    homeostasisLocked  = true;  homeostasisDisplayTimer = HOMEOSTASIS_DISPLAY_FRAMES;
+  }
+  if (homeostasisDisplayTimer > 0) {
+    homeostasisDisplayTimer -= dt;
+    if (homeostasisDisplayTimer <= 0) homeostasisLocked = false;
+  }
+  if (homeostasisReached && !homeostasisLocked && !thresholdMet) {
+    homeostasisReached = false;  homeostasisJustReached = false;
+  }
+
+  if (mouseIsPressed && (sprayType === 1 || sprayType === 2)) {
+    if (spraySfx && !spraySfx.isPlaying()) spraySfx.play();
+    let yOffset = 40;
+    if (sprayType === 1) {
+      secretinLevel = min(secretinLevel + 4.5*dt, 200);
+      for (let i = 0; i < 3; i++)
+        hormoneMist.push(new Mist(GAME_W*0.15+80, GAME_H/2+50+yOffset, random(5,10), random(-2,2), [0,150,255]));
+    } else {
+      cckLevel = min(cckLevel + 4.5*dt, 200);
+      for (let i = 0; i < 3; i++)
+        hormoneMist.push(new Mist(GAME_W*0.85-80, GAME_H/2+50+yOffset, random(-10,-5), random(-2,2), [255,180,0]));
+    }
+  } else {
+    if (spraySfx && spraySfx.isPlaying()) spraySfx.stop();
+  }
+
+  if (!homeostasisLocked) {
+    secretinLevel = max(secretinLevel - decayRate*dt, 0);
+    cckLevel      = max(cckLevel      - decayRate*dt, 0);
+  }
+}
+
+function updatePhase3Logic() {
+  handleNutrientPhysicsStrict(MEMBRANE_X + 280, 400, 120, GAME_H*0.35, GAME_H*0.55, GAME_H*0.75);
+
+  let allAbsorbed = glucoseSorted && sodiumSGLTSorted && sodiumNHE3Sorted && lipidSorted;
+  if (allAbsorbed) phase3ProceedDelay += dt;
+
+  successSpawnTimer += delta;
+  if (successSpawnTimer >= 83) {
+    successSpawnTimer = 0;
+  }
+}
+
+// Particle tick (update only, display done in renderGame)
+function updateAndTickPhaseParticles() {
+  let allP = [phase0Particles, phase1Particles, phase2Particles, phase3Particles];
+  for (let arr of allP) for (let p of arr) p.update();
+  for (let p of protocolParticles) p.update();
+  for (let p of reportParticles)   p.update();
+}
+
+// ── Pure rendering — no state changes allowed here ─────────
+function renderGame() {
+  let shakeX = (shakeIntensity > 0.1) ? random(-shakeIntensity, shakeIntensity) : 0;
+  let shakeY = (shakeIntensity > 0.1) ? random(-shakeIntensity, shakeIntensity) : 0;
 
   push();
   translate(shakeX, shakeY);
@@ -645,8 +834,7 @@ function drawSimulationLoop() {
   if (mode === MODE_PHASE1 && ulcerRisk > 100) {
     bgColor1 = lerpColor(color(10, 15, 30), color(50, 10, 10), (sin(millis() * 0.006) + 1) / 2.0);
   } else if (mode === MODE_PHASE0 && foodType === 2 && emeticTimer >= EMETIC_THRESHOLD) {
-    bgColor1 = lerpColor(color(10, 15, 30), color(25, 60, 25),
-                         map(delayedSmell, 0, 100, 0, 1.0));
+    bgColor1 = lerpColor(color(10, 15, 30), color(25, 60, 25), map(delayedSmell, 0, 100, 0, 1.0));
   } else if (mode === MODE_JOURNEY || mode === MODE_MECHANICS || mode === MODE_TITLE) {
     bgColor1 = color(5, 15, 35);
   }
@@ -665,8 +853,6 @@ function drawSimulationLoop() {
   }
   noTint();
 
-  if (showOverlay) overlayAlpha = lerp(overlayAlpha, 255, 1 - pow(1 - 0.2, dt));
-  else             overlayAlpha = lerp(overlayAlpha, 0, 1 - pow(1 - 0.3, dt));
   if (overlayAlpha > 1) {
     fill(0, map(overlayAlpha, 0, 255, 0, 235));
     rect(GAME_W / 2, GAME_H / 2, GAME_W, GAME_H);
@@ -678,32 +864,16 @@ function drawSimulationLoop() {
 // PHASE 0 — CEPHALIC PHASE
 // =========================================================
 function phase0() {
-  updateAndDrawPhaseParticles(0);
+  // Particles already updated in updateGameLogic(); just draw them
+  let arr0 = phase0Particles; for (let p of arr0) p.display();
   drawPhaseTitle("PHASE 0 — YOUR BRAIN PREPARES FOR FOOD", 50);
 
   let foodX = GAME_W * 0.85, foodY = GAME_H / 2 + 20;
-  let emissionX = foodX - 60, emissionY = foodY - 40;
   let headX = GAME_W * 0.35, headY = GAME_H / 2 - 40;
 
-  updateCephalicMetabolismFast();
-
-  if (foodType > 0) {
-    // Time-based spawn: spawnRate 10→2 frames at 60fps = 167ms→33ms interval
-    let spawnIntervalMs = map(delayedSmell, 0, 100, 167, 33);
-    aromaSpawnTimer += delta;  // dt*16.667 = ms per frame
-    if (aromaSpawnTimer >= spawnIntervalMs) {
-      aromaSpawnTimer = 0;
-      let cnt = int(map(delayedSmell, 0, 100, 1, 3));
-      for (let i = 0; i < cnt; i++)
-        aromaParticles.push(new AromaParticle(emissionX - random(0, 40), emissionY + random(-20, 20)));
-    }
-  }
-
-  for (let i = aromaParticles.length - 1; i >= 0; i--) {
-    let p = aromaParticles[i];
-    p.update(headX, headY);
+  // Draw aroma particles (already updated in logic tick)
+  for (let p of aromaParticles) {
     p.display(foodType === 1 ? [245, 230, 180] : [150, 200, 100]);
-    if (p.alpha <= 0) aromaParticles.splice(i, 1);
   }
 
   if (headImg != null) {
@@ -730,7 +900,6 @@ function phase0() {
   }
 
   if (foodType > 0) {
-    foodScale = lerp(foodScale, 1.0, 1 - pow(1 - 0.15, dt));
     push();
     translate(foodX, foodY);
     scale(foodScale);
@@ -740,28 +909,9 @@ function phase0() {
   }
 
   let sStart = GAME_W / 2 - 200, sEnd = GAME_W / 2 + 200, sliderY = GAME_H - 150;
-
-  // FIX: update smellSliderX position while dragging
-  if (isDraggingSmellSlider)
-    smellSliderX = constrain(getInputX(), sStart, sEnd);
-
   let inputSmell = map(smellSliderX, sStart, sEnd, 0, 100);
-  delayedSmell = lerp(delayedSmell, inputSmell, 1 - pow(1 - 0.015, dt));
-
-  if (foodType === 1) {
-    salivaLevel = lerp(salivaLevel, map(inputSmell, 0, 100, 40, 170), 1 - pow(1 - 0.02, dt));
-    if (salivaLevel > 168 && inputSmell >= 99) salivaLevel = 170;
-    cephalicAcid = lerp(cephalicAcid, map(delayedSmell, 0, 100, 0, 150), 1 - pow(1 - 0.01, dt));
-  } else if (foodType === 2) {
-    salivaLevel  = lerp(salivaLevel, 5, 1 - pow(1 - 0.02, dt));
-    cephalicAcid = lerp(cephalicAcid, 0, 1 - pow(1 - 0.1, dt));
-  }
-
   let metabolismReady   = (insulinLevel > 20 && hepaticGlucoseOutput < 60);
-  let inActivationWindow = (foodType === 1 && inputSmell >= 99 &&
-                            salivaLevel >= 170 && metabolismReady && !hasSwallowed);
-  cephalicTimer = inActivationWindow ? min(60, cephalicTimer + dt) : 0;
-  let cephalicActive = (cephalicTimer >= 60);
+  let cephalicActive    = (cephalicTimer >= 60);
 
   let guideY = 90, buttonY = 130;
   let p0Text = "", p0Color = color(255);
@@ -792,10 +942,6 @@ function phase0() {
     p0Text = "SMELL THE FOOD: MOVE THE SCENT SLIDER TO START!";  p0Color = color(200);
   } else if (foodType === 2) {
     cephalicReady = false;
-    if (inputSmell >= 60) emeticTimer = min(EMETIC_THRESHOLD, emeticTimer + dt);
-    else                  emeticTimer = max(0, emeticTimer - 2 * dt);
-    if (emeticTimer >= EMETIC_THRESHOLD) { if (warningSfx && !warningSfx.isPlaying()) warningSfx.play(); }
-    else                                  { if (warningSfx && warningSfx.isPlaying())  warningSfx.stop(); }
     if      (delayedSmell < 30)              p0Text = "SOMETHING SMELLS ODD...";
     else if (delayedSmell < 60)              p0Text = "SOMETHING SMELLS BAD — BODY IS REJECTING IT!";
     else if (emeticTimer >= EMETIC_THRESHOLD) p0Text = "SPOILED FOOD DETECTED — NAUSEA RESPONSE TRIGGERED!";
@@ -904,18 +1050,8 @@ function phase1() {
   drawPhaseTitle("PHASE 1 — STOMACH ACID & ENZYME ACTIVITY", 50);
 
   let sliderY = GAME_H - 110, sliderStart = GAME_W / 2 - 150, sliderEnd = GAME_W / 2 + 150;
-  if (!phase1Complete && isDraggingPHSlider)
-    sliderX = constrain(getInputX(), sliderStart, sliderEnd);
-
   let currentPH = map(sliderX, sliderStart, sliderEnd, 7.0, 1.0);
-  stomachAcid = map(currentPH, 7.0, 1.0, 0, 255);
-  ulcerRisk   = (currentPH < 1.5) ? min(110, ulcerRisk + 2*dt) : max(0, ulcerRisk - 10*dt);
-
   let inPHWindow = (currentPH >= 1.5 && currentPH <= 3.0);
-  pepsinTimer = inPHWindow ? min(60, pepsinTimer + dt) : 0;
-
-  enzymeActive = (pepsinTimer >= 60 && pepsinState === PepsinState.ACTIVE);
-  updatePepsinDenaturation(currentPH, inPHWindow);
 
   if (stomachImg != null) {
     push();  translate(GAME_W / 2, GAME_H / 2);  scale(organPulse);
@@ -928,25 +1064,14 @@ function phase1() {
 
   if (proteinImg != null) {
     let pAlpha = enzymeActive ? map(proteinScale, 1.0, 0.0, 255, 0) : 200;
-    if (enzymeActive) proteinScale = max(0.0, proteinScale - 0.005*dt);
-    else if (proteinScale < 1.0 && pepsinState !== PepsinState.ACTIVE)
-      proteinScale = min(1.0, proteinScale + 0.02);
     if (proteinScale > 0.01 && pAlpha > 1) {
       push();  translate(pX, pY);  scale(proteinScale);
       tint(255, pAlpha, transitionAlpha);  image(proteinImg, 0, 0, 140, 140);  noTint();  pop();
     }
   }
 
-  // Bubble spawn: every 5 frames at 60fps = every 83ms
-  bubbleSpawnTimer += delta;
-  if (enzymeActive && bubbleSpawnTimer >= 83) {
-    bubbleSpawnTimer = 0;
-    acidBubbles.push(new Bubble(pX + random(-60, 60), pY + 80, random(6, 14), random(1, 5), [180, 255, 0, 180]));
-  }
-  for (let i = acidBubbles.length - 1; i >= 0; i--) {
-    acidBubbles[i].update();  acidBubbles[i].display();
-    if (acidBubbles[i].y < pY - 100) acidBubbles.splice(i, 1);
-  }
+  // Bubbles updated in logic tick; just display here
+  for (let ab of acidBubbles) ab.display();
 
   drawPepsinPanelBig(GAME_W - 140, GAME_H / 2, currentPH, inPHWindow, enzymeActive);
 
@@ -1131,17 +1256,6 @@ function phase2() {
        secretinLevel / 200.0 * 300, 15, 5);
 
   let thresholdMet = (secretinLevel >= 150 && cckLevel >= 150);
-  if (thresholdMet && !homeostasisReached) {
-    homeostasisReached = true;  homeostasisJustReached = true;
-    homeostasisLocked  = true;  homeostasisDisplayTimer = HOMEOSTASIS_DISPLAY_FRAMES;
-  }
-  if (homeostasisDisplayTimer > 0) {
-    homeostasisDisplayTimer -= dt;
-    if (homeostasisDisplayTimer <= 0) homeostasisLocked = false;
-  }
-  if (homeostasisReached && !homeostasisLocked && !thresholdMet) {
-    homeostasisReached = false;  homeostasisJustReached = false;
-  }
 
   textAlign(CENTER);
   if (homeostasisReached && homeostasisDisplayTimer <= 0) {
@@ -1168,29 +1282,8 @@ function phase2() {
   fill(255, 200, 0);
   text("CCK: " + int(cckLevel / 2) + "% (need 75%)", GAME_W * 0.85, GAME_H / 2 + 50 + yOffset + 100);
 
-  if (mouseIsPressed && (sprayType === 1 || sprayType === 2)) {
-    if (spraySfx && !spraySfx.isPlaying()) spraySfx.play();
-    if (sprayType === 1) {
-      secretinLevel = min(secretinLevel + 4.5*dt, 200);
-      for (let i = 0; i < 3; i++)
-        hormoneMist.push(new Mist(GAME_W * 0.15 + 80, GAME_H / 2 + 50 + yOffset,
-                                   random(5, 10), random(-2, 2), [0, 150, 255]));
-    } else {
-      cckLevel = min(cckLevel + 4.5*dt, 200);
-      for (let i = 0; i < 3; i++)
-        hormoneMist.push(new Mist(GAME_W * 0.85 - 80, GAME_H / 2 + 50 + yOffset,
-                                   random(-10, -5), random(-2, 2), [255, 180, 0]));
-    }
-  } else {
-    if (spraySfx && spraySfx.isPlaying()) spraySfx.stop();
-  }
-
-  updateMist();
-
-  if (!homeostasisLocked) {
-    secretinLevel = max(secretinLevel - decayRate*dt, 0);
-    cckLevel      = max(cckLevel      - decayRate*dt, 0);
-  }
+  // Mist already updated in logic tick; draw it here
+  for (let m of hormoneMist) m.display();
 
   drawMeter(GAME_W / 2 - 250, GAME_H - 110 + yOffset, secretinLevel, "Secretin (Acid Reducer)", color(0, 180, 255));
   drawMeter(GAME_W / 2 + 250, GAME_H - 110 + yOffset, cckLevel,      "CCK (Fat Digester)",      color(255, 200, 0));
@@ -1215,9 +1308,8 @@ function phase3() {
   fill(200);  textSize(16);  textAlign(CENTER);
   text("DRAG EACH NUTRIENT TO ITS CORRECT ZONE IN THE VILLI!", GAME_W / 2, 75);
 
-  handleNutrientPhysicsStrict(zoneX, 400, 120, capY, nheY, lacY);
-  updateMist();
-
+  // Physics+mist already ticked in updateGameLogic(); draw nutrients
+  for (let m of hormoneMist) m.display();
   drawNutrient(glucoseImg, glucoseX,    glucoseY,    "Glucose",        [0, 255, 0],   glucoseSorted,    draggingGlucose,    gTimer);
   drawNutrient(sodiumImg,  sodiumSGLTX, sodiumSGLTY, "Sodium — SGLT1", [0, 200, 150], sodiumSGLTSorted, draggingSodiumSGLT, sGLTTimer);
   drawNutrient(sodiumImg,  sodiumNH3X,  sodiumNH3Y,  "Sodium — NHE3",  [0, 100, 200], sodiumNHE3Sorted, draggingSodiumNHE3, nhe3Timer);
@@ -1225,7 +1317,6 @@ function phase3() {
 
   let allAbsorbed = glucoseSorted && sodiumSGLTSorted && sodiumNHE3Sorted && lipidSorted;
   if (allAbsorbed) {
-    phase3ProceedDelay += dt;
     if (phase3ProceedDelay < PHASE3_PROCEED_DELAY_FRAMES) {
       fill(0, 255, 150, 150 + sin(millis() * 0.012) * 105);
       textStyle(BOLD);  textSize(22);  textAlign(CENTER);
