@@ -378,7 +378,7 @@ class PhaseParticle {
     this.pulseOffset = random(TWO_PI);
   }
   update() {
-    this.x += this.vx * 0.2 * dt;  this.y += this.vy * 0.2 * dt;
+    this.x += this.vx * 0.1 * dt;  this.y += this.vy * 0.1 * dt;
     if (this.x < -10)          this.x = GAME_W + 10;
     if (this.x > GAME_W + 10)   this.x = -10;
     if (this.y < -10)          this.y = GAME_H + 10;
@@ -394,7 +394,7 @@ class PhaseParticle {
     noStroke();
     fill(this.c[0], this.c[1], this.c[2], this.alpha);
     ellipse(this.x, this.y, this.size, this.size);
-    fill(this.c[0], this.c[1], this.c[2], this.alpha * 0.2);
+    fill(this.c[0], this.c[1], this.c[2], this.alpha * 0.1);
     ellipse(this.x, this.y, this.size * 1.5, this.size * 1.5);
   }
 }
@@ -408,8 +408,8 @@ class AromaParticle {
   update(targetX, targetY) {
     let dx = targetX - this.x,  dy = targetY - this.y;
     let d  = sqrt(dx * dx + dy * dy);
-    if (d > 30) { this.x += ((dx / d) * 2.5 + this.vx * 0.25) * dt;
-                  this.y += ((dy / d) * 2.5 + this.vy * 0.25) * dt; }
+    if (d > 30) { this.x += ((dx / d) * 2.5 + this.vx * 0.15) * dt;
+                  this.y += ((dy / d) * 2.5 + this.vy * 0.15) * dt; }
     else { this.alpha -= 1.5 * dt; }
     this.alpha -= 0.2 * dt;
   }
@@ -464,7 +464,7 @@ class SuccessParticle {
     this.c = Array.isArray(c) ? c : [red(c), green(c), blue(c)];
   }
   update() {
-    this.x += this.vx * 0.2 * dt;  this.y += this.vy * 0.2 * dt;
+    this.x += this.vx * 0.1 * dt;  this.y += this.vy * 0.1 * dt;
     this.vy += 0.08 * dt;    this.alpha -= 1.2 * dt;  this.size *= pow(0.992, dt);
   }
   display() {
@@ -480,7 +480,7 @@ class Mist {
     this.x = x;  this.y = y;  this.vx = vx;  this.vy = vy;  this.c = c;
     this.alpha = 200;  this.size = random(3, 10);
   }
-  update() { this.x += this.vx * 0.2 * dt;  this.y += this.vy * 0.2 * dt;  this.alpha = lerp(this.alpha, 0, 1 - pow(1 - 0.15, dt)); }
+  update() { this.x += this.vx * 0.1 * dt;  this.y += this.vy * 0.1 * dt;  this.alpha = lerp(this.alpha, 0, 1 - pow(1 - 0.15, dt)); }
   display() {
     noStroke();
     fill(this.c[0], this.c[1], this.c[2], this.alpha);
@@ -589,7 +589,7 @@ function draw() {
   let rawDelta = now - previousTime;
   previousTime = now;
   realFPS = 1000 / max(rawDelta, 1);
-  smoothedFPS = lerp(smoothedFPS, realFPS, 0.08);
+  smoothedFPS = lerp(smoothedFPS, realFPS,0.001);
 
   let frameTime = min(rawDelta / 1000, 0.05);  // seconds, max 50ms
   accumulator += frameTime;
@@ -1388,7 +1388,7 @@ function handleNutrientPhysicsStrict(zoneX, zoneW, zoneH, capY, nheY, lacY) {
   // --- Sodium NHE3 → exchanger ---
   if (!draggingSodiumNHE3 && !sodiumNHE3Sorted) {
     if (pointInZone(sodiumNH3X, sodiumNH3Y, zoneX, nheY, zoneW, zoneH)) {
-      nhe3Timer += 0.012;
+      nhe3Timer += 0.006;
       if (nhe3Timer >= 1.0) { sodiumNHE3Sorted = true; nhe3Pulse = 30; triggerBurst(sodiumNH3X, sodiumNH3Y, [0,100,200]); if (nhe3Sfx) nhe3Sfx.play(); if (correctSfx) correctSfx.play(); }
     } else if (pointInZone(sodiumNH3X, sodiumNH3Y, zoneX, capY, zoneW, zoneH) ||
                pointInZone(sodiumNH3X, sodiumNH3Y, zoneX, lacY, zoneW, zoneH)) {
@@ -1432,7 +1432,7 @@ function updateMist() {
 // FINAL REPORT
 // =========================================================
 function drawFinalReport() {
-  if (!reportPlayed && reportSfx != null) { reportSfx.play();  reportPlayed = true; }
+  if (!reportPlayed && reportSfx && !reportSfx.isPlaying()) { reportSfx.play(); reportPlayed = true; }
 
   if (reportGradientBuffer.GAME_W !== GAME_W || reportGradientBuffer.GAME_H !== GAME_H) {
     reportGradientBuffer = createGraphics(GAME_W, GAME_H);
