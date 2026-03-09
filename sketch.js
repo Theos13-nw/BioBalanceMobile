@@ -203,9 +203,11 @@ let shakeIntensity  = 0;
 // ── MOBILE SCALING ────────────────────────────────────────
 const GAME_W = 1280;   // virtual canvas width
 const GAME_H = 720;    // virtual canvas height
-let scaleF  = 1;       // scale factor (< 1 on small screens)
-let offsetX = 0;       // left letterbox offset
-let offsetY = 0;       // top  letterbox offset
+let scaleX  = 1;       // horizontal stretch factor
+let scaleY  = 1;       // vertical stretch factor
+let scaleF  = 1;       // uniform scale (kept for compat)
+let offsetX = 0;       // always 0 in stretch mode
+let offsetY = 0;       // always 0 in stretch mode
 let previousTime = 0;  // millis() at last frame
 let dt = 1;            // delta/16.666 — 1.0 at 60fps, 0.5 at 120fps, 2.0 at 30fps
 let delta = 16.666;    // raw ms since last frame (for spawn timers)
@@ -304,14 +306,15 @@ function preload() {
 // SETUP
 // =========================================================
 function setup() {
-  pixelDensity(1);      // Prevents blur issues and GPU overload on mobile
+  pixelDensity(1);      // Prevents GPU overload on mobile
   createCanvas(windowWidth, windowHeight);
-  frameRate(60);        // Request 60fps cap — dt handles actual speed regardless
+  noSmooth();           // Sharper pixel edges, less blur on mobile upscaling
+  frameRate(60);        // Request 60fps cap
   imageMode(CENTER);
   rectMode(CENTER);
   _calcScale();
 
-  previousTime = millis(); // Initialise for millis()-based dt
+  previousTime = millis();
 
   bgGradientBuffer     = createGraphics(GAME_W, GAME_H);
   reportGradientBuffer = createGraphics(GAME_W, GAME_H);
@@ -335,11 +338,13 @@ function setup() {
 }
 
 function _calcScale() {
-  // Uniform scale — fit whichever dimension is tighter
-  // No stretching ever. Small bars on one axis are fine.
-  scaleF  = min(windowWidth / GAME_W, windowHeight / GAME_H);
-  offsetX = (windowWidth  - GAME_W * scaleF) / 2;
-  offsetY = (windowHeight - GAME_H * scaleF) / 2;
+  // Stretch-fill: game always covers full screen, no black bars
+  // Non-uniform scale is intentional — fills every pixel on any aspect ratio
+  scaleX  = windowWidth  / GAME_W;
+  scaleY  = windowHeight / GAME_H;
+  scaleF  = min(scaleX, scaleY);  // kept for legacy refs
+  offsetX = 0;
+  offsetY = 0;
 }
 
 // =========================================================
@@ -347,11 +352,11 @@ function _calcScale() {
 // =========================================================
 function getInputX() {
   let sx = touches.length > 0 ? touches[0].x : mouseX;
-  return (sx - offsetX) / scaleF;
+  return sx / scaleX;
 }
 function getInputY() {
   let sy = touches.length > 0 ? touches[0].y : mouseY;
-  return (sy - offsetY) / scaleF;
+  return sy / scaleY;
 }
 
 // =========================================================
@@ -569,14 +574,19 @@ function updateAndDrawPhaseParticles(phaseIdx) {
 // =========================================================
 // DRAW LOOP
 // =========================================================
+// ── FPS smoothing ─────────────────────────────────────────
+let smoothedFPS = 60;
+
 function draw() {
   // ── True millis-based delta time ─────────────────────────
   let now = millis();
-  let rawDelta = now - previousTime; // ms since last frame
+  let rawDelta = now - previousTime;
   previousTime = now;
-  delta = min(rawDelta, 50);         // cap at 50ms; also used by spawn timers globally
+  // constrain: 8ms=120fps cap, 33ms=30fps floor (matches doc's 0.008–0.033s)
+  delta = constrain(rawDelta, 8, 33);
   dt = delta / 16.666;               // 1.0 at 60fps, 0.5 at 120fps, 2.0 at 30fps
   realFPS = 1000 / max(rawDelta, 1);
+  smoothedFPS = lerp(smoothedFPS, realFPS, 0.1);  // smoothed for display
 
   // ── Landscape lock ───────────────────────────────────────
   if (windowWidth < windowHeight) {
@@ -590,7 +600,7 @@ function draw() {
   background(0);
   push();
   translate(offsetX, offsetY);
-  scale(scaleF);
+  scale(scaleX, scaleY);
 
   if (showLicenseScreen) { drawLicenseScreen(); pop(); return; }
   if (quizState === 1)   { drawReflectionGate(); pop(); return; }
@@ -600,7 +610,7 @@ function draw() {
 
   // ── FPS debug display (remove after testing) ─────────────
   fill(255, 220, 0, 200);  noStroke();  textSize(18);  textAlign(LEFT, TOP);
-  text("FPS: " + nf(realFPS, 1, 0), 10, 10);
+  text("FPS: " + nf(smoothedFPS, 1, 0), 10, 10);
 
   pop();
 }
