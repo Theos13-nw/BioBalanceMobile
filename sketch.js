@@ -14,6 +14,32 @@ let bgLoop, clickSfx, acidSfx, successSfx, spraySfx, dragSfx,
     wrongSfx, correctSfx, swallowSfx, chewSfx;
 let bgLoopStarted = false;  // only set to true once — never reset (prevents loop stacking)
 
+// =========================================================
+// CENTRAL SOUND MANAGER — prevents Web Audio memory leaks
+// Always stop before play; never stack audio nodes on mobile
+// =========================================================
+function playSoundOnce(sound) {
+  if (sound && sound.isLoaded()) { sound.stop();  sound.play(); }
+}
+
+function loopSound(sound, vol) {
+  if (sound && sound.isLoaded()) {
+    if (!sound.isPlaying()) { sound.stop();  sound.loop(); }
+    sound.setVolume(vol !== undefined ? vol : 0.5);
+  }
+}
+
+function stopAllLoopingSounds() {
+  // Stop every sound that could be looping or playing continuously
+  [bgLoop, acidSfx, warningSfx, spraySfx].forEach(function(s) {
+    if (s && s.isPlaying()) s.stop();
+  });
+  // Reset all want-flags so soundTick doesn't immediately restart them
+  sfx_wantWarning = false;
+  sfx_wantAcid    = false;
+  sfx_wantSpray   = false;
+}
+
 // ── AUDIO FLAGS ────────────────────────────────────────────
 let cephalicSuccessPlayed = false;   // FIX: was missing from doc2 globals
 let pepsinSuccessPlayed   = false;   // FIX: was missing from doc2 globals
@@ -313,6 +339,10 @@ function preload() {
   correctSfx  = loadSound("data/correct.wav");
   swallowSfx  = loadSound("data/swallow.wav");
   chewSfx     = loadSound("data/chew.wav");
+  // Safety: ensure nothing auto-plays on load
+  [bgLoop, acidSfx, warningSfx, spraySfx].forEach(function(s) {
+    if (s) s.stop();
+  });
 }
 
 // =========================================================
@@ -659,26 +689,17 @@ function soundTick() {
   if (soundTickTimer < 15) return;   // throttle the rest to ~4×/sec
   soundTickTimer = 0;
 
-  // Warning sound
-  if (sfx_wantWarning) {
-    if (warningSfx && !warningSfx.isPlaying()) warningSfx.play();
-  } else {
-    if (warningSfx && warningSfx.isPlaying()) warningSfx.stop();
-  }
+  // Warning sound — use loopSound() to prevent node stacking
+  if (sfx_wantWarning) { loopSound(warningSfx, 0.5); }
+  else { if (warningSfx && warningSfx.isPlaying()) warningSfx.stop(); }
 
-  // Acid sound
-  if (sfx_wantAcid) {
-    if (acidSfx && !acidSfx.isPlaying()) acidSfx.play();
-  } else {
-    if (acidSfx && acidSfx.isPlaying()) acidSfx.stop();
-  }
+  // Acid sound — use loopSound() to prevent node stacking
+  if (sfx_wantAcid) { loopSound(acidSfx, 0.4); }
+  else { if (acidSfx && acidSfx.isPlaying()) acidSfx.stop(); }
 
-  // Spray sound
-  if (sfx_wantSpray) {
-    if (spraySfx && !spraySfx.isPlaying()) spraySfx.play();
-  } else {
-    if (spraySfx && spraySfx.isPlaying()) spraySfx.stop();
-  }
+  // Spray sound — use loopSound() to prevent node stacking
+  if (sfx_wantSpray) { loopSound(spraySfx, 0.5); }
+  else { if (spraySfx && spraySfx.isPlaying()) spraySfx.stop(); }
 }
 
 // =========================================================
@@ -1833,7 +1854,7 @@ function resetAll() {
   wrongAnswers = [];  dragOffsetX = 0;  dragOffsetY = 0;
   gateJustCompleted = false;
 
-  if (warningSfx && warningSfx.isPlaying()) warningSfx.stop();
+  stopAllLoopingSounds();  // stop ALL looping sounds cleanly on full reset
 }
 
 // =========================================================
@@ -2323,12 +2344,13 @@ function prepareQuestion() {
 function startReflectionGate() {
   let phaseIdx = currentPhaseIndex();
   if (phaseIdx < 0) return;
+  stopAllLoopingSounds();  // stop acid/warning/spray before entering quiz
   gateAttemptsCount[phaseIdx]++;
   initQuizBanks();
   quizState = 1;  quizSubState = 0;
   score = 0;  currentQuestionIdx = 0;
   feedbackMsg = "";  feedbackTimer = 0;
-  gateJustCompleted = false;    // FIX: now declared as global — no crash
+  gateJustCompleted = false;
   wrongAnswers = [];
   prepareQuestion();
 }
@@ -2551,6 +2573,7 @@ function handleQuizClick() {
 
 function resetSimulationToPhaseStart() {
   organPulse=1.0;  shakeIntensity=0;
+  stopAllLoopingSounds();  // always clean up all looping sounds on any phase reset
   if (mode===MODE_PHASE0) {
     smellSliderX=GAME_W/2-200;  salivaLevel=0;  foodType=0;  cephalicAcid=0;
     cephalicReady=false;  delayedSmell=0;  foodScale=0;  isChewing=false;
@@ -2558,7 +2581,6 @@ function resetSimulationToPhaseStart() {
     hepaticGlucoseOutput=100;  peripheralGlucoseUptake=0;  emeticTimer=0;
     aromaParticles=[];  cephalicSuccessPlayed=false;  warningPlayed=false;
     phase0ProceedSoundPlayed=false;
-    if (warningSfx && warningSfx.isPlaying()) warningSfx.stop();
   } else if (mode===MODE_PHASE1) {
     stomachAcid=0;  ulcerRisk=0;  sliderX=GAME_W/2-150;
     proteinScale=1.0;  pepsinTimer=0;  enzymeActive=false;
@@ -2566,7 +2588,6 @@ function resetSimulationToPhaseStart() {
     pepsinogenReserve=100;  pepsinRestoredFlag=false;
     acidBubbles=[];  pepsinSuccessPlayed=false;
     phase1ProceedSoundPlayed=false;  phase1Complete=false;
-    if (warningSfx && warningSfx.isPlaying()) warningSfx.stop();
   } else if (mode===MODE_PHASE2) {
     secretinLevel=0;  cckLevel=0;  homeostasisReached=false;
     homeostasisJustReached=false;  homeostasisDisplayTimer=0;
