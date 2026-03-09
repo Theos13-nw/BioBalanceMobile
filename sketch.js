@@ -206,13 +206,20 @@ const GAME_H = 720;    // virtual canvas height
 let scaleF  = 1;       // scale factor (< 1 on small screens)
 let offsetX = 0;       // left letterbox offset
 let offsetY = 0;       // top  letterbox offset
-let previousTime = 0;  // millis() at last frame, for true deltaTime
-let dt = 1;            // delta time normalised to 60fps (1.0 = 60fps speed)
+let previousTime = 0;  // millis() at last frame
+let dt = 1;            // delta/16.666 — 1.0 at 60fps, 0.5 at 120fps, 2.0 at 30fps
+let delta = 16.666;    // raw ms since last frame (for spawn timers)
+let realFPS = 60;      // measured fps for debug display
 let isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 
 // ── TOUCH/DRAG STATE ──────────────────────────────────────
 let isDraggingSmellSlider = false;
 let isDraggingPHSlider    = false;
+
+// ── SPAWN TIMERS (time-based, replaces frameCount %) ──────
+let aromaSpawnTimer  = 0;   // ms accumulator for aroma particles
+let bubbleSpawnTimer = 0;   // ms accumulator for acid bubbles
+let successSpawnTimer = 0;  // ms accumulator for success particles
 
 // =========================================================
 // PRELOAD
@@ -297,9 +304,9 @@ function preload() {
 // SETUP
 // =========================================================
 function setup() {
-  pixelDensity(window.devicePixelRatio || 1); // Sharp on retina/HD mobile screens
+  pixelDensity(1);      // Prevents blur issues and GPU overload on mobile
   createCanvas(windowWidth, windowHeight);
-  frameRate(60);        // Request 60fps; dt normalises regardless of actual fps
+  frameRate(60);        // Request 60fps cap — dt handles actual speed regardless
   imageMode(CENTER);
   rectMode(CENTER);
   _calcScale();
@@ -360,17 +367,17 @@ class PhaseParticle {
     this.pulseOffset = random(TWO_PI);
   }
   update() {
-    this.x += this.vx;  this.y += this.vy;
+    this.x += this.vx * dt;  this.y += this.vy * dt;
     if (this.x < -10)          this.x = GAME_W + 10;
     if (this.x > GAME_W + 10)   this.x = -10;
     if (this.y < -10)          this.y = GAME_H + 10;
     if (this.y > GAME_H + 10)  this.y = -10;
-    if (random(1) < 0.005) {
+    if (random(1) < 0.3 * dt) {
       this.vx += random(-0.05, 0.05);  this.vy += random(-0.05, 0.05);
       this.vx = constrain(this.vx, -0.3, 0.3);
       this.vy = constrain(this.vy, -0.3, 0.3);
     }
-    this.alpha = 25 + sin(frameCount * this.pulseSpeed + this.pulseOffset) * 15;
+    this.alpha = 25 + sin(millis() * this.pulseSpeed * 0.06 + this.pulseOffset) * 15;
   }
   display() {
     noStroke();
@@ -390,10 +397,10 @@ class AromaParticle {
   update(targetX, targetY) {
     let dx = targetX - this.x,  dy = targetY - this.y;
     let d  = sqrt(dx * dx + dy * dy);
-    if (d > 30) { this.x += (dx / d) * 2.5 + this.vx * 0.25;
-                  this.y += (dy / d) * 2.5 + this.vy * 0.25; }
-    else { this.alpha -= 1.5; }
-    this.alpha -= 0.2;
+    if (d > 30) { this.x += ((dx / d) * 2.5 + this.vx * 0.25) * dt;
+                  this.y += ((dy / d) * 2.5 + this.vy * 0.25) * dt; }
+    else { this.alpha -= 1.5 * dt; }
+    this.alpha -= 0.2 * dt;
   }
   display(c) {
     noStroke();
@@ -409,9 +416,9 @@ class ProtocolParticle {
     this.size = random(2, 6);
   }
   update() {
-    this.y -= this.vy;
+    this.y -= this.vy * dt;
     if (this.y < -20) { this.y = GAME_H + 20;  this.x = random(GAME_W); }
-    this.alpha = 100 + sin(frameCount * 0.05 + this.x * 0.01) * 50;
+    this.alpha = 100 + sin(millis() * 0.003 + this.x * 0.01) * 50;
   }
   display() {
     noStroke();  fill(0, 255, 200, this.alpha);
@@ -426,9 +433,9 @@ class ReportParticle {
     this.size = random(3, 8);
   }
   update() {
-    this.y -= this.vy;
+    this.y -= this.vy * dt;
     if (this.y < -20) { this.y = GAME_H + 20;  this.x = random(GAME_W); }
-    this.alpha = 80 + sin(frameCount * 0.03 + this.x * 0.01) * 40;
+    this.alpha = 80 + sin(millis() * 0.0018 + this.x * 0.01) * 40;
   }
   display() {
     noStroke();  fill(112, 240, 240, this.alpha);
@@ -446,8 +453,8 @@ class SuccessParticle {
     this.c = Array.isArray(c) ? c : [red(c), green(c), blue(c)];
   }
   update() {
-    this.x += this.vx;  this.y += this.vy;
-    this.vy += 0.2;     this.alpha -= 3;  this.size *= 0.98;
+    this.x += this.vx * dt;  this.y += this.vy * dt;
+    this.vy += 0.2 * dt;    this.alpha -= 3 * dt;  this.size *= pow(0.98, dt);
   }
   display() {
     noStroke();
@@ -462,7 +469,7 @@ class Mist {
     this.x = x;  this.y = y;  this.vx = vx;  this.vy = vy;  this.c = c;
     this.alpha = 200;  this.size = random(3, 10);
   }
-  update() { this.x += this.vx;  this.y += this.vy;  this.alpha = lerp(this.alpha, 0, 0.15); }
+  update() { this.x += this.vx * dt;  this.y += this.vy * dt;  this.alpha = lerp(this.alpha, 0, 1 - pow(1 - 0.15, dt)); }
   display() {
     noStroke();
     fill(this.c[0], this.c[1], this.c[2], this.alpha);
@@ -474,7 +481,7 @@ class Bubble {
   constructor(x, y, size, speed, c) {
     this.x = x;  this.y = y;  this.size = size;  this.speed = speed;  this.c = c;
   }
-  update() { this.y -= this.speed;  this.x += sin(frameCount * 0.1) * 0.5; }
+  update() { this.y -= this.speed * dt;  this.x += sin(millis() * 0.006) * 0.5 * dt; }
   display() {
     // FIX: honour alpha channel when present
     let a = (this.c.length >= 4) ? this.c[3] : 255;
@@ -563,15 +570,15 @@ function updateAndDrawPhaseParticles(phaseIdx) {
 // DRAW LOOP
 // =========================================================
 function draw() {
-  // ── True delta-time (millis-based, immune to frameRate fluctuations) ──
+  // ── True millis-based delta time ─────────────────────────
   let now = millis();
-  dt = (now - previousTime) / 1000;   // seconds since last frame
+  let rawDelta = now - previousTime; // ms since last frame
   previousTime = now;
-  dt = min(dt, 1/30);                 // cap at ~2 frames equiv, prevents lerp overshoot
-  dt *= 60;                           // normalise: dt=1 at 60fps, dt=2 at 120fps etc.
-  if (isMobile) dt *= 0.85;           // perceptual compensation — small screens feel faster
+  delta = min(rawDelta, 50);         // cap at 50ms; also used by spawn timers globally
+  dt = delta / 16.666;               // 1.0 at 60fps, 0.5 at 120fps, 2.0 at 30fps
+  realFPS = 1000 / max(rawDelta, 1);
 
-  // ── Landscape lock (outside virtual canvas so always readable) ──
+  // ── Landscape lock ───────────────────────────────────────
   if (windowWidth < windowHeight) {
     background(5, 15, 35);
     fill(0, 255, 200);  textSize(24);  textAlign(CENTER, CENTER);
@@ -579,8 +586,8 @@ function draw() {
     return;
   }
 
-  // ── Virtual canvas: letterbox + scale ──
-  background(0);  // black fills any letterbox bars
+  // ── Virtual canvas ───────────────────────────────────────
+  background(0);
   push();
   translate(offsetX, offsetY);
   scale(scaleF);
@@ -590,6 +597,11 @@ function draw() {
   drawSimulationLoop();
   drawPersistentReturnButton();
   if (mode !== MODE_TITLE && !showLicenseScreen) drawFooter();
+
+  // ── FPS debug display (remove after testing) ─────────────
+  fill(255, 220, 0, 200);  noStroke();  textSize(18);  textAlign(LEFT, TOP);
+  text("FPS: " + nf(realFPS, 1, 0), 10, 10);
+
   pop();
 }
 
@@ -600,20 +612,20 @@ function drawSimulationLoop() {
 
   // dt is already computed in draw() — no recalculation needed here
 
-  transitionAlpha = lerp(transitionAlpha, 255, 0.08 * dt);
-  organPulse      = 1.0 + sin(frameCount * 0.05) * 0.015;
-  connectionGlow  = (sin(frameCount * 0.05) + 1) / 2.0;
+  transitionAlpha = lerp(transitionAlpha, 255, 1 - pow(1 - 0.08, dt));
+  organPulse      = 1.0 + sin(millis() * 0.003) * 0.015;
+  connectionGlow  = (sin(millis() * 0.003) + 1) / 2.0;
 
   let shakeX = 0, shakeY = 0;
   let isShaking =
     (mode === MODE_PHASE1 && ulcerRisk > 100) ||
     (mode === MODE_PHASE0 && foodType === 2 && emeticTimer >= EMETIC_THRESHOLD);
   if (isShaking) {
-    shakeIntensity = lerp(shakeIntensity, map(delayedSmell, 0, 100, 0.5, 4.0), 0.1 * dt);
+    shakeIntensity = lerp(shakeIntensity, map(delayedSmell, 0, 100, 0.5, 4.0), 1 - pow(1 - 0.1, dt));
     shakeX = random(-shakeIntensity, shakeIntensity);
     shakeY = random(-shakeIntensity, shakeIntensity);
   } else {
-    shakeIntensity = lerp(shakeIntensity, 0, 0.2 * dt);
+    shakeIntensity = lerp(shakeIntensity, 0, 1 - pow(1 - 0.2, dt));
   }
 
   push();
@@ -621,7 +633,7 @@ function drawSimulationLoop() {
 
   let bgColor1 = color(10, 15, 30);
   if (mode === MODE_PHASE1 && ulcerRisk > 100) {
-    bgColor1 = lerpColor(color(10, 15, 30), color(50, 10, 10), (sin(frameCount * 0.1) + 1) / 2.0);
+    bgColor1 = lerpColor(color(10, 15, 30), color(50, 10, 10), (sin(millis() * 0.006) + 1) / 2.0);
   } else if (mode === MODE_PHASE0 && foodType === 2 && emeticTimer >= EMETIC_THRESHOLD) {
     bgColor1 = lerpColor(color(10, 15, 30), color(25, 60, 25),
                          map(delayedSmell, 0, 100, 0, 1.0));
@@ -643,8 +655,8 @@ function drawSimulationLoop() {
   }
   noTint();
 
-  if (showOverlay) overlayAlpha = lerp(overlayAlpha, 255, 0.2 * dt);
-  else             overlayAlpha = lerp(overlayAlpha, 0, 0.3 * dt);
+  if (showOverlay) overlayAlpha = lerp(overlayAlpha, 255, 1 - pow(1 - 0.2, dt));
+  else             overlayAlpha = lerp(overlayAlpha, 0, 1 - pow(1 - 0.3, dt));
   if (overlayAlpha > 1) {
     fill(0, map(overlayAlpha, 0, 255, 0, 235));
     rect(GAME_W / 2, GAME_H / 2, GAME_W, GAME_H);
@@ -666,8 +678,11 @@ function phase0() {
   updateCephalicMetabolismFast();
 
   if (foodType > 0) {
-    let spawnRate = int(map(delayedSmell, 0, 100, 10, 2));
-    if (frameCount % max(1, spawnRate) === 0) {
+    // Time-based spawn: spawnRate 10→2 frames at 60fps = 167ms→33ms interval
+    let spawnIntervalMs = map(delayedSmell, 0, 100, 167, 33);
+    aromaSpawnTimer += delta;  // dt*16.667 = ms per frame
+    if (aromaSpawnTimer >= spawnIntervalMs) {
+      aromaSpawnTimer = 0;
       let cnt = int(map(delayedSmell, 0, 100, 1, 3));
       for (let i = 0; i < cnt; i++)
         aromaParticles.push(new AromaParticle(emissionX - random(0, 40), emissionY + random(-20, 20)));
@@ -687,13 +702,13 @@ function phase0() {
     scale(organPulse);
     if (foodType === 1 && insulinLevel > 10) {
       let g = map(insulinLevel, 0, 50, 50, 180);
-      fill(255, 100, 150, g + sin(frameCount * 0.1) * 40);  noStroke();
+      fill(255, 100, 150, g + sin(millis() * 0.006) * 40);  noStroke();
       ellipse(0, -20, 160, 140);
       fill(255, 150, 200, g * 0.6);
       ellipse(0, -20, 100, 90);
     }
     if (foodType === 1 && salivaLevel > 150) {
-      fill(0, 255, 200, 50 + sin(frameCount * 0.1) * 50);  noStroke();
+      fill(0, 255, 200, 50 + sin(millis() * 0.006) * 50);  noStroke();
       ellipse(0, -50, 120, 100);
     }
     if (foodType === 2 && emeticTimer >= EMETIC_THRESHOLD) {
@@ -705,7 +720,7 @@ function phase0() {
   }
 
   if (foodType > 0) {
-    foodScale = lerp(foodScale, 1.0, 0.15 * dt);
+    foodScale = lerp(foodScale, 1.0, 1 - pow(1 - 0.15, dt));
     push();
     translate(foodX, foodY);
     scale(foodScale);
@@ -721,15 +736,15 @@ function phase0() {
     smellSliderX = constrain(getInputX(), sStart, sEnd);
 
   let inputSmell = map(smellSliderX, sStart, sEnd, 0, 100);
-  delayedSmell = lerp(delayedSmell, inputSmell, 0.015 * dt);
+  delayedSmell = lerp(delayedSmell, inputSmell, 1 - pow(1 - 0.015, dt));
 
   if (foodType === 1) {
-    salivaLevel = lerp(salivaLevel, map(inputSmell, 0, 100, 40, 170), 0.02 * dt);
+    salivaLevel = lerp(salivaLevel, map(inputSmell, 0, 100, 40, 170), 1 - pow(1 - 0.02, dt));
     if (salivaLevel > 168 && inputSmell >= 99) salivaLevel = 170;
-    cephalicAcid = lerp(cephalicAcid, map(delayedSmell, 0, 100, 0, 150), 0.01 * dt);
+    cephalicAcid = lerp(cephalicAcid, map(delayedSmell, 0, 100, 0, 150), 1 - pow(1 - 0.01, dt));
   } else if (foodType === 2) {
-    salivaLevel  = lerp(salivaLevel, 5, 0.02 * dt);
-    cephalicAcid = lerp(cephalicAcid, 0, 0.1 * dt);
+    salivaLevel  = lerp(salivaLevel, 5, 1 - pow(1 - 0.02, dt));
+    cephalicAcid = lerp(cephalicAcid, 0, 1 - pow(1 - 0.1, dt));
   }
 
   let metabolismReady   = (insulinLevel > 20 && hepaticGlucoseOutput < 60);
@@ -753,7 +768,7 @@ function phase0() {
   } else if (foodType === 1 && cephalicActive) {
     cephalicReady = true;
     p0Text  = "BRAIN SIGNAL SENT — VAGUS NERVE ACTIVATED!";
-    p0Color = color(0, 255, 150, 150 + sin(frameCount * 0.2) * 105);
+    p0Color = color(0, 255, 150, 150 + sin(millis() * 0.012) * 105);
   } else if (foodType === 1 && inputSmell >= 99 && salivaLevel >= 170 && !metabolismReady) {
     cephalicReady = false;
     p0Text = "SALIVA READY — YOUR BODY IS GETTING READY...";  p0Color = color(255, 200, 0);
@@ -805,17 +820,17 @@ function phase0() {
 function updateCephalicMetabolismFast() {
   if (foodType === 1) {
     let cal = map(delayedSmell, 0, 100, 0, 500);
-    insulinLevel            = lerp(insulinLevel, cal * 0.08, 0.05 * dt);
-    hepaticGlucoseOutput    = lerp(hepaticGlucoseOutput, max(20, 100 - insulinLevel * 1.5), 0.03 * dt);
+    insulinLevel            = lerp(insulinLevel, cal * 0.08, 1 - pow(1 - 0.05, dt));
+    hepaticGlucoseOutput    = lerp(hepaticGlucoseOutput, max(20, 100 - insulinLevel * 1.5), 1 - pow(1 - 0.03, dt));
     peripheralGlucoseUptake = map(insulinLevel, 0, 40, 0, 100);
   } else if (foodType === 2) {
-    insulinLevel            = lerp(insulinLevel, 0, 0.1 * dt);
-    hepaticGlucoseOutput    = lerp(hepaticGlucoseOutput, 150, 0.05 * dt);
-    peripheralGlucoseUptake = lerp(peripheralGlucoseUptake, 0, 0.1 * dt);
+    insulinLevel            = lerp(insulinLevel, 0, 1 - pow(1 - 0.1, dt));
+    hepaticGlucoseOutput    = lerp(hepaticGlucoseOutput, 150, 1 - pow(1 - 0.05, dt));
+    peripheralGlucoseUptake = lerp(peripheralGlucoseUptake, 0, 1 - pow(1 - 0.1, dt));
   } else {
-    insulinLevel            = lerp(insulinLevel, 0, 0.05 * dt);
-    hepaticGlucoseOutput    = lerp(hepaticGlucoseOutput, 100, 0.02 * dt);
-    peripheralGlucoseUptake = lerp(peripheralGlucoseUptake, 0, 0.05 * dt);
+    insulinLevel            = lerp(insulinLevel, 0, 1 - pow(1 - 0.05, dt));
+    hepaticGlucoseOutput    = lerp(hepaticGlucoseOutput, 100, 1 - pow(1 - 0.02, dt));
+    peripheralGlucoseUptake = lerp(peripheralGlucoseUptake, 0, 1 - pow(1 - 0.05, dt));
   }
 }
 
@@ -831,7 +846,7 @@ function drawMetabolicPanelWithSaliva(x, y) {
   let sw = map(salivaLevel, 0, 170, 0, 240);
   fill(0, 200, 255);  rect(x - 120 + sw / 2, y - 60, sw, 40, 5);
   if (salivaLevel >= 170) {
-    stroke(0, 255, 255, 100 + (sin(frameCount * 0.1) + 1) / 2.0 * 155);
+    stroke(0, 255, 255, 100 + (sin(millis() * 0.006) + 1) / 2.0 * 155);
     strokeWeight(3);  noFill();  rect(x, y - 60, 240, 40, 5);  noStroke();
   }
   fill(0, 255, 255);  textStyle(BOLD);  textSize(12);  text("SALIVA", x, y - 85);  textStyle(NORMAL);
@@ -912,8 +927,12 @@ function phase1() {
     }
   }
 
-  if (enzymeActive && frameCount % 5 === 0)
+  // Bubble spawn: every 5 frames at 60fps = every 83ms
+  bubbleSpawnTimer += delta;
+  if (enzymeActive && bubbleSpawnTimer >= 83) {
+    bubbleSpawnTimer = 0;
     acidBubbles.push(new Bubble(pX + random(-60, 60), pY + 80, random(6, 14), random(1, 5), [180, 255, 0, 180]));
+  }
   for (let i = acidBubbles.length - 1; i >= 0; i--) {
     acidBubbles[i].update();  acidBubbles[i].display();
     if (acidBubbles[i].y < pY - 100) acidBubbles.splice(i, 1);
@@ -945,11 +964,11 @@ function phase1() {
       text("ENZYME SHAPE BROKEN — PEPSIN STOPPED WORKING!", GAME_W / 2, statusY);  textStyle(NORMAL);
       drawRestorePepsinButton(GAME_W / 2, statusY + spacing);
     } else if (pepsinConcentration > 0 && currentPH > 4.5 && currentPH <= 5.0) {
-      fill(255, 100 + (sin(frameCount * 0.3) + 1) / 2.0 * 155, 0);
+      fill(255, 100 + (sin(millis() * 0.018) + 1) / 2.0 * 155, 0);
       textStyle(BOLD);  textSize(22);
       text("WARNING: PEPSIN ABOUT TO BREAK DOWN — LOWER THE ACID!", GAME_W / 2, statusY);  textStyle(NORMAL);
     } else if (currentPH < 1.5) {
-      fill(255, (sin(frameCount * 0.2) + 1) / 2.0 * 100, 0);
+      fill(255, (sin(millis() * 0.012) + 1) / 2.0 * 100, 0);
       textStyle(BOLD);  textSize(22);
       text("DANGER: TOO MUCH ACID — MOVE SLIDER LEFT!", GAME_W / 2, statusY);  textStyle(NORMAL);
     } else if (inPHWindow && !enzymeActive) {
@@ -981,7 +1000,7 @@ function drawRestorePepsinButton(x, y) {
   let hover = (getInputX() > x - bw / 2 && getInputX() < x + bw / 2 &&
                getInputY() > y - bh / 2 && getInputY() < y + bh / 2);
   fill(hover ? 120 : 60, 200);
-  stroke(255, 50, 50, 150 + sin(frameCount * 0.1) * 100);  strokeWeight(3);
+  stroke(255, 50, 50, 150 + sin(millis() * 0.006) * 100);  strokeWeight(3);
   rect(x, y, bw, bh, 10);
   fill(255);  textAlign(CENTER, CENTER);  text("RESTORE PEPSIN", x, y - 3);  textStyle(NORMAL);
 }
@@ -1041,7 +1060,7 @@ function drawPepsinPanelBig(x, y, currentPH, inPHWindow, enzymeActive) {
   let phW = map(currentPH, 7, 1, 0, 240);
   fill(phC);  rect(x - 120 + phW / 2, y - 40, phW, 40, 5);
   if (inPHWindow) {
-    stroke(0, 255, 150, 100 + (sin(frameCount * 0.1) + 1) / 2.0 * 155);
+    stroke(0, 255, 150, 100 + (sin(millis() * 0.006) + 1) / 2.0 * 155);
     strokeWeight(3);  noFill();  rect(x, y - 40, 240, 40, 5);  noStroke();
   }
   fill(phC);  textStyle(BOLD);  textSize(12);
@@ -1121,7 +1140,7 @@ function phase2() {
     if (!phase2ProceedSoundPlayed) { if (successSfx) successSfx.play();  phase2ProceedSoundPlayed = true; }
     drawProceedButton(GAME_W / 2, warningY + 45);
   } else if (homeostasisReached && homeostasisDisplayTimer > 0) {
-    fill(0, 255, 150, 150 + sin(frameCount * 0.2) * 105);  textStyle(BOLD);  textSize(22);
+    fill(0, 255, 150, 150 + sin(millis() * 0.012) * 105);  textStyle(BOLD);  textSize(22);
     text("HORMONES BALANCED — WAIT FOR ABSORPTION TO BEGIN...", GAME_W / 2, warningY);  textStyle(NORMAL);
   } else {
     let p2T = (secretinLevel <= 150 && cckLevel <= 150) ? "TOO MUCH ACID AND FAT! SPRAY BOTH HORMONES!" :
@@ -1198,7 +1217,7 @@ function phase3() {
   if (allAbsorbed) {
     phase3ProceedDelay += dt;
     if (phase3ProceedDelay < PHASE3_PROCEED_DELAY_FRAMES) {
-      fill(0, 255, 150, 150 + sin(frameCount * 0.2) * 105);
+      fill(0, 255, 150, 150 + sin(millis() * 0.012) * 105);
       textStyle(BOLD);  textSize(22);  textAlign(CENTER);
       text("COMPLETING THE PROCESS — WAIT...", GAME_W / 2, 105);  textStyle(NORMAL);
     } else {
@@ -1357,7 +1376,7 @@ function drawFinalReport() {
     let bx = startX + i * btnSpacing;
     let isActive = (currentReportSlide === i), isDone = phaseCompleted[i];
     if (isActive) {
-      noFill();  stroke(255, 255, 255, 150 + sin(frameCount * 0.1) * 100);  strokeWeight(4);
+      noFill();  stroke(255, 255, 255, 150 + sin(millis() * 0.006) * 100);  strokeWeight(4);
       rect(bx, btnY, 200, 100, 12);
     }
     fill(isActive ? color(0, 100, 100) : isDone ? color(0, 80, 80) : color(20, 40, 50), 220);
@@ -1636,7 +1655,7 @@ function drawControlProtocol() {
 
   let bx4=GAME_W-80, by4=GAME_H-80, br=60;
   let hov = dist(getInputX(),getInputY(),bx4,by4)<br;
-  let pulse4 = (sin(frameCount*0.1)+1)/2.0;
+  let pulse4 = (sin(millis()*0.006)+1)/2.0;
   noFill();  stroke(0,255,200, hov?200:80+pulse4*60);  strokeWeight(hov?8:4);
   ellipse(bx4,by4,br*2+20,br*2+20);
   fill(hov?color(0,200,160):color(0,100,100),240);
@@ -1686,7 +1705,7 @@ function drawJourneyMap() {
     line(x1, y, x2, y);
     if (phaseCompleted[i]) {
       fill(0,255,200,200);  noStroke();
-      ellipse(x1 + (frameCount*2)%300, y, 8, 8);
+      ellipse(x1 + (millis()/8.333)%300, y, 8, 8);
     }
   }
 
@@ -1694,7 +1713,7 @@ function drawJourneyMap() {
 
   if (selectedPhase >= 0) {
     let sx = GAME_W/2-450+selectedPhase*300, sy = GAME_H/2-50;
-    noFill();  stroke(255,255,0, 150+sin(frameCount*0.1)*105);  strokeWeight(3);
+    noFill();  stroke(255,255,0, 150+sin(millis()*0.006)*105);  strokeWeight(3);
     ellipse(sx,sy,120,120);
   }
 
@@ -1709,7 +1728,7 @@ function drawJourneyMap() {
   text("Score: " + nf(sysInt,0,1)+"%", 80, GAME_H-135);
 
   if (done === 4) {
-    fill(0,255,200, 100+(sin(frameCount*0.1)+1)/2.0*155);
+    fill(0,255,200, 100+(sin(millis()*0.006)+1)/2.0*155);
     textStyle(BOLD);  textSize(28);  textAlign(CENTER);
     text("DIGESTION COMPLETE!", GAME_W-200, GAME_H-130);  textStyle(NORMAL);
   }
@@ -1724,9 +1743,9 @@ function drawPhaseNode(x, y, phaseIndex) {
 
   let baseSize = 80, pulseSize = 0;
   if (phaseIndex === 0 && !isCompleted) {
-    pulseSize = sin(frameCount * 0.08) * 10;
+    pulseSize = sin(millis() * 0.0048) * 10;
   } else if (!isCompleted && isAvailable) {
-    nodePulse[phaseIndex] = (sin(frameCount * 0.08 + phaseIndex) + 1) / 2.0;
+    nodePulse[phaseIndex] = (sin(millis() * 0.0048 + phaseIndex) + 1) / 2.0;
     pulseSize = nodePulse[phaseIndex] * 15;
   }
 
@@ -1756,7 +1775,7 @@ function drawPhaseNode(x, y, phaseIndex) {
   textAlign(CENTER, CENTER);
   if (isCompleted) {
     if (phaseEfficiency[phaseIndex] === 100) {
-      noFill();  stroke(255,215,0, 150+sin(frameCount*0.1)*105);  strokeWeight(4);
+      noFill();  stroke(255,215,0, 150+sin(millis()*0.006)*105);  strokeWeight(4);
       ellipse(x,y,baseSize+35,baseSize+35);  fill(255,215,0);
     } else { fill(phaseEfficiency[phaseIndex]===90 ? color(220,220,255) : color(phaseColors[phaseIndex][0],phaseColors[phaseIndex][1],phaseColors[phaseIndex][2])); }
     textStyle(BOLD);  textSize(24);  text(nf(phaseEfficiency[phaseIndex],0,0)+"%", x, y);
@@ -1895,7 +1914,7 @@ function drawNutrient(img, x, y, label, c, sorted, dragging, t) {
 function drawProceedButton(x, y) {
   let bw=200, bh=50;
   let hov=getInputX()>x-bw/2&&getInputX()<x+bw/2&&getInputY()>y-bh/2&&getInputY()<y+bh/2;
-  fill(hov?80:40,200);  stroke(0,255,200, 150+sin(frameCount*0.1)*100);  strokeWeight(3);
+  fill(hov?80:40,200);  stroke(0,255,200, 150+sin(millis()*0.006)*100);  strokeWeight(3);
   rect(x,y,bw,bh,10);  fill(255);  textStyle(BOLD);  textSize(20);  textAlign(CENTER,CENTER);
   text("PROCEED",x,y-3);  textStyle(NORMAL);
 }
@@ -1903,7 +1922,7 @@ function drawProceedButton(x, y) {
 function drawNextButton(x, y, label) {
   let bw=200, bh=50;
   let hov=getInputX()>x-bw/2&&getInputX()<x+bw/2&&getInputY()>y-bh/2&&getInputY()<y+bh/2;
-  fill(hov?80:40,200);  stroke(0,255,200, 150+sin(frameCount*0.1)*100);  strokeWeight(3);
+  fill(hov?80:40,200);  stroke(0,255,200, 150+sin(millis()*0.006)*100);  strokeWeight(3);
   rect(x,y,bw,bh,10);  fill(255);  textStyle(BOLD);  textSize(20);  textAlign(CENTER,CENTER);
   text(label,x,y-3);  textStyle(NORMAL);
 }
@@ -2083,7 +2102,7 @@ function drawReflectionGate() {
   // ── Sub-state 0: question ─────────────────────────────
   if (quizSubState === 0) {
     noFill();
-    stroke(0, 255, 200, 100 + sin(frameCount * 0.05) * 50);
+    stroke(0, 255, 200, 100 + sin(millis() * 0.003) * 50);
     strokeWeight(3);  rect(cx, GAME_H/2, GAME_W-40, GAME_H-40, 20);
 
     fill(0, 255, 200);  textStyle(BOLD);  textAlign(CENTER);  textSize(48);
@@ -2153,7 +2172,7 @@ function drawReflectionGate() {
   // ── Sub-state 1: success ──────────────────────────────
   } else if (quizSubState === 1) {
     fill(0,20,10,220);  noStroke();  rect(cx,GAME_H/2,GAME_W,GAME_H);
-    let pulse3=(sin(frameCount*0.1)+1)/2.0;
+    let pulse3=(sin(millis()*0.006)+1)/2.0;
     fill(0,255,150, 200+pulse3*55);  textStyle(BOLD);  textSize(56);  textAlign(CENTER,CENTER);
     text("GREAT JOB!", cx, GAME_H/2-80);
 
@@ -2181,10 +2200,13 @@ function drawReflectionGate() {
                            :"Click anywhere to continue to the next phase",
          cx, GAME_H/2+(mode===MODE_PHASE3?230:160));
 
-    if (frameCount%5===0)
+    // Success spawn: every 5 frames at 60fps = 83ms
+    successSpawnTimer += delta;
+    if (successSpawnTimer >= 83) {
+      successSpawnTimer = 0;
       for (let i=0;i<5;i++)
-        // FIX: array not color()
         successParticles.push(new SuccessParticle(random(GAME_W), GAME_H+10, [0,255,200]));
+    }
     for (let i=successParticles.length-1;i>=0;i--) {
       successParticles[i].update();  successParticles[i].display();
       if (successParticles[i].isDead()) successParticles.splice(i,1);
