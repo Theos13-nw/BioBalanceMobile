@@ -323,7 +323,8 @@ function setup() {
 }
 
 function _calcScale() {
-  // Always fill the full screen width — stretch to fit, slight crop on height is ok
+  // Scale uniformly to fit width — no stretching, no side bars
+  // Small top/bottom bars are acceptable on taller phones
   scaleF  = windowWidth / GAME_W;
   offsetX = 0;
   offsetY = (windowHeight - GAME_H * scaleF) / 2;
