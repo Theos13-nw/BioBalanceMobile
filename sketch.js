@@ -378,7 +378,7 @@ class PhaseParticle {
     this.pulseOffset = random(TWO_PI);
   }
   update() {
-    this.x += this.vx * dt;  this.y += this.vy * dt;
+    this.x += this.vx * 0.2 * dt;  this.y += this.vy * 0.2 * dt;
     if (this.x < -10)          this.x = GAME_W + 10;
     if (this.x > GAME_W + 10)   this.x = -10;
     if (this.y < -10)          this.y = GAME_H + 10;
@@ -464,8 +464,8 @@ class SuccessParticle {
     this.c = Array.isArray(c) ? c : [red(c), green(c), blue(c)];
   }
   update() {
-    this.x += this.vx * dt;  this.y += this.vy * dt;
-    this.vy += 0.2 * dt;    this.alpha -= 3 * dt;  this.size *= pow(0.98, dt);
+    this.x += this.vx * 0.2 * dt;  this.y += this.vy * 0.2 * dt;
+    this.vy += 0.08 * dt;    this.alpha -= 1.2 * dt;  this.size *= pow(0.992, dt);
   }
   display() {
     noStroke();
@@ -480,7 +480,7 @@ class Mist {
     this.x = x;  this.y = y;  this.vx = vx;  this.vy = vy;  this.c = c;
     this.alpha = 200;  this.size = random(3, 10);
   }
-  update() { this.x += this.vx * dt;  this.y += this.vy * dt;  this.alpha = lerp(this.alpha, 0, 1 - pow(1 - 0.15, dt)); }
+  update() { this.x += this.vx * 0.2 * dt;  this.y += this.vy * 0.2 * dt;  this.alpha = lerp(this.alpha, 0, 1 - pow(1 - 0.15, dt)); }
   display() {
     noStroke();
     fill(this.c[0], this.c[1], this.c[2], this.alpha);
@@ -492,7 +492,7 @@ class Bubble {
   constructor(x, y, size, speed, c) {
     this.x = x;  this.y = y;  this.size = size;  this.speed = speed;  this.c = c;
   }
-  update() { this.y -= this.speed * dt;  this.x += sin(millis() * 0.006) * 0.5 * dt; }
+  update() { this.y -= this.speed * dt;  this.x += sin(millis() * 0.0018) * 0.5 * dt; }
   display() {
     // FIX: honour alpha channel when present
     let a = (this.c.length >= 4) ? this.c[3] : 255;
@@ -640,8 +640,8 @@ function updateGameLogic() {
   }
 
   transitionAlpha = lerp(transitionAlpha, 255, 1 - pow(1 - 0.08, dt));
-  organPulse      = 1.0 + sin(millis() * 0.003) * 0.015;
-  connectionGlow  = (sin(millis() * 0.003) + 1) / 2.0;
+  organPulse      = 1.0 + sin(millis() * 0.0009) * 0.015;
+  connectionGlow  = (sin(millis() * 0.0009) + 1) / 2.0;
 
   let isShaking =
     (mode === MODE_PHASE1 && ulcerRisk > 100) ||
@@ -831,7 +831,7 @@ function renderGame() {
 
   let bgColor1 = color(10, 15, 30);
   if (mode === MODE_PHASE1 && ulcerRisk > 100) {
-    bgColor1 = lerpColor(color(10, 15, 30), color(50, 10, 10), (sin(millis() * 0.006) + 1) / 2.0);
+    bgColor1 = lerpColor(color(10, 15, 30), color(50, 10, 10), (sin(millis() * 0.0018) + 1) / 2.0);
   } else if (mode === MODE_PHASE0 && foodType === 2 && emeticTimer >= EMETIC_THRESHOLD) {
     bgColor1 = lerpColor(color(10, 15, 30), color(25, 60, 25), map(delayedSmell, 0, 100, 0, 1.0));
   } else if (mode === MODE_JOURNEY || mode === MODE_MECHANICS || mode === MODE_TITLE) {
@@ -881,13 +881,13 @@ function phase0() {
     scale(organPulse);
     if (foodType === 1 && insulinLevel > 10) {
       let g = map(insulinLevel, 0, 50, 50, 180);
-      fill(255, 100, 150, g + sin(millis() * 0.006) * 40);  noStroke();
+      fill(255, 100, 150, g + sin(millis() * 0.0018) * 40);  noStroke();
       ellipse(0, -20, 160, 140);
       fill(255, 150, 200, g * 0.6);
       ellipse(0, -20, 100, 90);
     }
     if (foodType === 1 && salivaLevel > 150) {
-      fill(0, 255, 200, 50 + sin(millis() * 0.006) * 50);  noStroke();
+      fill(0, 255, 200, 50 + sin(millis() * 0.0018) * 50);  noStroke();
       ellipse(0, -50, 120, 100);
     }
     if (foodType === 2 && emeticTimer >= EMETIC_THRESHOLD) {
@@ -1000,7 +1000,7 @@ function drawMetabolicPanelWithSaliva(x, y) {
   let sw = map(salivaLevel, 0, 170, 0, 240);
   fill(0, 200, 255);  rect(x - 120 + sw / 2, y - 60, sw, 40, 5);
   if (salivaLevel >= 170) {
-    stroke(0, 255, 255, 100 + (sin(millis() * 0.006) + 1) / 2.0 * 155);
+    stroke(0, 255, 255, 100 + (sin(millis() * 0.0018) + 1) / 2.0 * 155);
     strokeWeight(3);  noFill();  rect(x, y - 60, 240, 40, 5);  noStroke();
   }
   fill(0, 255, 255);  textStyle(BOLD);  textSize(12);  text("SALIVA", x, y - 85);  textStyle(NORMAL);
@@ -1132,7 +1132,7 @@ function drawRestorePepsinButton(x, y) {
   let hover = (getInputX() > x - bw / 2 && getInputX() < x + bw / 2 &&
                getInputY() > y - bh / 2 && getInputY() < y + bh / 2);
   fill(hover ? 120 : 60, 200);
-  stroke(255, 50, 50, 150 + sin(millis() * 0.006) * 100);  strokeWeight(3);
+  stroke(255, 50, 50, 150 + sin(millis() * 0.0018) * 100);  strokeWeight(3);
   rect(x, y, bw, bh, 10);
   fill(255);  textAlign(CENTER, CENTER);  text("RESTORE PEPSIN", x, y - 3);  textStyle(NORMAL);
 }
@@ -1192,7 +1192,7 @@ function drawPepsinPanelBig(x, y, currentPH, inPHWindow, enzymeActive) {
   let phW = map(currentPH, 7, 1, 0, 240);
   fill(phC);  rect(x - 120 + phW / 2, y - 40, phW, 40, 5);
   if (inPHWindow) {
-    stroke(0, 255, 150, 100 + (sin(millis() * 0.006) + 1) / 2.0 * 155);
+    stroke(0, 255, 150, 100 + (sin(millis() * 0.0018) + 1) / 2.0 * 155);
     strokeWeight(3);  noFill();  rect(x, y - 40, 240, 40, 5);  noStroke();
   }
   fill(phC);  textStyle(BOLD);  textSize(12);
@@ -1472,7 +1472,7 @@ function drawFinalReport() {
     let bx = startX + i * btnSpacing;
     let isActive = (currentReportSlide === i), isDone = phaseCompleted[i];
     if (isActive) {
-      noFill();  stroke(255, 255, 255, 150 + sin(millis() * 0.006) * 100);  strokeWeight(4);
+      noFill();  stroke(255, 255, 255, 150 + sin(millis() * 0.0018) * 100);  strokeWeight(4);
       rect(bx, btnY, 200, 100, 12);
     }
     fill(isActive ? color(0, 100, 100) : isDone ? color(0, 80, 80) : color(20, 40, 50), 220);
@@ -2198,7 +2198,7 @@ function drawReflectionGate() {
   // ── Sub-state 0: question ─────────────────────────────
   if (quizSubState === 0) {
     noFill();
-    stroke(0, 255, 200, 100 + sin(millis() * 0.003) * 50);
+    stroke(0, 255, 200, 100 + sin(millis() * 0.0009) * 50);
     strokeWeight(3);  rect(cx, GAME_H/2, GAME_W-40, GAME_H-40, 20);
 
     fill(0, 255, 200);  textStyle(BOLD);  textAlign(CENTER);  textSize(48);
