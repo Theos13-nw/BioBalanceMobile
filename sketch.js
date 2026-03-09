@@ -492,7 +492,7 @@ class Bubble {
   constructor(x, y, size, speed, c) {
     this.x = x;  this.y = y;  this.size = size;  this.speed = speed;  this.c = c;
   }
-  update() { this.y -= this.speed * dt;  this.x += sin(millis() * 0.0018) * 0.5 * dt; }
+  update() { this.y -= this.speed * dt;  this.x += sin(millis() * 0.0012) * 0.5 * dt; }
   display() {
     // FIX: honour alpha channel when present
     let a = (this.c.length >= 4) ? this.c[3] : 255;
@@ -649,7 +649,7 @@ function updateGameLogic() {
   if (isShaking) {
     shakeIntensity = lerp(shakeIntensity, map(delayedSmell, 0, 100, 0.5, 4.0), 1 - pow(1 - 0.1, dt));
   } else {
-    shakeIntensity = lerp(shakeIntensity, 0, 1 - pow(1 - 0.2, dt));
+    shakeIntensity = lerp(shakeIntensity, 0, 0.03);
   }
 
   if (showOverlay) overlayAlpha = lerp(overlayAlpha, 255, 1 - pow(1 - 0.2, dt));
@@ -716,7 +716,7 @@ function updatePhase0Logic() {
   delayedSmell = lerp(delayedSmell, inputSmell, 1 - pow(1 - 0.015, dt));
 
   if (foodType === 1) {
-    salivaLevel  = lerp(salivaLevel, map(inputSmell, 0, 100, 40, 170), 1 - pow(1 - 0.007, dt));
+    salivaLevel  = lerp(salivaLevel, map(inputSmell, 0, 100, 40, 170), 0.004);
     if (salivaLevel > 168 && inputSmell >= 99) salivaLevel = 170;
     cephalicAcid = lerp(cephalicAcid, map(delayedSmell, 0, 100, 0, 150), 1 - pow(1 - 0.005, dt));
   } else if (foodType === 2) {
@@ -727,11 +727,11 @@ function updatePhase0Logic() {
   let metabolismReady    = (insulinLevel > 20 && hepaticGlucoseOutput < 60);
   let inActivationWindow = (foodType === 1 && inputSmell >= 99 &&
                             salivaLevel >= 170 && metabolismReady && !hasSwallowed);
-  cephalicTimer = inActivationWindow ? min(60, cephalicTimer + dt) : 0;
+  cephalicTimer = inActivationWindow ? min(60, cephalicTimer + 0.2) : 0;
 
   if (foodType === 2) {
     let inputSmellNow = map(smellSliderX, GAME_W/2-200, GAME_W/2+200, 0, 100);
-    if (inputSmellNow >= 60) emeticTimer = min(EMETIC_THRESHOLD, emeticTimer + dt);
+    if (inputSmellNow >= 60) emeticTimer = min(EMETIC_THRESHOLD, emeticTimer + 0.15);
     else                     emeticTimer = max(0, emeticTimer - 2 * dt);
     if (emeticTimer >= EMETIC_THRESHOLD) { if (warningSfx && !warningSfx.isPlaying()) warningSfx.play(); }
     else                                  { if (warningSfx && warningSfx.isPlaying())  warningSfx.stop(); }
@@ -753,7 +753,7 @@ function updatePhase1Logic() {
   updatePepsinDenaturation(currentPH, inPHWindow);
 
   if (proteinImg != null && enzymeActive)
-    proteinScale = max(0.0, proteinScale - 0.0015 * dt);
+    proteinScale = max(0.0, proteinScale - 0.0015);
   else if (proteinScale < 1.0 && pepsinState !== PepsinState.ACTIVE)
     proteinScale = min(1.0, proteinScale + 0.02);
 
@@ -783,11 +783,11 @@ function updatePhase2Logic() {
     if (spraySfx && !spraySfx.isPlaying()) spraySfx.play();
     let yOffset = 40;
     if (sprayType === 1) {
-      secretinLevel = min(secretinLevel + 2.0*dt, 200);
+      secretinLevel = min(secretinLevel + 1.0, 200);
       for (let i = 0; i < 3; i++)
         hormoneMist.push(new Mist(GAME_W*0.15+80, GAME_H/2+50+yOffset, random(5,10), random(-2,2), [0,150,255]));
     } else {
-      cckLevel = min(cckLevel + 2.0*dt, 200);
+      cckLevel = min(cckLevel + 1.0, 200);
       for (let i = 0; i < 3; i++)
         hormoneMist.push(new Mist(GAME_W*0.85-80, GAME_H/2+50+yOffset, random(-10,-5), random(-2,2), [255,180,0]));
     }
@@ -796,8 +796,8 @@ function updatePhase2Logic() {
   }
 
   if (!homeostasisLocked) {
-    secretinLevel = max(secretinLevel - decayRate*dt, 0);
-    cckLevel      = max(cckLevel      - decayRate*dt, 0);
+    secretinLevel = max(secretinLevel - decayRate * 0.4, 0);
+    cckLevel      = max(cckLevel      - decayRate * 0.4, 0);
   }
 }
 
@@ -831,7 +831,7 @@ function renderGame() {
 
   let bgColor1 = color(10, 15, 30);
   if (mode === MODE_PHASE1 && ulcerRisk > 100) {
-    bgColor1 = lerpColor(color(10, 15, 30), color(50, 10, 10), (sin(millis() * 0.0018) + 1) / 2.0);
+    bgColor1 = lerpColor(color(10, 15, 30), color(50, 10, 10), (sin(millis() * 0.0012) + 1) / 2.0);
   } else if (mode === MODE_PHASE0 && foodType === 2 && emeticTimer >= EMETIC_THRESHOLD) {
     bgColor1 = lerpColor(color(10, 15, 30), color(25, 60, 25), map(delayedSmell, 0, 100, 0, 1.0));
   } else if (mode === MODE_JOURNEY || mode === MODE_MECHANICS || mode === MODE_TITLE) {
@@ -881,13 +881,13 @@ function phase0() {
     scale(organPulse);
     if (foodType === 1 && insulinLevel > 10) {
       let g = map(insulinLevel, 0, 50, 50, 180);
-      fill(255, 100, 150, g + sin(millis() * 0.0018) * 40);  noStroke();
+      fill(255, 100, 150, g + sin(millis() * 0.0012) * 40);  noStroke();
       ellipse(0, -20, 160, 140);
       fill(255, 150, 200, g * 0.6);
       ellipse(0, -20, 100, 90);
     }
     if (foodType === 1 && salivaLevel > 150) {
-      fill(0, 255, 200, 50 + sin(millis() * 0.0018) * 50);  noStroke();
+      fill(0, 255, 200, 50 + sin(millis() * 0.0012) * 50);  noStroke();
       ellipse(0, -50, 120, 100);
     }
     if (foodType === 2 && emeticTimer >= EMETIC_THRESHOLD) {
@@ -1000,7 +1000,7 @@ function drawMetabolicPanelWithSaliva(x, y) {
   let sw = map(salivaLevel, 0, 170, 0, 240);
   fill(0, 200, 255);  rect(x - 120 + sw / 2, y - 60, sw, 40, 5);
   if (salivaLevel >= 170) {
-    stroke(0, 255, 255, 100 + (sin(millis() * 0.0018) + 1) / 2.0 * 155);
+    stroke(0, 255, 255, 100 + (sin(millis() * 0.0012) + 1) / 2.0 * 155);
     strokeWeight(3);  noFill();  rect(x, y - 60, 240, 40, 5);  noStroke();
   }
   fill(0, 255, 255);  textStyle(BOLD);  textSize(12);  text("SALIVA", x, y - 85);  textStyle(NORMAL);
@@ -1132,7 +1132,7 @@ function drawRestorePepsinButton(x, y) {
   let hover = (getInputX() > x - bw / 2 && getInputX() < x + bw / 2 &&
                getInputY() > y - bh / 2 && getInputY() < y + bh / 2);
   fill(hover ? 120 : 60, 200);
-  stroke(255, 50, 50, 150 + sin(millis() * 0.0018) * 100);  strokeWeight(3);
+  stroke(255, 50, 50, 150 + sin(millis() * 0.0012) * 100);  strokeWeight(3);
   rect(x, y, bw, bh, 10);
   fill(255);  textAlign(CENTER, CENTER);  text("RESTORE PEPSIN", x, y - 3);  textStyle(NORMAL);
 }
@@ -1192,7 +1192,7 @@ function drawPepsinPanelBig(x, y, currentPH, inPHWindow, enzymeActive) {
   let phW = map(currentPH, 7, 1, 0, 240);
   fill(phC);  rect(x - 120 + phW / 2, y - 40, phW, 40, 5);
   if (inPHWindow) {
-    stroke(0, 255, 150, 100 + (sin(millis() * 0.0018) + 1) / 2.0 * 155);
+    stroke(0, 255, 150, 100 + (sin(millis() * 0.0012) + 1) / 2.0 * 155);
     strokeWeight(3);  noFill();  rect(x, y - 40, 240, 40, 5);  noStroke();
   }
   fill(phC);  textStyle(BOLD);  textSize(12);
@@ -1472,7 +1472,7 @@ function drawFinalReport() {
     let bx = startX + i * btnSpacing;
     let isActive = (currentReportSlide === i), isDone = phaseCompleted[i];
     if (isActive) {
-      noFill();  stroke(255, 255, 255, 150 + sin(millis() * 0.0018) * 100);  strokeWeight(4);
+      noFill();  stroke(255, 255, 255, 150 + sin(millis() * 0.0012) * 100);  strokeWeight(4);
       rect(bx, btnY, 200, 100, 12);
     }
     fill(isActive ? color(0, 100, 100) : isDone ? color(0, 80, 80) : color(20, 40, 50), 220);
