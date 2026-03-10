@@ -23,7 +23,7 @@ function stopAllLoopingSounds() {
   // Stop every sound — looping, one-shot, or any overlapping node
   [bgLoop, acidSfx, warningSfx, spraySfx,
    dragSfx, bounceSfx, nhe3Sfx, correctSfx, wrongSfx, successSfx,
-   denatureSfx, reportSfx].forEach(function(s) {
+   denatureSfx, reportSfx, clickSfx].forEach(function(s) {
     if (s && s.isPlaying()) s.stop();
   });
   // Reset audio flags so sounds can restart cleanly next time
@@ -34,6 +34,7 @@ function stopAllLoopingSounds() {
   cephalicSuccessPlayed = false;
   pepsinSuccessPlayed   = false;
   phase2ButtonSuccessPlayed = false;
+  reportSfxTriggered    = false;
 }
 
 // ── AUDIO FLAGS ────────────────────────────────────────────
@@ -41,6 +42,7 @@ let cephalicSuccessPlayed = false;   // FIX: was missing from doc2 globals
 let pepsinSuccessPlayed   = false;   // FIX: was missing from doc2 globals
 let warningPlayed         = false;   // FIX: was missing from doc2 globals
 let reportPlayed          = false;
+let reportSfxTriggered    = false;
 let phase2ButtonSuccessPlayed = false;
 let phase0ProceedSoundPlayed  = false;
 let phase1ProceedSoundPlayed  = false;
@@ -408,7 +410,7 @@ function setup() {
     p.y = random(GAME_H);
     protocolParticles.push(p);
   }
-  for (let i = 0; i < 50; i++) {
+  for (let i = 0; i < 15; i++) {
     let p = new ReportParticle();
     p.y = random(GAME_H);
     reportParticles.push(p);
@@ -759,6 +761,7 @@ function draw() {
   if (mode !== MODE_FINISH && reportSfx && reportSfx.isPlaying()) {
     reportSfx.stop();
     reportPlayed = false;
+    reportSfxTriggered = false;
   }
   if (quizState !== 1 && wrongSfx && wrongSfx.isPlaying()) wrongSfx.stop();
   if (quizState !== 1 && correctSfx && correctSfx.isPlaying()) correctSfx.stop();
@@ -1043,6 +1046,7 @@ function renderGame() {
 // PHASE 0 — CEPHALIC PHASE
 // =========================================================
 function phase0() {
+  textStyle(NORMAL);  textSize(20);  // lock clean state for entire frame
   // Particles already updated in updateGameLogic(); just draw them
   let arr0 = phase0Particles; for (let p of arr0) p.display();
   drawPhaseTitle("PHASE 0 — YOUR BRAIN PREPARES FOR FOOD", 50);
@@ -1227,6 +1231,7 @@ function drawPhase0Button(x, y, label, type) {
 // PHASE 1 — GASTRIC PHASE
 // =========================================================
 function phase1() {
+  textStyle(NORMAL);  textSize(20);  // lock clean state for entire frame
   updateAndDrawPhaseParticles(1);
   drawPhaseTitle("PHASE 1 — STOMACH ACID & ENZYME ACTIVITY", 50);
 
@@ -1633,12 +1638,13 @@ function updateMist() {
 // FINAL REPORT
 // =========================================================
 function drawFinalReport() {
-  if (!reportPlayed && reportSfx != null) {
-    if (reportSfx.isPlaying()) reportSfx.stop();
+  if (!reportSfxTriggered && reportSfx && reportSfx.isLoaded()) {
+    playSoundOnce(reportSfx);
     reportSfx.setVolume(0.6);
-    reportSfx.play();
+    reportSfxTriggered = true;
     reportPlayed = true;
   }
+  if (frameCount % 900 === 0 && reportSfx && reportSfx.isPlaying()) reportSfx.stop();
 
   if (reportGradientBuffer.GAME_W !== GAME_W || reportGradientBuffer.GAME_H !== GAME_H) {
     reportGradientBuffer = createGraphics(GAME_W, GAME_H);
@@ -1646,7 +1652,8 @@ function drawFinalReport() {
   }
   image(reportGradientBuffer, GAME_W / 2, GAME_H / 2);
 
-  for (let p of reportParticles) { p.update();  p.display(); }
+  if (frameCount % 3 === 0) { for (let p of reportParticles) p.update(); }
+  for (let p of reportParticles) p.display();
 
   fill(255);  textStyle(BOLD);  textAlign(CENTER);  textSize(60);
   text("YOUR DIGESTIVE REPORT", GAME_W / 2, 70);
@@ -1834,8 +1841,9 @@ function handleInputStart() {
       let bx = sx + i*bsp;
       if (ix > bx-95 && ix < bx+95 && iy > btnY-47 && iy < btnY+47) currentReportSlide = i;
     }
-    // Play click sound on report slide interaction
     playSoundOnce(clickSfx);
+    if (reportSfx && reportSfx.isPlaying()) reportSfx.stop();
+    reportSfxTriggered = false;
   }
 }
 
