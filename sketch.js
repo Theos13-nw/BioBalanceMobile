@@ -1200,10 +1200,7 @@ function drawMetabolicPanelWithSaliva(x, y) {
   fill(30, 40, 60);  rect(x, y - 60, 240, 40, 5);
   let sw = map(salivaLevel, 0, 170, 0, 240);
   fill(0, 200, 255);  rect(x - 120 + sw / 2, y - 60, sw, 40, 5);
-  if (salivaLevel >= 170) {
-    stroke(0, 255, 255, 100 + (sin(millis() * 0.00032) + 1) / 2.0 * 155);
-    strokeWeight(3);  noFill();  rect(x, y - 60, 240, 40, 5);  noStroke();
-  }
+  noStroke();  // no glow effects on saliva bar
   fill(255);  textStyle(NORMAL);  textSize(13);  textAlign(CENTER);  text("SALIVA", x, y - 93);
 
   // Insulin bar
@@ -1400,16 +1397,13 @@ function drawPepsinPanelBig(x, y, currentPH, inPHWindow, enzymeActive) {
   rect(x, y, 275, 260, 15);
 
   fill(0, 255, 200);  textStyle(BOLD);  textSize(16);  textAlign(CENTER);
-  text("ENZYME STATUS", x, y - 90);  textStyle(NORMAL);
+  text("ENZYME STATUS", x, y - 118);  textStyle(NORMAL);
 
   let phC = lerpColor(color(0, 150, 255), color(255, 0, 0), map(currentPH, 7, 1, 0, 1));
   fill(30, 40, 60);  rect(x, y - 40, 240, 40, 5);
   let phW = map(currentPH, 7, 1, 0, 240);
   fill(phC);  rect(x - 120 + phW / 2, y - 40, phW, 40, 5);
-  if (inPHWindow) {
-    stroke(0, 255, 150, 100 + (sin(millis() * 0.00032) + 1) / 2.0 * 155);
-    strokeWeight(3);  noFill();  rect(x, y - 40, 240, 40, 5);  noStroke();
-  }
+  noStroke();  // no glow effects on pH bar
   fill(255);  textStyle(NORMAL);  textSize(13);  textAlign(CENTER);
   text("pH: " + nf(currentPH, 1, 1), x, y - 72);
 
@@ -1659,8 +1653,8 @@ function drawFinalReport() {
   // Background: same protocolParticles as title screen
   for (let p of protocolParticles) { p.update();  p.display(); }
 
-  fill(255);  textStyle(BOLD);  textAlign(CENTER);  textSize(60);
-  text("YOUR DIGESTIVE REPORT", GAME_W / 2, 70);
+  fill(0, 255, 200);  textStyle(BOLD);  textAlign(CENTER);  textSize(72);
+  text("YOUR DIGESTIVE REPORT", GAME_W / 2, 80);
   stroke(112, 240, 240, 150);  strokeWeight(2);
   line(GAME_W / 2 - 200, 95, GAME_W / 2 + 200, 95);
 
@@ -1850,9 +1844,11 @@ function handleInputStart() {
     let sx = GAME_W/2 - bsp*1.5;
     for (let i = 0; i < 4; i++) {
       let bx = sx + i*bsp;
-      if (ix > bx-95 && ix < bx+95 && iy > btnY-47 && iy < btnY+47) currentReportSlide = i;
+      if (ix > bx-95 && ix < bx+95 && iy > btnY-47 && iy < btnY+47) {
+        currentReportSlide = i;
+        playSoundOnce(clickSfx);  // only on actual phase button hit
+      }
     }
-    playSoundOnce(clickSfx);
   }
 }
 
