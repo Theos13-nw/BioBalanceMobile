@@ -1,23 +1,22 @@
 {
-  "name": "BioBalance — Digestive System Explorer",
+  "name": "BioBalance",
   "short_name": "BioBalance",
-  "description": "Explore, control, and understand how your body digests food through 4 interactive phases.",
+  "description": "Interactive digestive system explorer – learn biology through play!",
   "start_url": "./",
-  "scope": "./",
   "display": "standalone",
   "orientation": "landscape",
   "background_color": "#000000",
   "theme_color": "#00ffc8",
   "icons": [
     {
-     "src": "DigestiveAPP_LOGO-1.png",
-      "sizes": "512x512",
+      "src": "DigestiveAPP_LOGO.png",
+      "sizes": "192x192",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "DigestiveAPP_LOGO.png",
-      "sizes": "192x192",
+      "src": "DigestiveAPP_LOGO-1.png",
+      "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
     }
