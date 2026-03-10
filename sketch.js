@@ -8,15 +8,33 @@ let bgLoopStarted = false;  // only set to true once — never reset (prevents l
 // CENTRAL SOUND MANAGER — prevents Web Audio memory leaks
 // Always stop before play; never stack audio nodes on mobile
 // =========================================================
+let _sfxLastFired = new Map();  // per-sound ms timestamp — prevents double-fire
+let _nhe3LastFired = 0;  // nhe3Sfx gets its own 600ms gate (4 absorptions in phase3)
+
 function playSoundOnce(sound) {
-  if (sound && sound.isLoaded()) { sound.stop();  sound.play(); }
+  if (!sound || !sound.isLoaded()) return;
+  let now = millis();
+  if (now - (_sfxLastFired.get(sound) || 0) < 80) return;  // 80ms cooldown per sound
+  _sfxLastFired.set(sound, now);
+  if (!sound.isPlaying()) sound.play();
+  // If already playing: skip — do NOT stop+restart (avoids node stacking on mobile)
+}
+
+function playNhe3Sfx() {
+  if (!nhe3Sfx || !nhe3Sfx.isLoaded()) return;
+  let now = millis();
+  if (now - _nhe3LastFired < 600) return;  // 600ms between absorption pings
+  _nhe3LastFired = now;
+  if (!nhe3Sfx.isPlaying()) nhe3Sfx.play();
 }
 
 function loopSound(sound, vol) {
-  if (sound && sound.isLoaded()) {
-    if (!sound.isPlaying()) { sound.stop();  sound.loop(); }
-    sound.setVolume(vol !== undefined ? vol : 0.5);
+  if (!sound || !sound.isLoaded()) return;
+  if (!sound.isPlaying()) {
+    // Only call loop() when genuinely stopped — not just paused
+    sound.loop();
   }
+  sound.setVolume(vol !== undefined ? vol : 0.5);
 }
 
 function stopAllLoopingSounds() {
@@ -1395,7 +1413,7 @@ function drawPepsinPanelBig(x, y, currentPH, inPHWindow, enzymeActive) {
   rect(x, y, 275, 260, 15);
 
   fill(0, 255, 200);  textStyle(BOLD);  textSize(16);  textAlign(CENTER);
-  text("ENZYME STATUS", x, y - 108);  textStyle(NORMAL);
+  text("ENZYME STATUS", x, y - 95);  textStyle(NORMAL);
 
   let phC = lerpColor(color(0, 150, 255), color(255, 0, 0), map(currentPH, 7, 1, 0, 1));
   fill(30, 40, 60);  rect(x, y - 40, 240, 40, 5);
@@ -1580,7 +1598,7 @@ function handleNutrientPhysicsStrict(zoneX, zoneW, zoneH, capY, nheY, lacY) {
   if (!draggingGlucose && !glucoseSorted) {
     if (pointInZone(glucoseX, glucoseY, zoneX, capY, zoneW, zoneH)) {
       gTimer += 1.0 / 1800.0;   // ~30 seconds at 60 ticks/s
-      if (gTimer >= 1.0) { glucoseSorted = true; capillaryPulse = 30; triggerBurst(glucoseX, glucoseY, [0,255,0]); playSoundOnce(nhe3Sfx); }
+      if (gTimer >= 1.0) { glucoseSorted = true; capillaryPulse = 30; triggerBurst(glucoseX, glucoseY, [0,255,0]); playNhe3Sfx(); }
     } else if (pointInZone(glucoseX, glucoseY, zoneX, nheY, zoneW, zoneH) ||
                pointInZone(glucoseX, glucoseY, zoneX, lacY, zoneW, zoneH)) {
       if (glucoseVX >= -5) { glucoseVX = -30; glucoseVY = random(-5, 5); if (millis() - sfx_bounceCooldown > 200) { playSoundOnce(bounceSfx); sfx_bounceCooldown = millis(); } }
@@ -1593,7 +1611,7 @@ function handleNutrientPhysicsStrict(zoneX, zoneW, zoneH, capY, nheY, lacY) {
     if (pointInZone(sodiumSGLTX, sodiumSGLTY, zoneX, capY, zoneW, zoneH)) {
       let speedMult = dist(sodiumSGLTX, sodiumSGLTY, glucoseX, glucoseY) < 80 ? 2.0 : 1.0;
       sGLTTimer += (1.0 / 1800.0) * speedMult;   // ~30 seconds
-      if (sGLTTimer >= 1.0) { sodiumSGLTSorted = true; capillaryPulse = 30; triggerBurst(sodiumSGLTX, sodiumSGLTY, [0,200,150]); playSoundOnce(nhe3Sfx); }
+      if (sGLTTimer >= 1.0) { sodiumSGLTSorted = true; capillaryPulse = 30; triggerBurst(sodiumSGLTX, sodiumSGLTY, [0,200,150]); playNhe3Sfx(); }
     } else if (pointInZone(sodiumSGLTX, sodiumSGLTY, zoneX, nheY, zoneW, zoneH) ||
                pointInZone(sodiumSGLTX, sodiumSGLTY, zoneX, lacY, zoneW, zoneH)) {
       if (sodiumSGLTVX >= -5) { sodiumSGLTVX = -30; sodiumSGLTVY = random(-5, 5); if (millis() - sfx_bounceCooldown > 200) { playSoundOnce(bounceSfx); sfx_bounceCooldown = millis(); } }
@@ -1605,7 +1623,7 @@ function handleNutrientPhysicsStrict(zoneX, zoneW, zoneH, capY, nheY, lacY) {
   if (!draggingSodiumNHE3 && !sodiumNHE3Sorted) {
     if (pointInZone(sodiumNH3X, sodiumNH3Y, zoneX, nheY, zoneW, zoneH)) {
       nhe3Timer += 1.0 / 1800.0;   // ~30 seconds
-      if (nhe3Timer >= 1.0) { sodiumNHE3Sorted = true; nhe3Pulse = 30; triggerBurst(sodiumNH3X, sodiumNH3Y, [0,100,200]); playSoundOnce(nhe3Sfx); }
+      if (nhe3Timer >= 1.0) { sodiumNHE3Sorted = true; nhe3Pulse = 30; triggerBurst(sodiumNH3X, sodiumNH3Y, [0,100,200]); playNhe3Sfx(); }
     } else if (pointInZone(sodiumNH3X, sodiumNH3Y, zoneX, capY, zoneW, zoneH) ||
                pointInZone(sodiumNH3X, sodiumNH3Y, zoneX, lacY, zoneW, zoneH)) {
       if (sodiumNH3VX >= -5) { sodiumNH3VX = -30; sodiumNH3VY = random(-5, 5); if (millis() - sfx_bounceCooldown > 200) { playSoundOnce(bounceSfx); sfx_bounceCooldown = millis(); } }
@@ -1617,7 +1635,7 @@ function handleNutrientPhysicsStrict(zoneX, zoneW, zoneH, capY, nheY, lacY) {
   if (!draggingLipid && !lipidSorted) {
     if (pointInZone(lipidX, lipidY, zoneX, lacY, zoneW, zoneH)) {
       lTimer += 1.0 / 1800.0;   // ~30 seconds
-      if (lTimer >= 1.0) { lipidSorted = true; lactealPulse = 30; triggerBurst(lipidX, lipidY, [255,255,180]); playSoundOnce(nhe3Sfx); }
+      if (lTimer >= 1.0) { lipidSorted = true; lactealPulse = 30; triggerBurst(lipidX, lipidY, [255,255,180]); playNhe3Sfx(); }
     } else if (pointInZone(lipidX, lipidY, zoneX, capY, zoneW, zoneH) ||
                pointInZone(lipidX, lipidY, zoneX, nheY, zoneW, zoneH)) {
       if (lipidVX >= -5) { lipidVX = -30; lipidVY = random(-5, 5); if (millis() - sfx_bounceCooldown > 200) { playSoundOnce(bounceSfx); sfx_bounceCooldown = millis(); } }
