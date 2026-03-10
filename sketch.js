@@ -714,9 +714,11 @@ function soundTick() {
     if (bgNext < 0.003) {
       if (bgLoop.isPlaying()) bgLoop.pause();
     } else {
-      if (!bgLoop.isPlaying()) { bgLoop.rate(1.0); bgLoop.loop(); }
+      if (!bgLoop.isPlaying()) {
+        bgLoop.rate(1.0);   // lock rate before resume — prevents drift
+        bgLoop.play();      // RESUME the paused node — never stack a new one
+      }
       bgLoop.setVolume(bgNext);
-      if (bgLoop.rate && bgLoop.rate() !== 1.0) bgLoop.rate(1.0);
     }
   }
 
@@ -1397,7 +1399,7 @@ function drawPepsinPanelBig(x, y, currentPH, inPHWindow, enzymeActive) {
   rect(x, y, 275, 260, 15);
 
   fill(0, 255, 200);  textStyle(BOLD);  textSize(16);  textAlign(CENTER);
-  text("ENZYME STATUS", x, y - 118);  textStyle(NORMAL);
+  text("ENZYME STATUS", x, y - 122);  textStyle(NORMAL);
 
   let phC = lerpColor(color(0, 150, 255), color(255, 0, 0), map(currentPH, 7, 1, 0, 1));
   fill(30, 40, 60);  rect(x, y - 40, 240, 40, 5);
@@ -2576,8 +2578,8 @@ function handleQuizClick() {
     stopAllLoopingSounds();  // clean up before any mode transition
     quizState=0;  quizSubState=0;  successParticles=[];
     let eff2=calculateEfficiency(phaseIdx);
-    if (eff2===100) firstTrySuccess[phaseIdx]=true;
-    if (!phaseCompleted[phaseIdx]||eff2>phaseEfficiency[phaseIdx]) phaseEfficiency[phaseIdx]=eff2;
+    if (eff2===100 && !phaseCompleted[phaseIdx]) firstTrySuccess[phaseIdx]=true;  // only on first ever pass
+    phaseEfficiency[phaseIdx] = eff2;  // always reflect current run — map matches success screen
     phaseCompleted[phaseIdx]=true;
     if      (mode===MODE_PHASE0) mode=MODE_PHASE1;
     else if (mode===MODE_PHASE1) mode=MODE_PHASE2;
