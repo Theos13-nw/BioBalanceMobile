@@ -32,10 +32,12 @@ function loopSound(sound, vol) {
 function stopAllLoopingSounds() {
   // Stop every sound that could be looping OR piling up as stacked nodes
   [bgLoop, acidSfx, warningSfx, spraySfx,
-   dragSfx, bounceSfx, nhe3Sfx, correctSfx, successSfx,
+   dragSfx, bounceSfx, nhe3Sfx,
    denatureSfx, reportSfx].forEach(function(s) {
     if (s && s.isPlaying()) s.stop();
   });
+  // Note: correctSfx and successSfx intentionally excluded —
+  // they are short one-shots that should finish playing through transitions
   // Reset all want-flags so soundTick doesn't immediately restart them
   sfx_wantWarning = false;
   sfx_wantAcid    = false;
@@ -181,9 +183,9 @@ let cardContent = [
   ["Touch and drag nutrients to the correct", "zones. Press hormone buttons to balance",
    "acid levels. Use the NEXT button to move", "forward when each phase is complete.",
    "Pay attention to timing!"],
-  ["Watch the progress bars for each phase.", "Glowing green means success, shaking or",
-   "red means danger. Your timing and accuracy", "are tracked. Keep indicators in the green",
-   "zone for the best results."],
+  ["After completing each phase, you will face", "a Knowledge Check — 5 questions about",
+   "the biology you just experienced.", "Score 5/5 on your first try for full marks.",
+   "Wrong answers are shown after the quiz."],
   ["Try different things and explore!", "There is no single perfect answer.",
    "Replay phases to improve your score", "and discover new reactions.",
    "Learn from each attempt."]
@@ -785,7 +787,7 @@ function draw() {
   if (quizState === 1)   { drawReflectionGate(); pop(); return; }
   renderGame();
   drawPersistentReturnButton();
-  if (!showLicenseScreen) drawFooter();  // footer on all modes including title
+  if (!showLicenseScreen && mode !== MODE_TITLE) drawFooter();  // no footer on title (has its own clean look)
 
   // FPS debug removed — gameplay confirmed stable
 
@@ -1187,7 +1189,7 @@ function drawMetabolicPanelWithSaliva(x, y) {
     stroke(0, 255, 255, 100 + (sin(millis() * 0.00032) + 1) / 2.0 * 155);
     strokeWeight(3);  noFill();  rect(x, y - 60, 240, 40, 5);  noStroke();
   }
-  fill(0, 255, 255);  textStyle(BOLD);  textSize(12);  text("SALIVA", x, y - 85);  textStyle(NORMAL);
+  fill(0, 255, 255);  textStyle(BOLD);  textSize(12);  text("SALIVA", x, y - 93);  textStyle(NORMAL);
 
   // Insulin bar
   fill(30, 40, 60);  rect(x, y - 10, 240, 20, 5);
@@ -1218,10 +1220,12 @@ function drawMetabolicPanelWithSaliva(x, y) {
 
 function drawPhase0Button(x, y, label, type) {
   let hover = (getInputX() > x - 90 && getInputX() < x + 90 && getInputY() > y - 25 && getInputY() < y + 25);
-  stroke(foodType === type ? color(0, 255, 200) : 150);  strokeWeight(2);
-  fill(foodType === type ? color(0, 80, 80) : hover ? 60 : 30);
+  // Selection shown only by border brightness, not fill — keeps text always readable
+  stroke(foodType === type ? color(0, 255, 200) : color(80, 120, 140));
+  strokeWeight(foodType === type ? 3 : 1);
+  fill(hover ? color(20, 50, 60) : color(15, 35, 45));  // consistent dark fill always
   rect(x, y, 180, 50, 5);
-  fill(foodType === type ? 255 : 200);
+  fill(255);  // always plain white text
   textAlign(CENTER, CENTER);  textSize(16);  text(label, x, y - 3);
 }
 
@@ -1386,7 +1390,7 @@ function drawPepsinPanelBig(x, y, currentPH, inPHWindow, enzymeActive) {
     strokeWeight(3);  noFill();  rect(x, y - 40, 240, 40, 5);  noStroke();
   }
   fill(phC);  textStyle(BOLD);  textSize(12);
-  text("pH: " + nf(currentPH, 1, 1), x, y - 65);  textStyle(NORMAL);
+  text("pH: " + nf(currentPH, 1, 1), x, y - 72);  textStyle(NORMAL);
 
   fill(30, 40, 60);  rect(x, y + 10, 240, 20, 5);
   let pgW = map(pepsinogenReserve, 0, 100, 0, 240);
@@ -1680,9 +1684,9 @@ function drawFinalReport() {
     fill(isActive ? color(0, 100, 100) : isDone ? color(0, 80, 80) : color(20, 40, 50), 220);
     stroke(isActive ? color(0, 255, 200) : isDone ? color(0, 255, 150) : color(80, 100, 110));
     strokeWeight(isActive ? 3 : 2);  rect(bx, btnY, 190, 95, 10);
-    fill(isActive ? color(255) : isDone ? color(0, 255, 150) : color(120, 140, 150));
+    fill(255);  // always white — no color highlighting on text
     textStyle(BOLD);  textSize(20);  textAlign(CENTER);  text("PHASE " + i, bx, btnY - 15);  textStyle(NORMAL);
-    fill(isActive ? color(0, 255, 200) : color(200, 220, 240));
+    fill(220, 240, 255);  // always soft white — readable regardless of state
     textSize(15);  text(isDone ? "COMPLETED" : "PENDING", bx, btnY + 12);
     if (isDone) {
       fill(phaseColors[i][0], phaseColors[i][1], phaseColors[i][2]);
@@ -2468,10 +2472,10 @@ function drawReflectionGate() {
         if (feedbackTimer === 35) {
           // FIX: pass array [r,g,b] — NOT color() object — so display() can index it
           for (let i = 0; i < 20; i++)
-            successParticles.push(new SuccessParticle(cx, GAME_H-150, [0, 255, 100]));
+            successParticles.push(new SuccessParticle(cx, GAME_H-80, [0, 255, 100]));
         }
       } else { fill(255,50,50); }
-      textStyle(BOLD);  textSize(28);  text(feedbackMsg, cx, GAME_H-130);
+      textStyle(BOLD);  textSize(28);  text(feedbackMsg, cx, GAME_H-80);
       feedbackTimer--;
     }
     for (let i = successParticles.length-1; i >= 0; i--) {
