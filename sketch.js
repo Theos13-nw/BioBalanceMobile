@@ -73,7 +73,31 @@ let phase3ProceedSoundPlayed  = false;
 // ── LICENSE ────────────────────────────────────────────────
 let developer       = "Developed by Altheo Cardillo © 2026";
 let creatorID       = "Theos_2026_DigestiveSystemApp";
-let acceptedLicense = false;
+// ── SAVE / LOAD PROGRESS (localStorage) ───────────────────
+function saveProgress() {
+  try {
+    localStorage.setItem('biobalanceProgress', JSON.stringify({
+      phaseCompleted:  phaseCompleted,
+      phaseEfficiency: phaseEfficiency,
+      firstTrySuccess: firstTrySuccess,
+      acceptedLicense: acceptedLicense
+    }));
+  } catch(e) {}
+}
+
+function loadProgress() {
+  try {
+    let raw = localStorage.getItem('biobalanceProgress');
+    if (!raw) return;
+    let p = JSON.parse(raw);
+    if (Array.isArray(p.phaseCompleted))  phaseCompleted  = p.phaseCompleted;
+    if (Array.isArray(p.phaseEfficiency)) phaseEfficiency = p.phaseEfficiency;
+    if (Array.isArray(p.firstTrySuccess)) firstTrySuccess = p.firstTrySuccess;
+    if (p.acceptedLicense === true) { acceptedLicense = true; showLicenseScreen = false; }
+  } catch(e) {}
+}
+
+let acceptedLicense   = false;
 let showLicenseScreen = true;
 
 // ── MODE CONSTANTS ─────────────────────────────────────────
@@ -470,6 +494,9 @@ function setup() {
   }
   textStyle(NORMAL);  textSize(12);
   pop();
+
+  // Load saved progress after all globals are ready
+  loadProgress();
 }
 
 function _calcScale() {
@@ -1413,7 +1440,7 @@ function drawPepsinPanelBig(x, y, currentPH, inPHWindow, enzymeActive) {
   rect(x, y, 275, 260, 15);
 
   fill(0, 255, 200);  textStyle(BOLD);  textSize(16);  textAlign(CENTER);
-  text("ENZYME STATUS", x, y - 105);  textStyle(NORMAL);
+  text("ENZYME STATUS", x, y - 95);  textStyle(NORMAL);
 
   let phC = lerpColor(color(0, 150, 255), color(255, 0, 0), map(currentPH, 7, 1, 0, 1));
   fill(30, 40, 60);  rect(x, y - 40, 240, 40, 5);
@@ -1740,10 +1767,15 @@ function handleInputStart() {
     let ax = GAME_W / 2 - dw / 2 - spacing / 2 - aw / 2;
     let dx = GAME_W / 2 + aw / 2 + spacing / 2 + dw / 2;
     if (ix > ax - aw / 2 && ix < ax + aw / 2 && iy > btnY - btnH / 2 && iy < btnY + btnH / 2) {
-      acceptedLicense = true;  showLicenseScreen = false;  if (clickSfx && !clickSfx.isPlaying()) { clickSfx.stop(); clickSfx.play(); }  return;
+      acceptedLicense = true;  showLicenseScreen = false;  saveProgress();  if (clickSfx && !clickSfx.isPlaying()) { clickSfx.stop(); clickSfx.play(); }  return;
     }
     if (ix > dx - dw / 2 && ix < dx + dw / 2 && iy > btnY - btnH / 2 && iy < btnY + btnH / 2)
-      location.reload();
+      // Try to close the PWA/tab; show farewell screen as fallback
+      if (window.confirm("Exit BioBalance?")) {
+        window.close();
+        // Fallback if window.close() is blocked (most browsers in a tab)
+        document.body.innerHTML = "<div style=\"background:#000;color:#00ffc8;font-family:monospace;text-align:center;padding:100px 40px;font-size:28px;\">Thank you for visiting BioBalance.<br><br><span style=\"font-size:18px;color:#aaa;\">You can close this tab.</span></div>";
+      }
     return;
   }
 
@@ -2594,6 +2626,7 @@ function handleQuizClick() {
     if (eff2===100 && !phaseCompleted[phaseIdx]) firstTrySuccess[phaseIdx]=true;  // only on first ever pass
     phaseEfficiency[phaseIdx] = eff2;  // always reflect current run — map matches success screen
     phaseCompleted[phaseIdx]=true;
+    saveProgress();  // persist completed phase + efficiency to localStorage
     if      (mode===MODE_PHASE0) mode=MODE_PHASE1;
     else if (mode===MODE_PHASE1) mode=MODE_PHASE2;
     else if (mode===MODE_PHASE2) mode=MODE_PHASE3;
