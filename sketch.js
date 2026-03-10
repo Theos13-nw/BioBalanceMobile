@@ -1,13 +1,3 @@
-// =========================================================
-// BioBalance: Digestive System Explorer
-// FINAL FIXED VERSION — All bugs resolved
-// =========================================================
-// HOW TO USE THIS FILE:
-//   This is your COMPLETE sketch.js.
-//   Replace your existing sketch.js entirely with this file.
-//   Keep your /data/ folder (images + audio) exactly as-is.
-// =========================================================
-
 // ── AUDIO ─────────────────────────────────────────────────
 let bgLoop, clickSfx, acidSfx, successSfx, spraySfx, dragSfx,
     warningSfx, reportSfx, denatureSfx, bounceSfx, nhe3Sfx,
@@ -1140,8 +1130,8 @@ function phase0() {
     cephalicReady = false;  p0Text = "SELECT A FOOD TYPE TO BEGIN";  p0Color = color(200);
   }
 
-  fill(p0Color);  textStyle(NORMAL);  textAlign(CENTER);  textSize(20);
-  text(p0Text, GAME_W / 2, guideY);
+  textStyle(NORMAL);  textSize(20);  textAlign(CENTER);
+  fill(p0Color);  text(p0Text, GAME_W / 2, guideY);
 
   if (!hasSwallowed && cephalicReady && !isChewing)
     drawNextButton(GAME_W / 2, buttonY, "CHEW FOOD");
@@ -1184,7 +1174,8 @@ function drawMetabolicPanelWithSaliva(x, y) {
   rect(x, y, 280, 280, 15);
 
   fill(0, 255, 200);  textStyle(BOLD);  textSize(16);  textAlign(CENTER);
-  text("BODY PREP STATUS", x, y - 118);  textStyle(NORMAL);
+  text("BODY PREP STATUS", x, y - 118);
+  textStyle(NORMAL);  textSize(12);  // explicit reset — prevents style bleed to outer text
 
   // Saliva bar — label plain white, normal weight
   fill(30, 40, 60);  rect(x, y - 60, 240, 40, 5);
@@ -1215,7 +1206,7 @@ function drawMetabolicPanelWithSaliva(x, y) {
   fill(255);  textSize(10);  text("BODY CELLS ABSORBING: " + nf(peripheralGlucoseUptake, 0, 1) + "%", x, y + 65);
 
   let ready = (insulinLevel > 20 && hepaticGlucoseOutput < 60);
-  textStyle(NORMAL);  textSize(13);
+  textStyle(NORMAL);  textSize(13);  textAlign(CENTER);
   if      (salivaLevel >= 170 && ready)  { fill(0, 255, 150);  text("READY!", x, y + 120); }
   else if (salivaLevel >= 170)           { fill(255, 200, 0);  text("YOUR BODY IS GETTING READY", x, y + 120); }
   else                                   { fill(255, 200, 0);  text("BUILDING UP — WAIT...", x, y + 120); }
@@ -1574,7 +1565,7 @@ function handleNutrientPhysicsStrict(zoneX, zoneW, zoneH, capY, nheY, lacY) {
   if (!draggingGlucose && !glucoseSorted) {
     if (pointInZone(glucoseX, glucoseY, zoneX, capY, zoneW, zoneH)) {
       gTimer += 1.0 / 1800.0;   // ~30 seconds at 60 ticks/s
-      if (gTimer >= 1.0) { glucoseSorted = true; capillaryPulse = 30; triggerBurst(glucoseX, glucoseY, [0,255,0]); playSoundOnce(correctSfx); }
+      if (gTimer >= 1.0) { glucoseSorted = true; capillaryPulse = 30; triggerBurst(glucoseX, glucoseY, [0,255,0]); playSoundOnce(nhe3Sfx); }
     } else if (pointInZone(glucoseX, glucoseY, zoneX, nheY, zoneW, zoneH) ||
                pointInZone(glucoseX, glucoseY, zoneX, lacY, zoneW, zoneH)) {
       if (glucoseVX >= -5) { glucoseVX = -30; glucoseVY = random(-5, 5); if (millis() - sfx_bounceCooldown > 200) { playSoundOnce(bounceSfx); sfx_bounceCooldown = millis(); } }
@@ -1587,7 +1578,7 @@ function handleNutrientPhysicsStrict(zoneX, zoneW, zoneH, capY, nheY, lacY) {
     if (pointInZone(sodiumSGLTX, sodiumSGLTY, zoneX, capY, zoneW, zoneH)) {
       let speedMult = dist(sodiumSGLTX, sodiumSGLTY, glucoseX, glucoseY) < 80 ? 2.0 : 1.0;
       sGLTTimer += (1.0 / 1800.0) * speedMult;   // ~30 seconds
-      if (sGLTTimer >= 1.0) { sodiumSGLTSorted = true; capillaryPulse = 30; triggerBurst(sodiumSGLTX, sodiumSGLTY, [0,200,150]); playSoundOnce(correctSfx); }
+      if (sGLTTimer >= 1.0) { sodiumSGLTSorted = true; capillaryPulse = 30; triggerBurst(sodiumSGLTX, sodiumSGLTY, [0,200,150]); playSoundOnce(nhe3Sfx); }
     } else if (pointInZone(sodiumSGLTX, sodiumSGLTY, zoneX, nheY, zoneW, zoneH) ||
                pointInZone(sodiumSGLTX, sodiumSGLTY, zoneX, lacY, zoneW, zoneH)) {
       if (sodiumSGLTVX >= -5) { sodiumSGLTVX = -30; sodiumSGLTVY = random(-5, 5); if (millis() - sfx_bounceCooldown > 200) { playSoundOnce(bounceSfx); sfx_bounceCooldown = millis(); } }
@@ -1599,7 +1590,7 @@ function handleNutrientPhysicsStrict(zoneX, zoneW, zoneH, capY, nheY, lacY) {
   if (!draggingSodiumNHE3 && !sodiumNHE3Sorted) {
     if (pointInZone(sodiumNH3X, sodiumNH3Y, zoneX, nheY, zoneW, zoneH)) {
       nhe3Timer += 1.0 / 1800.0;   // ~30 seconds
-      if (nhe3Timer >= 1.0) { sodiumNHE3Sorted = true; nhe3Pulse = 30; triggerBurst(sodiumNH3X, sodiumNH3Y, [0,100,200]); playSoundOnce(nhe3Sfx); playSoundOnce(correctSfx); }
+      if (nhe3Timer >= 1.0) { sodiumNHE3Sorted = true; nhe3Pulse = 30; triggerBurst(sodiumNH3X, sodiumNH3Y, [0,100,200]); playSoundOnce(nhe3Sfx); }
     } else if (pointInZone(sodiumNH3X, sodiumNH3Y, zoneX, capY, zoneW, zoneH) ||
                pointInZone(sodiumNH3X, sodiumNH3Y, zoneX, lacY, zoneW, zoneH)) {
       if (sodiumNH3VX >= -5) { sodiumNH3VX = -30; sodiumNH3VY = random(-5, 5); if (millis() - sfx_bounceCooldown > 200) { playSoundOnce(bounceSfx); sfx_bounceCooldown = millis(); } }
@@ -1611,7 +1602,7 @@ function handleNutrientPhysicsStrict(zoneX, zoneW, zoneH, capY, nheY, lacY) {
   if (!draggingLipid && !lipidSorted) {
     if (pointInZone(lipidX, lipidY, zoneX, lacY, zoneW, zoneH)) {
       lTimer += 1.0 / 1800.0;   // ~30 seconds
-      if (lTimer >= 1.0) { lipidSorted = true; lactealPulse = 30; triggerBurst(lipidX, lipidY, [255,255,180]); playSoundOnce(correctSfx); }
+      if (lTimer >= 1.0) { lipidSorted = true; lactealPulse = 30; triggerBurst(lipidX, lipidY, [255,255,180]); playSoundOnce(nhe3Sfx); }
     } else if (pointInZone(lipidX, lipidY, zoneX, capY, zoneW, zoneH) ||
                pointInZone(lipidX, lipidY, zoneX, nheY, zoneW, zoneH)) {
       if (lipidVX >= -5) { lipidVX = -30; lipidVY = random(-5, 5); if (millis() - sfx_bounceCooldown > 200) { playSoundOnce(bounceSfx); sfx_bounceCooldown = millis(); } }
@@ -1843,9 +1834,8 @@ function handleInputStart() {
       let bx = sx + i*bsp;
       if (ix > bx-95 && ix < bx+95 && iy > btnY-47 && iy < btnY+47) currentReportSlide = i;
     }
-    // Full audio cleanup on any interaction with final report
-    stopAllLoopingSounds();
-    reportPlayed = false;
+    // Play click sound on report slide interaction
+    playSoundOnce(clickSfx);
   }
 }
 
