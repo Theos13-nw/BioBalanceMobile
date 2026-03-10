@@ -21,7 +21,8 @@ function loopSound(sound, vol) {
 
 function stopAllLoopingSounds() {
   // Stop every sound — looping, one-shot, or any overlapping node
-  [bgLoop, acidSfx, warningSfx, spraySfx,
+  // bgLoop excluded — volume-only control, never stopped after startup
+  [acidSfx, warningSfx, spraySfx,
    dragSfx, bounceSfx, nhe3Sfx, correctSfx, wrongSfx, successSfx,
    denatureSfx, reportSfx, clickSfx].forEach(function(s) {
     if (s && s.isPlaying()) s.stop();
@@ -377,7 +378,7 @@ function setup() {
     document.addEventListener('visibilitychange', function() {
       if (document.hidden) {
         // Page hidden: stop all looping/continuous sounds cleanly
-        if (bgLoop && bgLoop.isPlaying()) { bgLoop.pause(); }
+        if (bgLoop) bgLoop.setVolume(0);  // silence only — no pause/play
         if (acidSfx && acidSfx.isPlaying()) acidSfx.stop();
         if (warningSfx && warningSfx.isPlaying()) warningSfx.stop();
         if (spraySfx && spraySfx.isPlaying()) spraySfx.stop();
@@ -711,15 +712,10 @@ function soundTick() {
     let bgCurrent = bgLoop.getVolume ? bgLoop.getVolume() : 0;
     let bgNext    = bgCurrent + (bgTarget - bgCurrent) * 0.04;
 
-    if (bgNext < 0.003) {
-      if (bgLoop.isPlaying()) bgLoop.pause();
-    } else {
-      if (!bgLoop.isPlaying()) {
-        bgLoop.rate(1.0);   // lock rate before resume — prevents drift
-        bgLoop.play();      // RESUME the paused node — never stack a new one
-      }
-      bgLoop.setVolume(bgNext);
-    }
+    // Volume-only control — NEVER pause/play after startup.
+    // pause()/play() both create new Web Audio nodes in p5.sound 1.9.x.
+    // setVolume(0) = silent; setVolume(x) = audible. One node, forever.
+    bgLoop.setVolume(bgNext < 0.003 ? 0 : bgNext);
   }
 
   soundTickTimer++;
@@ -1399,7 +1395,7 @@ function drawPepsinPanelBig(x, y, currentPH, inPHWindow, enzymeActive) {
   rect(x, y, 275, 260, 15);
 
   fill(0, 255, 200);  textStyle(BOLD);  textSize(16);  textAlign(CENTER);
-  text("ENZYME STATUS", x, y - 130);  textStyle(NORMAL);
+  text("ENZYME STATUS", x, y - 108);  textStyle(NORMAL);
 
   let phC = lerpColor(color(0, 150, 255), color(255, 0, 0), map(currentPH, 7, 1, 0, 1));
   fill(30, 40, 60);  rect(x, y - 40, 240, 40, 5);
@@ -1655,8 +1651,8 @@ function drawFinalReport() {
   // Background: same protocolParticles as title screen
   for (let p of protocolParticles) { p.update();  p.display(); }
 
-  fill(0, 255, 200);  textStyle(BOLD);  textAlign(CENTER);  textSize(72);
-  text("YOUR DIGESTIVE REPORT", GAME_W / 2, 80);
+  fill(0, 255, 200);  textStyle(BOLD);  textAlign(CENTER);  textSize(60);
+  text("YOUR DIGESTIVE REPORT", GAME_W / 2, 70);
   stroke(112, 240, 240, 150);  strokeWeight(2);
   line(GAME_W / 2 - 200, 95, GAME_W / 2 + 200, 95);
 
@@ -1685,7 +1681,7 @@ function drawFinalReport() {
     let bx = startX + i * btnSpacing;
     let isActive = (currentReportSlide === i), isDone = phaseCompleted[i];
     if (isActive) {
-      noFill();  stroke(255, 255, 255, 150 + sin(millis() * 0.00032) * 100);  strokeWeight(4);
+      noFill();  stroke(255, 255, 255, 180);  strokeWeight(3);
       rect(bx, btnY, 200, 100, 12);
     }
     fill(isActive ? color(0, 100, 100) : isDone ? color(0, 80, 80) : color(20, 40, 50), 220);
@@ -1701,9 +1697,8 @@ function drawFinalReport() {
     }
   }
 
-  fill(220, 240, 255);  textSize(15);  textAlign(CENTER);  textStyle(BOLD);
-  text("Select a phase button below to read its detailed report", GAME_W / 2, GAME_H - 48);
-  textStyle(NORMAL);
+  fill(220, 240, 255);  textStyle(NORMAL);  textSize(15);  textAlign(CENTER);
+  text("Select a phase button above to read its detailed report", GAME_W / 2, GAME_H - 48);
   // Developer credit now handled by drawFooter() — no duplicate text here
 }
 
