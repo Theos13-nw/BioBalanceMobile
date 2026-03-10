@@ -45,6 +45,8 @@ let reportPlayed          = false;
 let reportSfxTriggered    = false;
 let phase2ButtonSuccessPlayed = false;
 let phase0ProceedSoundPlayed  = false;
+let swallowProceedDelay       = 0;
+const SWALLOW_PROCEED_FRAMES  = 120;  // 2 seconds at 60fps
 let phase1ProceedSoundPlayed  = false;
 let phase2ProceedSoundPlayed  = false;
 let phase3ProceedSoundPlayed  = false;
@@ -436,8 +438,18 @@ function setup() {
   ];
   for (let s of _dummyStrings) { text(s, -9999, -9999); }
   for (let sz of [12, 14, 16, 18, 20, 22, 24, 28, 32, 40, 48, 60, 72]) {
-    textSize(sz);  text("X", -9999, -9999);  // cache every text size used
+    textSize(sz);  text("X", -9999, -9999);
   }
+  // Pre-cache bold label style used in panel bars
+  textStyle(BOLD);  textSize(13);  textAlign(CENTER);
+  for (let s of ["SALIVA", "pH: 2.0"]) { text(s, -9999, -9999); }
+  textStyle(BOLD);  textSize(11);  textAlign(CENTER);
+  for (let s of ["INACTIVE ENZYME (Pepsinogen): 100%",
+                 "ACTIVE ENZYME (Pepsin): 0%", "INSULIN LEVEL: 35.0",
+                 "LIVER GLUCOSE: 51.4%", "BODY CELLS ABSORBING: 89.5%"]) {
+    text(s, -9999, -9999);
+  }
+  textStyle(NORMAL);  textSize(12);
   pop();
 }
 
@@ -1100,10 +1112,16 @@ function phase0() {
   let p0Text = "", p0Color = color(255);
 
   if (hasSwallowed) {
-    p0Text  = "FOOD SWALLOWED — READY TO CONTINUE!";
-    p0Color = color(0, 255, 150);
-    if (!phase0ProceedSoundPlayed) { playSoundOnce(successSfx);  phase0ProceedSoundPlayed = true; }
-    drawProceedButton(GAME_W / 2, buttonY);
+    swallowProceedDelay = min(swallowProceedDelay + 1, SWALLOW_PROCEED_FRAMES + 1);
+    if (swallowProceedDelay >= SWALLOW_PROCEED_FRAMES) {
+      p0Text  = "FOOD SWALLOWED — READY TO CONTINUE!";
+      p0Color = color(0, 255, 150);
+      if (!phase0ProceedSoundPlayed) { playSoundOnce(successSfx);  phase0ProceedSoundPlayed = true; }
+      drawProceedButton(GAME_W / 2, buttonY);
+    } else {
+      p0Text  = "SWALLOWING FOOD...";
+      p0Color = color(0, 255, 200);
+    }
   } else if (isChewing) {
     p0Text  = "CHEWING: BREAKING DOWN YOUR FOOD!";
     p0Color = color(255, 200, 0);
@@ -1189,28 +1207,29 @@ function drawMetabolicPanelWithSaliva(x, y) {
     stroke(0, 255, 255, 100 + (sin(millis() * 0.00032) + 1) / 2.0 * 155);
     strokeWeight(3);  noFill();  rect(x, y - 60, 240, 40, 5);  noStroke();
   }
-  fill(255);  textStyle(NORMAL);  textSize(12);  text("SALIVA", x, y - 93);
+  fill(255);  textStyle(BOLD);  textSize(13);  textAlign(CENTER);  text("SALIVA", x, y - 93);  textStyle(NORMAL);
 
   // Insulin bar
   fill(30, 40, 60);  rect(x, y - 10, 240, 20, 5);
   fill(255, 100, 150);  rect(x - 120 + map(insulinLevel, 0, 50, 0, 240) / 2, y - 10, map(insulinLevel, 0, 50, 0, 240), 20, 5);
-  fill(255);  textSize(10);  text("INSULIN LEVEL: " + nf(insulinLevel, 0, 1), x, y - 25);
+  fill(255);  textStyle(BOLD);  textSize(11);  textAlign(CENTER);  text("INSULIN LEVEL: " + nf(insulinLevel, 0, 1), x, y - 25);  textStyle(NORMAL);
 
   // Liver glucose bar — high output = full bar (biologically correct)
   fill(30, 40, 60);  rect(x, y + 35, 240, 20, 5);
   let hw = map(hepaticGlucoseOutput, 0, 150, 0, 240);
   fill(hepaticGlucoseOutput < 60 ? color(0, 255, 150) : hepaticGlucoseOutput < 100 ? color(255, 255, 0) : color(255, 100, 100));
   rect(x - 120 + hw / 2, y + 35, hw, 20, 5);
-  fill(255);  textSize(10);  text("LIVER GLUCOSE: " + nf(hepaticGlucoseOutput, 0, 1) + "%", x, y + 20);
+  fill(255);  textStyle(BOLD);  textSize(11);  textAlign(CENTER);  text("LIVER GLUCOSE: " + nf(hepaticGlucoseOutput, 0, 1) + "%", x, y + 20);  textStyle(NORMAL);
 
   // Uptake bar
   fill(30, 40, 60);  rect(x, y + 80, 240, 20, 5);
   let pu = map(peripheralGlucoseUptake, 0, 100, 0, 240);
   fill(100, 255, 200);  rect(x - 120 + pu / 2, y + 80, pu, 20, 5);
-  fill(255);  textSize(10);  text("BODY CELLS ABSORBING: " + nf(peripheralGlucoseUptake, 0, 1) + "%", x, y + 65);
+  fill(255);  textStyle(BOLD);  textSize(11);  textAlign(CENTER);  text("BODY CELLS ABSORBING: " + nf(peripheralGlucoseUptake, 0, 1) + "%", x, y + 65);  textStyle(NORMAL);
 
   let ready = (insulinLevel > 20 && hepaticGlucoseOutput < 60);
   textStyle(NORMAL);  textSize(13);  textAlign(CENTER);
+  noStroke();
   if      (salivaLevel >= 170 && ready)  { fill(0, 255, 150);  text("READY!", x, y + 120); }
   else if (salivaLevel >= 170)           { fill(255, 200, 0);  text("YOUR BODY IS GETTING READY", x, y + 120); }
   else                                   { fill(255, 200, 0);  text("BUILDING UP — WAIT...", x, y + 120); }
@@ -1352,7 +1371,7 @@ function updatePepsinDenaturation(currentPH, inPHWindow) {
     // Denatured: reserve stays where it is — only restored by player pressing RESTORE PEPSIN
   } else {
     if (inPHWindow && pepsinState === PepsinState.INACTIVE) {
-      pepsinConcentration = min(100, pepsinConcentration + 0.037*dt);  // ~45s to reach 100%
+      pepsinConcentration = min(100, pepsinConcentration + 0.056*dt);  // ~30s to reach 100%
       // Pepsinogen consumed 1:1 as it converts to pepsin (stoichiometrically accurate)
       pepsinogenReserve   = max(0, 100 - pepsinConcentration);  // mirror: as pepsin rises, reserve falls to 0
       if (pepsinConcentration >= 100) {
@@ -1392,14 +1411,14 @@ function drawPepsinPanelBig(x, y, currentPH, inPHWindow, enzymeActive) {
     stroke(0, 255, 150, 100 + (sin(millis() * 0.00032) + 1) / 2.0 * 155);
     strokeWeight(3);  noFill();  rect(x, y - 40, 240, 40, 5);  noStroke();
   }
-  fill(255);  textStyle(NORMAL);  textSize(12);  // plain white, normal weight
-  text("pH: " + nf(currentPH, 1, 1), x, y - 72);
+  fill(255);  textStyle(BOLD);  textSize(13);  textAlign(CENTER);
+  text("pH: " + nf(currentPH, 1, 1), x, y - 72);  textStyle(NORMAL);
 
   fill(30, 40, 60);  rect(x, y + 10, 240, 20, 5);
   let pgW = map(pepsinogenReserve, 0, 100, 0, 240);
   fill(100, 150, 200);  rect(x - 120 + pgW / 2, y + 10, pgW, 20, 5);
-  fill(255);  textSize(10);
-  text("INACTIVE ENZYME (Pepsinogen): " + nf(pepsinogenReserve, 0, 0) + "%", x, y - 5);
+  fill(255);  textStyle(BOLD);  textSize(11);  textAlign(CENTER);
+  text("INACTIVE ENZYME (Pepsinogen): " + nf(pepsinogenReserve, 0, 0) + "%", x, y - 5);  textStyle(NORMAL);
 
   fill(30, 40, 60);  rect(x, y + 55, 240, 20, 5);
   let pepColor = (pepsinState === PepsinState.ACTIVE)    ? color(0, 255, 150)   :
@@ -1409,7 +1428,7 @@ function drawPepsinPanelBig(x, y, currentPH, inPHWindow, enzymeActive) {
   fill(pepColor);
   rect(x - 120 + map(pepsinConcentration, 0, 100, 0, 240) / 2, y + 55,
        map(pepsinConcentration, 0, 100, 0, 240), 20, 5);
-  fill(255);  textSize(10);  text("ACTIVE ENZYME (Pepsin): " + nf(pepsinConcentration, 0, 0) + "%", x, y + 40);
+  fill(255);  textStyle(BOLD);  textSize(11);  textAlign(CENTER);  text("ACTIVE ENZYME (Pepsin): " + nf(pepsinConcentration, 0, 0) + "%", x, y + 40);  textStyle(NORMAL);
 
   textStyle(NORMAL);  textSize(13);
   if      (pepsinState === PepsinState.DENATURED)     { fill(255, 50, 50);   text("BROKEN — SHAPE DESTROYED",   x, y + 100); }
@@ -1780,11 +1799,12 @@ function handleInputStart() {
       if (foodType !== 2) { foodScale = 0;  emeticTimer = 0;  if (warningSfx && warningSfx.isPlaying()) warningSfx.stop(); }
       foodType = 2;
     }
-    if (hasSwallowed) {
+    if (hasSwallowed && swallowProceedDelay >= SWALLOW_PROCEED_FRAMES) {
       if (ix > GAME_W/2-100 && ix < GAME_W/2+100 && iy > buttonY-25 && iy < buttonY+25) { startReflectionGate(); }
     } else if (isChewing) {
       if (ix > GAME_W/2-100 && ix < GAME_W/2+100 && iy > buttonY-25 && iy < buttonY+25) {
-        hasSwallowed = true;  if (swallowSfx) { swallowSfx.stop(); swallowSfx.play(); }
+        hasSwallowed = true;  swallowProceedDelay = 0;  // start delay timer
+        // swallowSfx suppressed in phase 0 — proceed sound plays after delay
       }
     } else if (cephalicReady) {
       if (ix > GAME_W/2-100 && ix < GAME_W/2+100 && iy > buttonY-25 && iy < buttonY+25) {
@@ -1887,7 +1907,7 @@ function resetAll() {
 
   foodType = 0;  salivaLevel = 0;  cephalicAcid = 0;
   smellSliderX = GAME_W/2-200;  delayedSmell = 0;  foodScale = 0;
-  isChewing = false;  hasSwallowed = false;
+  isChewing = false;  hasSwallowed = false;  swallowProceedDelay = 0;
   cephalicTimer = 0;  insulinLevel = 0;
   hepaticGlucoseOutput = 100;  peripheralGlucoseUptake = 0;  emeticTimer = 0;
   cephalicSuccessPlayed = false;  warningPlayed = false;
@@ -2628,7 +2648,7 @@ function resetSimulationToPhaseStart() {
   if (mode===MODE_PHASE0) {
     smellSliderX=GAME_W/2-200;  salivaLevel=0;  foodType=0;  cephalicAcid=0;
     cephalicReady=false;  delayedSmell=0;  foodScale=0;  isChewing=false;
-    hasSwallowed=false;  cephalicTimer=0;  insulinLevel=0;
+    hasSwallowed=false;  swallowProceedDelay=0;  cephalicTimer=0;  insulinLevel=0;
     hepaticGlucoseOutput=100;  peripheralGlucoseUptake=0;  emeticTimer=0;
     aromaParticles=[];  cephalicSuccessPlayed=false;  warningPlayed=false;
     phase0ProceedSoundPlayed=false;
