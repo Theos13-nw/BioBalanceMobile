@@ -1192,12 +1192,13 @@ function updateCephalicMetabolismFast() {
 }
 
 function drawMetabolicPanelWithSaliva(x, y) {
+  push();  // isolate ALL style changes in this panel
   fill(20, 30, 50, 220);  stroke(255, 150);  strokeWeight(2);
   rect(x, y, 280, 280, 15);
 
   fill(0, 255, 200);  textStyle(BOLD);  textSize(16);  textAlign(CENTER);
   text("BODY PREP STATUS", x, y - 118);
-  textStyle(NORMAL);  textSize(12);  // explicit reset — prevents style bleed to outer text
+  textStyle(NORMAL);  textSize(12);
 
   // Saliva bar — label plain white, normal weight
   fill(30, 40, 60);  rect(x, y - 60, 240, 40, 5);
@@ -1233,6 +1234,7 @@ function drawMetabolicPanelWithSaliva(x, y) {
   if      (salivaLevel >= 170 && ready)  { fill(0, 255, 150);  text("READY!", x, y + 120); }
   else if (salivaLevel >= 170)           { fill(255, 200, 0);  text("YOUR BODY IS GETTING READY", x, y + 120); }
   else                                   { fill(255, 200, 0);  text("BUILDING UP — WAIT...", x, y + 120); }
+  pop();  // restore all styles — zero bleed to outer draw
 }
 
 function drawPhase0Button(x, y, label, type) {
@@ -1397,6 +1399,7 @@ function updatePepsinDenaturation(currentPH, inPHWindow) {
 }
 
 function drawPepsinPanelBig(x, y, currentPH, inPHWindow, enzymeActive) {
+  push();  // isolate ALL style changes in this panel
   fill(20, 30, 50, 220);  stroke(255, 150);  strokeWeight(2);
   rect(x, y, 275, 260, 15);
 
@@ -1439,7 +1442,7 @@ function drawPepsinPanelBig(x, y, currentPH, inPHWindow, enzymeActive) {
   else if (currentPH > 5.0 && pepsinConcentration > 0){ fill(255, 50, 50);  text("ENZYME BREAKING DOWN!",       x, y + 100); }
   else if (currentPH > 3.0)                          { fill(200);           text("pH NOT IN RANGE YET",          x, y + 100); }
   else                                               { fill(200);           text("WAITING FOR ACID",             x, y + 100); }
-  textStyle(NORMAL);
+  pop();  // restore all styles — zero bleed to outer draw
 }
 
 // =========================================================
@@ -1753,26 +1756,27 @@ function handleInputStart() {
     return;
   }
 
-  if (quizState === 1) { if (clickSfx && !clickSfx.isPlaying()) { clickSfx.stop(); clickSfx.play(); }  handleQuizClick();  return; }
-  if (clickSfx && !clickSfx.isPlaying()) { clickSfx.stop(); clickSfx.play(); }
+  if (quizState === 1) { playSoundOnce(clickSfx);  handleQuizClick();  return; }
+  // NOTE: clickSfx is fired ONLY in each specific button handler below — not here
 
   if (mode !== MODE_TITLE && mode !== MODE_MECHANICS) {
-    if (ix > 15 && ix < 135 && iy > 10 && iy < 50) { mode = MODE_TITLE;  resetAll();  return; }
+    if (ix > 15 && ix < 135 && iy > 10 && iy < 50) { playSoundOnce(clickSfx);  mode = MODE_TITLE;  resetAll();  return; }
   }
 
   if (mode === MODE_TITLE) {
     let bw = 360, bh = 90, cx = GAME_W / 2;
-    if (ix > cx - bw/2 && ix < cx + bw/2 && iy > GAME_H/2+40  && iy < GAME_H/2+130) { mode = MODE_JOURNEY;   transitionAlpha = 0; }
-    if (ix > cx - bw/2 && ix < cx + bw/2 && iy > GAME_H/2+150 && iy < GAME_H/2+240) { mode = MODE_MECHANICS; currentCard = 0; transitionAlpha = 0; }
+    if (ix > cx - bw/2 && ix < cx + bw/2 && iy > GAME_H/2+40  && iy < GAME_H/2+130) { playSoundOnce(clickSfx);  mode = MODE_JOURNEY;   transitionAlpha = 0; }
+    if (ix > cx - bw/2 && ix < cx + bw/2 && iy > GAME_H/2+150 && iy < GAME_H/2+240) { playSoundOnce(clickSfx);  mode = MODE_MECHANICS; currentCard = 0; transitionAlpha = 0; }
   }
 
   if (mode === MODE_MECHANICS) {
     let bx = GAME_W - 80, by = GAME_H - 80;
     if (dist(ix, iy, bx, by) < 60) {
+      playSoundOnce(clickSfx);
       if (currentCard < totalCards - 1) currentCard++;
       else { mode = MODE_JOURNEY;  transitionAlpha = 0; }
     }
-    if (ix > 30 && ix < 180 && iy > 20 && iy < 60) { mode = MODE_TITLE;  transitionAlpha = 0; }
+    if (ix > 30 && ix < 180 && iy > 20 && iy < 60) { playSoundOnce(clickSfx);  mode = MODE_TITLE;  transitionAlpha = 0; }
   }
 
   if (mode === MODE_JOURNEY) {
@@ -1780,6 +1784,7 @@ function handleInputStart() {
       let nx = GAME_W / 2 - 450 + i * 300, ny = GAME_H / 2 - 50;
       let avail = (i === 0) || phaseCompleted[i - 1];
       if (dist(ix, iy, nx, ny) < 50 && avail) {
+        playSoundOnce(clickSfx);
         selectedPhase = i;
         gateAttemptsCount[i] = 0;
         const phaseMode = [MODE_PHASE0, MODE_PHASE1, MODE_PHASE2, MODE_PHASE3];
@@ -1793,60 +1798,64 @@ function handleInputStart() {
   if (mode === MODE_PHASE0) {
     let sliderY = GAME_H - 150, buttonY = 130;
     if (ix > (GAME_W/2-110)-90 && ix < (GAME_W/2-110)+90 && iy > (sliderY+90)-25 && iy < (sliderY+90)+25) {
+      playSoundOnce(clickSfx);
       if (foodType !== 1) { foodScale = 0;  emeticTimer = 0;  if (warningSfx && warningSfx.isPlaying()) warningSfx.stop(); }
       foodType = 1;
     } else if (ix > (GAME_W/2+110)-90 && ix < (GAME_W/2+110)+90 && iy > (sliderY+90)-25 && iy < (sliderY+90)+25) {
+      playSoundOnce(clickSfx);
       if (foodType !== 2) { foodScale = 0;  emeticTimer = 0;  if (warningSfx && warningSfx.isPlaying()) warningSfx.stop(); }
       foodType = 2;
     }
     if (hasSwallowed && swallowProceedDelay >= SWALLOW_PROCEED_FRAMES) {
-      if (ix > GAME_W/2-100 && ix < GAME_W/2+100 && iy > buttonY-25 && iy < buttonY+25) { startReflectionGate(); }
+      if (ix > GAME_W/2-100 && ix < GAME_W/2+100 && iy > buttonY-25 && iy < buttonY+25) { playSoundOnce(clickSfx);  startReflectionGate(); }
     } else if (isChewing) {
       if (ix > GAME_W/2-100 && ix < GAME_W/2+100 && iy > buttonY-25 && iy < buttonY+25) {
-        hasSwallowed = true;  swallowProceedDelay = 0;  // start delay timer
-        // swallowSfx suppressed in phase 0 — proceed sound plays after delay
+        playSoundOnce(clickSfx);  hasSwallowed = true;  swallowProceedDelay = 0;
       }
     } else if (cephalicReady) {
       if (ix > GAME_W/2-100 && ix < GAME_W/2+100 && iy > buttonY-25 && iy < buttonY+25) {
-        isChewing = true;  if (chewSfx) { chewSfx.stop(); chewSfx.play(); }
+        playSoundOnce(clickSfx);  isChewing = true;  if (chewSfx) { chewSfx.stop(); chewSfx.play(); }
       }
     }
     if (iy > GAME_H-180 && iy < GAME_H-120 && ix > smellSliderX-30 && ix < smellSliderX+30)
-      isDraggingSmellSlider = true;
+      isDraggingSmellSlider = true;  // slider drag — no click sound
   }
 
   if (mode === MODE_PHASE1) {
     if (pepsinState === PepsinState.DENATURED) {
       textStyle(BOLD);  textSize(20);
       let bw2 = textWidth("RESTORE PEPSIN") + 60, bh2 = 54, bx2 = GAME_W/2, by2 = 90+35;
-      if (ix > bx2-bw2/2 && ix < bx2+bw2/2 && iy > by2-bh2/2 && iy < by2+bh2/2) resetPepsin();
+      if (ix > bx2-bw2/2 && ix < bx2+bw2/2 && iy > by2-bh2/2 && iy < by2+bh2/2) { playSoundOnce(clickSfx);  resetPepsin(); }
     }
     if (phase1Complete && proteinScale < 0.3) {
       if (ix > GAME_W/2-100 && ix < GAME_W/2+100 && iy > (90+35)-25 && iy < (90+35)+25) {
-        if (acidSfx && acidSfx.isPlaying()) acidSfx.stop();  // stop acid sound on proceed
+        playSoundOnce(clickSfx);
+        if (acidSfx && acidSfx.isPlaying()) acidSfx.stop();
         sfx_wantAcid = false;
         startReflectionGate();
       }
     }
     let sliderY = GAME_H-110, sliderStart = GAME_W/2-150, sliderEnd = GAME_W/2+150;
     if (iy > sliderY-30 && iy < sliderY+30 && ix > sliderX-30 && ix < sliderX+30)
-      isDraggingPHSlider = true;
+      isDraggingPHSlider = true;  // slider drag — no click sound
   }
 
   if (mode === MODE_PHASE2) {
     let yOffset = 40, warningY = 130;
+    // Hormone spray areas — no click sound (continuous hold mechanic)
     if (ix > GAME_W*0.15-100 && ix < GAME_W*0.15+100 && iy > GAME_H/2+50+yOffset-80 && iy < GAME_H/2+50+yOffset+80) sprayType = 1;
     else if (ix > GAME_W*0.85-100 && ix < GAME_W*0.85+100 && iy > GAME_H/2+50+yOffset-80 && iy < GAME_H/2+50+yOffset+80) sprayType = 2;
     if (homeostasisReached) {
-      if (ix > GAME_W/2-100 && ix < GAME_W/2+100 && iy > (warningY+45)-25 && iy < (warningY+45)+25) { startReflectionGate(); }
+      if (ix > GAME_W/2-100 && ix < GAME_W/2+100 && iy > (warningY+45)-25 && iy < (warningY+45)+25) { playSoundOnce(clickSfx);  startReflectionGate(); }
     }
   }
 
   if (mode === MODE_PHASE3) {
     let allAbsorbed = glucoseSorted && sodiumSGLTSorted && sodiumNHE3Sorted && lipidSorted;
     if (allAbsorbed && phase3ProceedDelay >= PHASE3_PROCEED_DELAY_FRAMES) {
-      if (ix > GAME_W/2-100 && ix < GAME_W/2+100 && iy > (GAME_H/2+22)-25 && iy < (GAME_H/2+22)+25) { startReflectionGate(); }
+      if (ix > GAME_W/2-100 && ix < GAME_W/2+100 && iy > (GAME_H/2+22)-25 && iy < (GAME_H/2+22)+25) { playSoundOnce(clickSfx);  startReflectionGate(); }
     } else {
+      // Particle drags — dragSfx only, no click sound overlap
       if      (dist(ix, iy, glucoseX,    glucoseY)    < 40) { draggingGlucose    = true;  dragOffsetX = glucoseX    - ix;  dragOffsetY = glucoseY    - iy;  playSoundOnce(dragSfx); }
       else if (dist(ix, iy, sodiumSGLTX, sodiumSGLTY) < 40) { draggingSodiumSGLT = true;  dragOffsetX = sodiumSGLTX - ix;  dragOffsetY = sodiumSGLTY - iy;  playSoundOnce(dragSfx); }
       else if (dist(ix, iy, sodiumNH3X,  sodiumNH3Y)  < 40) { draggingSodiumNHE3 = true;  dragOffsetX = sodiumNH3X  - ix;  dragOffsetY = sodiumNH3Y  - iy;  playSoundOnce(dragSfx); }
