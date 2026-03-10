@@ -30,18 +30,20 @@ function loopSound(sound, vol) {
 }
 
 function stopAllLoopingSounds() {
-  // Stop every sound that could be looping OR piling up as stacked nodes
+  // Stop every sound — looping, one-shot, or any overlapping node
   [bgLoop, acidSfx, warningSfx, spraySfx,
-   dragSfx, bounceSfx, nhe3Sfx, correctSfx,
+   dragSfx, bounceSfx, nhe3Sfx, correctSfx, wrongSfx, successSfx,
    denatureSfx, reportSfx].forEach(function(s) {
     if (s && s.isPlaying()) s.stop();
   });
-  // Note: successSfx intentionally excluded — it plays on proceed-button
-  // appearance and must survive through the startReflectionGate() call
-  // Reset all want-flags so soundTick doesn't immediately restart them
+  // Reset audio flags so sounds can restart cleanly next time
   sfx_wantWarning = false;
   sfx_wantAcid    = false;
   sfx_wantSpray   = false;
+  warningPlayed         = false;
+  cephalicSuccessPlayed = false;
+  pepsinSuccessPlayed   = false;
+  phase2ButtonSuccessPlayed = false;
 }
 
 // ── AUDIO FLAGS ────────────────────────────────────────────
@@ -763,11 +765,13 @@ function draw() {
   // Sound management: once per display frame, throttled
   soundTick();
 
-  // Safety net: stop reportSfx if we've left the final report screen
+  // Safety net: stop sounds that should not play outside their context
   if (mode !== MODE_FINISH && reportSfx && reportSfx.isPlaying()) {
     reportSfx.stop();
-    reportPlayed = false;  // allow it to replay next visit
+    reportPlayed = false;
   }
+  if (quizState !== 1 && wrongSfx && wrongSfx.isPlaying()) wrongSfx.stop();
+  if (quizState !== 1 && correctSfx && correctSfx.isPlaying()) correctSfx.stop();
 
   // ── Landscape lock ───────────────────────────────────────
   if (windowWidth < windowHeight) {
@@ -1136,8 +1140,8 @@ function phase0() {
     cephalicReady = false;  p0Text = "SELECT A FOOD TYPE TO BEGIN";  p0Color = color(200);
   }
 
-  fill(p0Color);  textStyle(BOLD);  textAlign(CENTER);  textSize(20);
-  text(p0Text, GAME_W / 2, guideY);  textStyle(NORMAL);
+  fill(p0Color);  textStyle(NORMAL);  textAlign(CENTER);  textSize(20);
+  text(p0Text, GAME_W / 2, guideY);
 
   if (!hasSwallowed && cephalicReady && !isChewing)
     drawNextButton(GAME_W / 2, buttonY, "CHEW FOOD");
@@ -1274,41 +1278,41 @@ function phase1() {
   textAlign(CENTER);
 
   if (ulcerRisk > 100) {
-    fill(255, 0, 0);  textStyle(BOLD);  textSize(22);
-    text("STOMACH LINING IN DANGER — ULCER RISK HIGH!", GAME_W / 2, statusY);  textStyle(NORMAL);
+    fill(255, 0, 0);  textStyle(NORMAL);  textSize(20);
+    text("STOMACH LINING IN DANGER — ULCER RISK HIGH!", GAME_W / 2, statusY);
     sfx_wantWarning = true;
   } else {
     sfx_wantWarning = false;
 
     if (pepsinState === PepsinState.DENATURED) {
-      fill(255, 50, 50);  textStyle(BOLD);  textSize(22);
-      text("ENZYME SHAPE BROKEN — PEPSIN STOPPED WORKING!", GAME_W / 2, statusY);  textStyle(NORMAL);
+      fill(255, 50, 50);  textStyle(NORMAL);  textSize(20);
+      text("ENZYME SHAPE BROKEN — PEPSIN STOPPED WORKING!", GAME_W / 2, statusY);
       drawRestorePepsinButton(GAME_W / 2, statusY + spacing);
     } else if (pepsinConcentration > 0 && currentPH > 4.5 && currentPH <= 5.0) {
       fill(255, 100 + (sin(millis() * 0.018) + 1) / 2.0 * 155, 0);
-      textStyle(BOLD);  textSize(22);
-      text("WARNING: PEPSIN ABOUT TO BREAK DOWN — LOWER THE ACID!", GAME_W / 2, statusY);  textStyle(NORMAL);
+      textStyle(NORMAL);  textSize(20);
+      text("WARNING: PEPSIN ABOUT TO BREAK DOWN — LOWER THE ACID!", GAME_W / 2, statusY);
     } else if (currentPH < 1.5) {
       fill(255, (sin(millis() * 0.004) + 1) / 2.0 * 100, 0);
-      textStyle(BOLD);  textSize(22);
-      text("DANGER: TOO MUCH ACID — MOVE SLIDER LEFT!", GAME_W / 2, statusY);  textStyle(NORMAL);
+      textStyle(NORMAL);  textSize(20);
+      text("DANGER: TOO MUCH ACID — MOVE SLIDER LEFT!", GAME_W / 2, statusY);
     } else if (inPHWindow && !enzymeActive) {
       fill(pepsinState === PepsinState.PARTIAL ? color(255, 200, 0) : color(255, 255, 0));
-      textStyle(BOLD);  textSize(22);
+      textStyle(NORMAL);  textSize(20);
       text(pepsinState === PepsinState.PARTIAL
         ? "ENZYME WEAKENING — KEEP pH BETWEEN 1.5 AND 3.0!"
-        : "INACTIVE ENZYME BECOMING ACTIVE — HOLD THE pH!", GAME_W / 2, statusY);  textStyle(NORMAL);
+        : "INACTIVE ENZYME BECOMING ACTIVE — HOLD THE pH!", GAME_W / 2, statusY);
     } else if (enzymeActive) {
       if (proteinScale < 0.3) {
-        fill(0, 255, 150);  textStyle(BOLD);  textSize(22);
-        text("PROTEIN DIGESTION COMPLETE!", GAME_W / 2, statusY);  textStyle(NORMAL);
+        fill(0, 255, 150);  textStyle(NORMAL);  textSize(20);
+        text("PROTEIN DIGESTION COMPLETE!", GAME_W / 2, statusY);
         phase1Complete = true;
         if (!phase1ProceedSoundPlayed) { playSoundOnce(successSfx);  phase1ProceedSoundPlayed = true; }
         drawProceedButton(GAME_W / 2, statusY + spacing);
       } else {
-        fill(0, 255, 150);  textStyle(BOLD);  textSize(22);
-        text("PEPSIN ACTIVE — PROTEIN IS BEING BROKEN DOWN!", GAME_W / 2, statusY);  textStyle(NORMAL);
-        fill(255, 200, 0);  textSize(16);
+        fill(0, 255, 150);  textStyle(NORMAL);  textSize(20);
+        text("PEPSIN ACTIVE — PROTEIN IS BEING BROKEN DOWN!", GAME_W / 2, statusY);
+        fill(255, 200, 0);  textStyle(NORMAL);  textSize(16);
         text("Wait for protein digestion to complete...", GAME_W / 2, statusY + spacing);
       }
     }
@@ -1839,8 +1843,9 @@ function handleInputStart() {
       let bx = sx + i*bsp;
       if (ix > bx-95 && ix < bx+95 && iy > btnY-47 && iy < btnY+47) currentReportSlide = i;
     }
-    // Stop reportSfx when interacting with final report (prevents lingering node)
-    if (reportSfx && reportSfx.isPlaying()) reportSfx.stop();
+    // Full audio cleanup on any interaction with final report
+    stopAllLoopingSounds();
+    reportPlayed = false;
   }
 }
 
