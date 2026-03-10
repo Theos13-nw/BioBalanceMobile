@@ -32,12 +32,12 @@ function loopSound(sound, vol) {
 function stopAllLoopingSounds() {
   // Stop every sound that could be looping OR piling up as stacked nodes
   [bgLoop, acidSfx, warningSfx, spraySfx,
-   dragSfx, bounceSfx, nhe3Sfx,
+   dragSfx, bounceSfx, nhe3Sfx, correctSfx,
    denatureSfx, reportSfx].forEach(function(s) {
     if (s && s.isPlaying()) s.stop();
   });
-  // Note: correctSfx and successSfx intentionally excluded —
-  // they are short one-shots that should finish playing through transitions
+  // Note: successSfx intentionally excluded — it plays on proceed-button
+  // appearance and must survive through the startReflectionGate() call
   // Reset all want-flags so soundTick doesn't immediately restart them
   sfx_wantWarning = false;
   sfx_wantAcid    = false;
@@ -787,7 +787,7 @@ function draw() {
   if (quizState === 1)   { drawReflectionGate(); pop(); return; }
   renderGame();
   drawPersistentReturnButton();
-  if (!showLicenseScreen && mode !== MODE_TITLE) drawFooter();  // no footer on title (has its own clean look)
+  if (!showLicenseScreen) drawFooter();  // consistent footer on all screens
 
   // FPS debug removed — gameplay confirmed stable
 
@@ -1104,6 +1104,7 @@ function phase0() {
   if (hasSwallowed) {
     p0Text  = "FOOD SWALLOWED — READY TO CONTINUE!";
     p0Color = color(0, 255, 150);
+    if (!phase0ProceedSoundPlayed) { playSoundOnce(successSfx);  phase0ProceedSoundPlayed = true; }
     drawProceedButton(GAME_W / 2, buttonY);
   } else if (isChewing) {
     p0Text  = "CHEWING: BREAKING DOWN YOUR FOOD!";
@@ -1181,7 +1182,7 @@ function drawMetabolicPanelWithSaliva(x, y) {
   fill(0, 255, 200);  textStyle(BOLD);  textSize(16);  textAlign(CENTER);
   text("BODY PREP STATUS", x, y - 118);  textStyle(NORMAL);
 
-  // Saliva bar
+  // Saliva bar — label plain white, normal weight
   fill(30, 40, 60);  rect(x, y - 60, 240, 40, 5);
   let sw = map(salivaLevel, 0, 170, 0, 240);
   fill(0, 200, 255);  rect(x - 120 + sw / 2, y - 60, sw, 40, 5);
@@ -1189,7 +1190,7 @@ function drawMetabolicPanelWithSaliva(x, y) {
     stroke(0, 255, 255, 100 + (sin(millis() * 0.00032) + 1) / 2.0 * 155);
     strokeWeight(3);  noFill();  rect(x, y - 60, 240, 40, 5);  noStroke();
   }
-  fill(0, 255, 255);  textStyle(BOLD);  textSize(12);  text("SALIVA", x, y - 93);  textStyle(NORMAL);
+  fill(255);  textStyle(NORMAL);  textSize(12);  text("SALIVA", x, y - 93);
 
   // Insulin bar
   fill(30, 40, 60);  rect(x, y - 10, 240, 20, 5);
@@ -1198,24 +1199,22 @@ function drawMetabolicPanelWithSaliva(x, y) {
 
   // Liver glucose bar — high output = full bar (biologically correct)
   fill(30, 40, 60);  rect(x, y + 35, 240, 20, 5);
-  let hw = map(hepaticGlucoseOutput, 0, 150, 0, 240);  // FIXED: high value = full bar
-  // Color: red when high (liver dumping too much), yellow mid, green when suppressed by insulin
+  let hw = map(hepaticGlucoseOutput, 0, 150, 0, 240);
   fill(hepaticGlucoseOutput < 60 ? color(0, 255, 150) : hepaticGlucoseOutput < 100 ? color(255, 255, 0) : color(255, 100, 100));
   rect(x - 120 + hw / 2, y + 35, hw, 20, 5);
-  fill(255);  text("LIVER GLUCOSE: " + nf(hepaticGlucoseOutput, 0, 1) + "%", x, y + 20);
+  fill(255);  textSize(10);  text("LIVER GLUCOSE: " + nf(hepaticGlucoseOutput, 0, 1) + "%", x, y + 20);
 
   // Uptake bar
   fill(30, 40, 60);  rect(x, y + 80, 240, 20, 5);
   let pu = map(peripheralGlucoseUptake, 0, 100, 0, 240);
   fill(100, 255, 200);  rect(x - 120 + pu / 2, y + 80, pu, 20, 5);
-  fill(255);  text("BODY CELLS ABSORBING: " + nf(peripheralGlucoseUptake, 0, 1) + "%", x, y + 65);
+  fill(255);  textSize(10);  text("BODY CELLS ABSORBING: " + nf(peripheralGlucoseUptake, 0, 1) + "%", x, y + 65);
 
   let ready = (insulinLevel > 20 && hepaticGlucoseOutput < 60);
-  textStyle(BOLD);  textSize(13);
+  textStyle(NORMAL);  textSize(13);
   if      (salivaLevel >= 170 && ready)  { fill(0, 255, 150);  text("READY!", x, y + 120); }
   else if (salivaLevel >= 170)           { fill(255, 200, 0);  text("YOUR BODY IS GETTING READY", x, y + 120); }
   else                                   { fill(255, 200, 0);  text("BUILDING UP — WAIT...", x, y + 120); }
-  textStyle(NORMAL);
 }
 
 function drawPhase0Button(x, y, label, type) {
@@ -1304,6 +1303,7 @@ function phase1() {
         fill(0, 255, 150);  textStyle(BOLD);  textSize(22);
         text("PROTEIN DIGESTION COMPLETE!", GAME_W / 2, statusY);  textStyle(NORMAL);
         phase1Complete = true;
+        if (!phase1ProceedSoundPlayed) { playSoundOnce(successSfx);  phase1ProceedSoundPlayed = true; }
         drawProceedButton(GAME_W / 2, statusY + spacing);
       } else {
         fill(0, 255, 150);  textStyle(BOLD);  textSize(22);
@@ -1352,13 +1352,16 @@ function updatePepsinDenaturation(currentPH, inPHWindow) {
     // Denatured: reserve stays where it is — only restored by player pressing RESTORE PEPSIN
   } else {
     if (inPHWindow && pepsinState === PepsinState.INACTIVE) {
-      pepsinConcentration = min(100, pepsinConcentration + 0.037*dt);  // ~45s at perfect pH
-      // Consume pepsinogen reserve as it converts to active pepsin (biologically accurate)
-      pepsinogenReserve   = max(0,   pepsinogenReserve   - 0.037*dt);
-      if (pepsinConcentration >= 60) pepsinState = PepsinState.ACTIVE;
+      pepsinConcentration = min(100, pepsinConcentration + 0.037*dt);  // ~45s to reach 100%
+      // Pepsinogen consumed 1:1 as it converts to pepsin (stoichiometrically accurate)
+      pepsinogenReserve   = max(0, 100 - pepsinConcentration);  // mirror: as pepsin rises, reserve falls to 0
+      if (pepsinConcentration >= 100) {
+        pepsinState = PepsinState.ACTIVE;  // full activation only at 100%
+        pepsinogenReserve = 0;             // reserve fully depleted at full activation
+      }
     } else if (inPHWindow && pepsinState === PepsinState.ACTIVE) {
-      // Still in pH window and active — continue slowly consuming reserve during digestion
-      pepsinogenReserve = max(0, pepsinogenReserve - 0.008*dt);
+      // Fully active — reserve stays at 0 (all converted)
+      pepsinogenReserve = 0;
     } else if (!inPHWindow && pepsinState === PepsinState.ACTIVE) {
       if (currentPH > 3.0 && currentPH <= 4.0) {
         pepsinState = PepsinState.PARTIAL;
@@ -1389,8 +1392,8 @@ function drawPepsinPanelBig(x, y, currentPH, inPHWindow, enzymeActive) {
     stroke(0, 255, 150, 100 + (sin(millis() * 0.00032) + 1) / 2.0 * 155);
     strokeWeight(3);  noFill();  rect(x, y - 40, 240, 40, 5);  noStroke();
   }
-  fill(phC);  textStyle(BOLD);  textSize(12);
-  text("pH: " + nf(currentPH, 1, 1), x, y - 72);  textStyle(NORMAL);
+  fill(255);  textStyle(NORMAL);  textSize(12);  // plain white, normal weight
+  text("pH: " + nf(currentPH, 1, 1), x, y - 72);
 
   fill(30, 40, 60);  rect(x, y + 10, 240, 20, 5);
   let pgW = map(pepsinogenReserve, 0, 100, 0, 240);
@@ -1406,12 +1409,12 @@ function drawPepsinPanelBig(x, y, currentPH, inPHWindow, enzymeActive) {
   fill(pepColor);
   rect(x - 120 + map(pepsinConcentration, 0, 100, 0, 240) / 2, y + 55,
        map(pepsinConcentration, 0, 100, 0, 240), 20, 5);
-  fill(255);  text("ACTIVE ENZYME (Pepsin): " + nf(pepsinConcentration, 0, 0) + "%", x, y + 40);
+  fill(255);  textSize(10);  text("ACTIVE ENZYME (Pepsin): " + nf(pepsinConcentration, 0, 0) + "%", x, y + 40);
 
-  textStyle(BOLD);  textSize(13);
+  textStyle(NORMAL);  textSize(13);
   if      (pepsinState === PepsinState.DENATURED)     { fill(255, 50, 50);   text("BROKEN — SHAPE DESTROYED",   x, y + 100); }
   else if (enzymeActive)                              { fill(0, 255, 150);   text("DIGESTING PROTEIN NOW!",      x, y + 100); }
-  else if (inPHWindow && pepsinConcentration > 0)     { fill(255, 255, 0);   text("ENZYME ACTIVATING...",        x, y + 100); }
+  else if (inPHWindow && pepsinConcentration > 0)     { fill(255, 255, 0);   text("ENZYME ACTIVATING: " + nf(pepsinConcentration,0,0) + "%",  x, y + 100); }
   else if (inPHWindow)                                { fill(255, 200, 0);   text("OPTIMAL pH — WAITING",        x, y + 100); }
   else if (currentPH < 1.5)                          { fill(255, 100, 100); text("TOO MUCH ACID — SLIDE LEFT!",  x, y + 100); }
   else if (currentPH > 5.0 && pepsinConcentration > 0){ fill(255, 50, 50);  text("ENZYME BREAKING DOWN!",       x, y + 100); }
@@ -1452,6 +1455,7 @@ function phase2() {
   if (homeostasisReached) {
     fill(0, 255, 150);  textStyle(BOLD);  textSize(22);
     text("ACID NEUTRALIZED — READY FOR NUTRIENT ABSORPTION!", GAME_W / 2, warningY);  textStyle(NORMAL);
+    if (!phase2ProceedSoundPlayed) { playSoundOnce(successSfx);  phase2ProceedSoundPlayed = true; }
     drawProceedButton(GAME_W / 2, warningY + 45);
   } else if (greenZoneTimer > 0) {
     // Actively counting — show progress bar
@@ -1522,6 +1526,7 @@ function phase3() {
       fill(0, 0, 0, 180);  rect(GAME_W / 2, GAME_H / 2, GAME_W, GAME_H);
       fill(0, 255, 200);  textStyle(BOLD);  textSize(26);  textAlign(CENTER);
       text("ALL NUTRIENTS ABSORBED SUCCESSFULLY!", GAME_W / 2, GAME_H / 2 - 60);  textStyle(NORMAL);
+      if (!phase3ProceedSoundPlayed) { playSoundOnce(successSfx);  phase3ProceedSoundPlayed = true; }
       drawProceedButton(GAME_W / 2, GAME_H / 2 + 22);
     }
   }
@@ -1774,7 +1779,7 @@ function handleInputStart() {
       foodType = 2;
     }
     if (hasSwallowed) {
-      if (ix > GAME_W/2-100 && ix < GAME_W/2+100 && iy > buttonY-25 && iy < buttonY+25) { playSoundOnce(successSfx);  startReflectionGate(); }
+      if (ix > GAME_W/2-100 && ix < GAME_W/2+100 && iy > buttonY-25 && iy < buttonY+25) { startReflectionGate(); }
     } else if (isChewing) {
       if (ix > GAME_W/2-100 && ix < GAME_W/2+100 && iy > buttonY-25 && iy < buttonY+25) {
         hasSwallowed = true;  if (swallowSfx) { swallowSfx.stop(); swallowSfx.play(); }
@@ -1798,7 +1803,6 @@ function handleInputStart() {
       if (ix > GAME_W/2-100 && ix < GAME_W/2+100 && iy > (90+35)-25 && iy < (90+35)+25) {
         if (acidSfx && acidSfx.isPlaying()) acidSfx.stop();  // stop acid sound on proceed
         sfx_wantAcid = false;
-        if (successSfx) { successSfx.stop(); successSfx.play(); }
         startReflectionGate();
       }
     }
@@ -1812,14 +1816,14 @@ function handleInputStart() {
     if (ix > GAME_W*0.15-100 && ix < GAME_W*0.15+100 && iy > GAME_H/2+50+yOffset-80 && iy < GAME_H/2+50+yOffset+80) sprayType = 1;
     else if (ix > GAME_W*0.85-100 && ix < GAME_W*0.85+100 && iy > GAME_H/2+50+yOffset-80 && iy < GAME_H/2+50+yOffset+80) sprayType = 2;
     if (homeostasisReached) {
-      if (ix > GAME_W/2-100 && ix < GAME_W/2+100 && iy > (warningY+45)-25 && iy < (warningY+45)+25) { playSoundOnce(successSfx);  startReflectionGate(); }
+      if (ix > GAME_W/2-100 && ix < GAME_W/2+100 && iy > (warningY+45)-25 && iy < (warningY+45)+25) { startReflectionGate(); }
     }
   }
 
   if (mode === MODE_PHASE3) {
     let allAbsorbed = glucoseSorted && sodiumSGLTSorted && sodiumNHE3Sorted && lipidSorted;
     if (allAbsorbed && phase3ProceedDelay >= PHASE3_PROCEED_DELAY_FRAMES) {
-      if (ix > GAME_W/2-100 && ix < GAME_W/2+100 && iy > (GAME_H/2+22)-25 && iy < (GAME_H/2+22)+25) { playSoundOnce(successSfx);  startReflectionGate(); }
+      if (ix > GAME_W/2-100 && ix < GAME_W/2+100 && iy > (GAME_H/2+22)-25 && iy < (GAME_H/2+22)+25) { startReflectionGate(); }
     } else {
       if      (dist(ix, iy, glucoseX,    glucoseY)    < 40) { draggingGlucose    = true;  dragOffsetX = glucoseX    - ix;  dragOffsetY = glucoseY    - iy;  playSoundOnce(dragSfx); }
       else if (dist(ix, iy, sodiumSGLTX, sodiumSGLTY) < 40) { draggingSodiumSGLT = true;  dragOffsetX = sodiumSGLTX - ix;  dragOffsetY = sodiumSGLTY - iy;  playSoundOnce(dragSfx); }
@@ -1921,8 +1925,7 @@ function drawTitleScreen() {
   drawTitleButton(cx, GAME_H/2+85,  bw, bh, "START JOURNEY", "Play through all 4 digestive phases", h1);
   drawTitleButton(cx, GAME_H/2+195, bw, bh, "HOW TO PLAY",   "Read the instructions before playing", h2);
 
-  fill(100, 150, 180);  textSize(14);  textAlign(CENTER);
-  text("Developed by Altheo Cardillo © 2026", GAME_W/2, GAME_H-30);
+  // Footer text handled by drawFooter() — no duplicate here
 }
 
 function drawTitleButton(x, y, w, h, main, sub, hov) {
