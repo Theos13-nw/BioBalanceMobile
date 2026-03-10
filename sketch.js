@@ -30,8 +30,10 @@ function loopSound(sound, vol) {
 }
 
 function stopAllLoopingSounds() {
-  // Stop every sound that could be looping or playing continuously
-  [bgLoop, acidSfx, warningSfx, spraySfx].forEach(function(s) {
+  // Stop every sound that could be looping OR piling up as stacked nodes
+  [bgLoop, acidSfx, warningSfx, spraySfx,
+   dragSfx, bounceSfx, nhe3Sfx, correctSfx, successSfx,
+   denatureSfx, reportSfx].forEach(function(s) {
     if (s && s.isPlaying()) s.stop();
   });
   // Reset all want-flags so soundTick doesn't immediately restart them
@@ -252,6 +254,7 @@ let soundTickTimer = 0;   // throttle sound management to ~4×/sec
 let sfx_wantWarning  = false;
 let sfx_wantAcid     = false;
 let sfx_wantSpray    = false;
+let sfx_bounceCooldown = 0;   // prevents bounceSfx from firing every physics frame
 
 // ── TOUCH/DRAG STATE ──────────────────────────────────────
 let isDraggingSmellSlider = false;
@@ -757,6 +760,12 @@ function draw() {
 
   // Sound management: once per display frame, throttled
   soundTick();
+
+  // Safety net: stop reportSfx if we've left the final report screen
+  if (mode !== MODE_FINISH && reportSfx && reportSfx.isPlaying()) {
+    reportSfx.stop();
+    reportPlayed = false;  // allow it to replay next visit
+  }
 
   // ── Landscape lock ───────────────────────────────────────
   if (windowWidth < windowHeight) {
@@ -1552,10 +1561,10 @@ function handleNutrientPhysicsStrict(zoneX, zoneW, zoneH, capY, nheY, lacY) {
   if (!draggingGlucose && !glucoseSorted) {
     if (pointInZone(glucoseX, glucoseY, zoneX, capY, zoneW, zoneH)) {
       gTimer += 1.0 / 1800.0;   // ~30 seconds at 60 ticks/s
-      if (gTimer >= 1.0) { glucoseSorted = true; capillaryPulse = 30; triggerBurst(glucoseX, glucoseY, [0,255,0]); if (correctSfx) { correctSfx.stop(); correctSfx.play(); } }
+      if (gTimer >= 1.0) { glucoseSorted = true; capillaryPulse = 30; triggerBurst(glucoseX, glucoseY, [0,255,0]); playSoundOnce(correctSfx); }
     } else if (pointInZone(glucoseX, glucoseY, zoneX, nheY, zoneW, zoneH) ||
                pointInZone(glucoseX, glucoseY, zoneX, lacY, zoneW, zoneH)) {
-      if (glucoseVX >= -5) { glucoseVX = -30; glucoseVY = random(-5, 5); if (bounceSfx && !bounceSfx.isPlaying()) { bounceSfx.stop(); bounceSfx.play(); } }
+      if (glucoseVX >= -5) { glucoseVX = -30; glucoseVY = random(-5, 5); if (millis() - sfx_bounceCooldown > 200) { playSoundOnce(bounceSfx); sfx_bounceCooldown = millis(); } }
       gTimer = 0;
     } else { gTimer = 0; }
   }
@@ -1565,10 +1574,10 @@ function handleNutrientPhysicsStrict(zoneX, zoneW, zoneH, capY, nheY, lacY) {
     if (pointInZone(sodiumSGLTX, sodiumSGLTY, zoneX, capY, zoneW, zoneH)) {
       let speedMult = dist(sodiumSGLTX, sodiumSGLTY, glucoseX, glucoseY) < 80 ? 2.0 : 1.0;
       sGLTTimer += (1.0 / 1800.0) * speedMult;   // ~30 seconds
-      if (sGLTTimer >= 1.0) { sodiumSGLTSorted = true; capillaryPulse = 30; triggerBurst(sodiumSGLTX, sodiumSGLTY, [0,200,150]); if (correctSfx) { correctSfx.stop(); correctSfx.play(); } }
+      if (sGLTTimer >= 1.0) { sodiumSGLTSorted = true; capillaryPulse = 30; triggerBurst(sodiumSGLTX, sodiumSGLTY, [0,200,150]); playSoundOnce(correctSfx); }
     } else if (pointInZone(sodiumSGLTX, sodiumSGLTY, zoneX, nheY, zoneW, zoneH) ||
                pointInZone(sodiumSGLTX, sodiumSGLTY, zoneX, lacY, zoneW, zoneH)) {
-      if (sodiumSGLTVX >= -5) { sodiumSGLTVX = -30; sodiumSGLTVY = random(-5, 5); if (bounceSfx && !bounceSfx.isPlaying()) { bounceSfx.stop(); bounceSfx.play(); } }
+      if (sodiumSGLTVX >= -5) { sodiumSGLTVX = -30; sodiumSGLTVY = random(-5, 5); if (millis() - sfx_bounceCooldown > 200) { playSoundOnce(bounceSfx); sfx_bounceCooldown = millis(); } }
       sGLTTimer = 0;
     } else { sGLTTimer = 0; }
   }
@@ -1577,10 +1586,10 @@ function handleNutrientPhysicsStrict(zoneX, zoneW, zoneH, capY, nheY, lacY) {
   if (!draggingSodiumNHE3 && !sodiumNHE3Sorted) {
     if (pointInZone(sodiumNH3X, sodiumNH3Y, zoneX, nheY, zoneW, zoneH)) {
       nhe3Timer += 1.0 / 1800.0;   // ~30 seconds
-      if (nhe3Timer >= 1.0) { sodiumNHE3Sorted = true; nhe3Pulse = 30; triggerBurst(sodiumNH3X, sodiumNH3Y, [0,100,200]); if (nhe3Sfx) { nhe3Sfx.stop(); nhe3Sfx.play(); } if (correctSfx) { correctSfx.stop(); correctSfx.play(); } }
+      if (nhe3Timer >= 1.0) { sodiumNHE3Sorted = true; nhe3Pulse = 30; triggerBurst(sodiumNH3X, sodiumNH3Y, [0,100,200]); playSoundOnce(nhe3Sfx); playSoundOnce(correctSfx); }
     } else if (pointInZone(sodiumNH3X, sodiumNH3Y, zoneX, capY, zoneW, zoneH) ||
                pointInZone(sodiumNH3X, sodiumNH3Y, zoneX, lacY, zoneW, zoneH)) {
-      if (sodiumNH3VX >= -5) { sodiumNH3VX = -30; sodiumNH3VY = random(-5, 5); if (bounceSfx && !bounceSfx.isPlaying()) { bounceSfx.stop(); bounceSfx.play(); } }
+      if (sodiumNH3VX >= -5) { sodiumNH3VX = -30; sodiumNH3VY = random(-5, 5); if (millis() - sfx_bounceCooldown > 200) { playSoundOnce(bounceSfx); sfx_bounceCooldown = millis(); } }
       nhe3Timer = 0;
     } else { nhe3Timer = 0; }
   }
@@ -1589,10 +1598,10 @@ function handleNutrientPhysicsStrict(zoneX, zoneW, zoneH, capY, nheY, lacY) {
   if (!draggingLipid && !lipidSorted) {
     if (pointInZone(lipidX, lipidY, zoneX, lacY, zoneW, zoneH)) {
       lTimer += 1.0 / 1800.0;   // ~30 seconds
-      if (lTimer >= 1.0) { lipidSorted = true; lactealPulse = 30; triggerBurst(lipidX, lipidY, [255,255,180]); if (correctSfx) { correctSfx.stop(); correctSfx.play(); } }
+      if (lTimer >= 1.0) { lipidSorted = true; lactealPulse = 30; triggerBurst(lipidX, lipidY, [255,255,180]); playSoundOnce(correctSfx); }
     } else if (pointInZone(lipidX, lipidY, zoneX, capY, zoneW, zoneH) ||
                pointInZone(lipidX, lipidY, zoneX, nheY, zoneW, zoneH)) {
-      if (lipidVX >= -5) { lipidVX = -30; lipidVY = random(-5, 5); if (bounceSfx && !bounceSfx.isPlaying()) { bounceSfx.stop(); bounceSfx.play(); } }
+      if (lipidVX >= -5) { lipidVX = -30; lipidVY = random(-5, 5); if (millis() - sfx_bounceCooldown > 200) { playSoundOnce(bounceSfx); sfx_bounceCooldown = millis(); } }
       lTimer = 0;
     } else { lTimer = 0; }
   }
@@ -1761,7 +1770,7 @@ function handleInputStart() {
       foodType = 2;
     }
     if (hasSwallowed) {
-      if (ix > GAME_W/2-100 && ix < GAME_W/2+100 && iy > buttonY-25 && iy < buttonY+25) { if (successSfx) { successSfx.stop(); successSfx.play(); }  startReflectionGate(); }
+      if (ix > GAME_W/2-100 && ix < GAME_W/2+100 && iy > buttonY-25 && iy < buttonY+25) { playSoundOnce(successSfx);  startReflectionGate(); }
     } else if (isChewing) {
       if (ix > GAME_W/2-100 && ix < GAME_W/2+100 && iy > buttonY-25 && iy < buttonY+25) {
         hasSwallowed = true;  if (swallowSfx) { swallowSfx.stop(); swallowSfx.play(); }
@@ -1799,19 +1808,19 @@ function handleInputStart() {
     if (ix > GAME_W*0.15-100 && ix < GAME_W*0.15+100 && iy > GAME_H/2+50+yOffset-80 && iy < GAME_H/2+50+yOffset+80) sprayType = 1;
     else if (ix > GAME_W*0.85-100 && ix < GAME_W*0.85+100 && iy > GAME_H/2+50+yOffset-80 && iy < GAME_H/2+50+yOffset+80) sprayType = 2;
     if (homeostasisReached) {
-      if (ix > GAME_W/2-100 && ix < GAME_W/2+100 && iy > (warningY+45)-25 && iy < (warningY+45)+25) { if (successSfx) { successSfx.stop(); successSfx.play(); }  startReflectionGate(); }
+      if (ix > GAME_W/2-100 && ix < GAME_W/2+100 && iy > (warningY+45)-25 && iy < (warningY+45)+25) { playSoundOnce(successSfx);  startReflectionGate(); }
     }
   }
 
   if (mode === MODE_PHASE3) {
     let allAbsorbed = glucoseSorted && sodiumSGLTSorted && sodiumNHE3Sorted && lipidSorted;
     if (allAbsorbed && phase3ProceedDelay >= PHASE3_PROCEED_DELAY_FRAMES) {
-      if (ix > GAME_W/2-100 && ix < GAME_W/2+100 && iy > (GAME_H/2+22)-25 && iy < (GAME_H/2+22)+25) { if (successSfx) { successSfx.stop(); successSfx.play(); }  startReflectionGate(); }
+      if (ix > GAME_W/2-100 && ix < GAME_W/2+100 && iy > (GAME_H/2+22)-25 && iy < (GAME_H/2+22)+25) { playSoundOnce(successSfx);  startReflectionGate(); }
     } else {
-      if      (dist(ix, iy, glucoseX,    glucoseY)    < 40) { draggingGlucose    = true;  dragOffsetX = glucoseX    - ix;  dragOffsetY = glucoseY    - iy;  if (dragSfx && !dragSfx.isPlaying()) { dragSfx.stop(); dragSfx.play(); } }
-      else if (dist(ix, iy, sodiumSGLTX, sodiumSGLTY) < 40) { draggingSodiumSGLT = true;  dragOffsetX = sodiumSGLTX - ix;  dragOffsetY = sodiumSGLTY - iy;  if (dragSfx && !dragSfx.isPlaying()) { dragSfx.stop(); dragSfx.play(); } }
-      else if (dist(ix, iy, sodiumNH3X,  sodiumNH3Y)  < 40) { draggingSodiumNHE3 = true;  dragOffsetX = sodiumNH3X  - ix;  dragOffsetY = sodiumNH3Y  - iy;  if (dragSfx && !dragSfx.isPlaying()) { dragSfx.stop(); dragSfx.play(); } }
-      else if (dist(ix, iy, lipidX,      lipidY)      < 40) { draggingLipid      = true;  dragOffsetX = lipidX      - ix;  dragOffsetY = lipidY      - iy;  if (dragSfx && !dragSfx.isPlaying()) { dragSfx.stop(); dragSfx.play(); } }
+      if      (dist(ix, iy, glucoseX,    glucoseY)    < 40) { draggingGlucose    = true;  dragOffsetX = glucoseX    - ix;  dragOffsetY = glucoseY    - iy;  playSoundOnce(dragSfx); }
+      else if (dist(ix, iy, sodiumSGLTX, sodiumSGLTY) < 40) { draggingSodiumSGLT = true;  dragOffsetX = sodiumSGLTX - ix;  dragOffsetY = sodiumSGLTY - iy;  playSoundOnce(dragSfx); }
+      else if (dist(ix, iy, sodiumNH3X,  sodiumNH3Y)  < 40) { draggingSodiumNHE3 = true;  dragOffsetX = sodiumNH3X  - ix;  dragOffsetY = sodiumNH3Y  - iy;  playSoundOnce(dragSfx); }
+      else if (dist(ix, iy, lipidX,      lipidY)      < 40) { draggingLipid      = true;  dragOffsetX = lipidX      - ix;  dragOffsetY = lipidY      - iy;  playSoundOnce(dragSfx); }
     }
   }
 
@@ -1822,6 +1831,8 @@ function handleInputStart() {
       let bx = sx + i*bsp;
       if (ix > bx-95 && ix < bx+95 && iy > btnY-47 && iy < btnY+47) currentReportSlide = i;
     }
+    // Stop reportSfx when interacting with final report (prevents lingering node)
+    if (reportSfx && reportSfx.isPlaying()) reportSfx.stop();
   }
 }
 
@@ -2547,6 +2558,7 @@ function handleQuizClick() {
   let phaseIdx = currentPhaseIndex();
 
   if (quizSubState === 1) {
+    stopAllLoopingSounds();  // clean up before any mode transition
     quizState=0;  quizSubState=0;  successParticles=[];
     let eff2=calculateEfficiency(phaseIdx);
     if (eff2===100) firstTrySuccess[phaseIdx]=true;
@@ -2555,12 +2567,13 @@ function handleQuizClick() {
     if      (mode===MODE_PHASE0) mode=MODE_PHASE1;
     else if (mode===MODE_PHASE1) mode=MODE_PHASE2;
     else if (mode===MODE_PHASE2) mode=MODE_PHASE3;
-    else if (mode===MODE_PHASE3) { reportPlayed=false;  mode=MODE_FINISH; }
+    else if (mode===MODE_PHASE3) { stopAllLoopingSounds();  reportPlayed=false;  mode=MODE_FINISH; }
     gateAttemptsCount[phaseIdx]=0;  wrongAnswers=[];  transitionAlpha=0;
     return;
   }
 
   if (quizSubState === 2) {
+    stopAllLoopingSounds();  // clean up before phase restart
     quizState=0;  quizSubState=0;  successParticles=[];  wrongAnswers=[];
     resetSimulationToPhaseStart();  return;
   }
