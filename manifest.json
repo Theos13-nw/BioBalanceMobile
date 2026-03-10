@@ -3,6 +3,7 @@
   "short_name": "BioBalance",
   "description": "Interactive digestive system explorer – learn biology through play!",
   "start_url": "./",
+  "scope": "./",
   "display": "standalone",
   "orientation": "landscape",
   "background_color": "#000000",
