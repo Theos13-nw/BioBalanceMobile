@@ -74,9 +74,13 @@ let phase3ProceedSoundPlayed  = false;
 let developer       = "Developed by Altheo Cardillo © 2026";
 let creatorID       = "Theos_2026_DigestiveSystemApp";
 // ── SAVE / LOAD PROGRESS (localStorage) ───────────────────
+const SAVE_VERSION = 2;  // bump this to force-clear old saves
+
 function saveProgress() {
   try {
     localStorage.setItem('biobalanceProgress', JSON.stringify({
+      version:         SAVE_VERSION,
+      acceptedLicense: acceptedLicense,
       phaseCompleted:  phaseCompleted,
       phaseEfficiency: phaseEfficiency,
       firstTrySuccess: firstTrySuccess
@@ -89,16 +93,17 @@ function loadProgress() {
     let raw = localStorage.getItem('biobalanceProgress');
     if (!raw) return;
     let p = JSON.parse(raw);
-    // If old save has acceptedLicense baked in, wipe it — agreement must always show
-    if (p.hasOwnProperty('acceptedLicense')) {
+    // Wipe saves from older versions — forces clean start
+    if (!p.version || p.version < SAVE_VERSION) {
       localStorage.removeItem('biobalanceProgress');
       return;
     }
+    if (p.acceptedLicense === true) { acceptedLicense = true; showLicenseScreen = false; }
     if (Array.isArray(p.phaseCompleted))  phaseCompleted  = p.phaseCompleted;
     if (Array.isArray(p.phaseEfficiency)) phaseEfficiency = p.phaseEfficiency;
     if (Array.isArray(p.firstTrySuccess)) firstTrySuccess = p.firstTrySuccess;
   } catch(e) {
-    localStorage.removeItem('biobalanceProgress');  // corrupted save — wipe it
+    localStorage.removeItem('biobalanceProgress');
   }
 }
 
@@ -1772,7 +1777,7 @@ function handleInputStart() {
     let ax = GAME_W / 2 - dw / 2 - spacing / 2 - aw / 2;
     let dx = GAME_W / 2 + aw / 2 + spacing / 2 + dw / 2;
     if (ix > ax - aw / 2 && ix < ax + aw / 2 && iy > btnY - btnH / 2 && iy < btnY + btnH / 2) {
-      acceptedLicense = true;  showLicenseScreen = false;  if (clickSfx && !clickSfx.isPlaying()) { clickSfx.stop(); clickSfx.play(); }  return;
+      acceptedLicense = true;  showLicenseScreen = false;  saveProgress();  if (clickSfx && !clickSfx.isPlaying()) { clickSfx.stop(); clickSfx.play(); }  return;
     }
     if (ix > dx - dw / 2 && ix < dx + dw / 2 && iy > btnY - btnH / 2 && iy < btnY + btnH / 2)
       // Try to close the PWA/tab; show farewell screen as fallback
