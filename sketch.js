@@ -1719,7 +1719,7 @@ function drawFinalReport() {
   for (let p of protocolParticles) { p.update();  p.display(); }
 
   fill(0, 255, 200);  textStyle(BOLD);  textAlign(CENTER);  textSize(50);
-  text("YOUR DIGESTIVE REPORT", GAME_W / 2, 70);
+  text("YOUR DIGESTIVE REPORT", GAME_W / 2, 60);
   stroke(112, 240, 240, 150);  strokeWeight(2);
   line(GAME_W / 2 - 200, 95, GAME_W / 2 + 200, 95);
 
@@ -1730,8 +1730,8 @@ function drawFinalReport() {
   rect(GAME_W / 2, boxY, boxW - 20, boxH - 20, 15);
 
   let content = reportContent[currentReportSlide];
-  fill(220, 255, 240);  textAlign(LEFT);
-  textStyle(BOLD);  textSize(40);
+  fill(220, 255, 240);  textAlign(CENTER);
+  textStyle(BOLD);  textSize(70);
   text(content[0], GAME_W / 2 - boxW / 2 + 40, boxY - boxH / 2 + 50);
   textStyle(NORMAL);
   stroke(0, 255, 150, 100);  strokeWeight(1);
