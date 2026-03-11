@@ -2306,7 +2306,7 @@ function drawLicenseScreen() {
 
   // Agreement text — plain, formal, no effects
   noStroke();
-  fill(220, 225, 235);  textStyle(NORMAL);  textSize(19);  textAlign(LEFT);
+  fill(220, 225, 235);  textStyle(NORMAL);  textSize(20);  textAlign(LEFT);
   let lines = [
     "BioBalance: Digestive Control System",
     "",
@@ -2316,8 +2316,8 @@ function drawLicenseScreen() {
     "Redistribution, modification, or commercial use without",
     "express written permission of the author is strictly prohibited.",
     "",
-    "This application is an Educational Game Prototype developed as part",
-    "of a Bachelor of Secondary Education academic requirement.",
+    "This application is an Educational Game Prototype developed by a",
+    "student of Bachelor of Secondary Education.",
     "System Designer: Altheo Cardillo",
     "",
     "By clicking AGREE below, you acknowledge that you have read",
