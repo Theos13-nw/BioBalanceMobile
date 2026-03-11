@@ -79,8 +79,7 @@ function saveProgress() {
     localStorage.setItem('biobalanceProgress', JSON.stringify({
       phaseCompleted:  phaseCompleted,
       phaseEfficiency: phaseEfficiency,
-      firstTrySuccess: firstTrySuccess,
-      acceptedLicense: acceptedLicense
+      firstTrySuccess: firstTrySuccess
     }));
   } catch(e) {}
 }
@@ -90,11 +89,17 @@ function loadProgress() {
     let raw = localStorage.getItem('biobalanceProgress');
     if (!raw) return;
     let p = JSON.parse(raw);
+    // If old save has acceptedLicense baked in, wipe it — agreement must always show
+    if (p.hasOwnProperty('acceptedLicense')) {
+      localStorage.removeItem('biobalanceProgress');
+      return;
+    }
     if (Array.isArray(p.phaseCompleted))  phaseCompleted  = p.phaseCompleted;
     if (Array.isArray(p.phaseEfficiency)) phaseEfficiency = p.phaseEfficiency;
     if (Array.isArray(p.firstTrySuccess)) firstTrySuccess = p.firstTrySuccess;
-    if (p.acceptedLicense === true) { acceptedLicense = true; showLicenseScreen = false; }
-  } catch(e) {}
+  } catch(e) {
+    localStorage.removeItem('biobalanceProgress');  // corrupted save — wipe it
+  }
 }
 
 let acceptedLicense   = false;
@@ -1767,7 +1772,7 @@ function handleInputStart() {
     let ax = GAME_W / 2 - dw / 2 - spacing / 2 - aw / 2;
     let dx = GAME_W / 2 + aw / 2 + spacing / 2 + dw / 2;
     if (ix > ax - aw / 2 && ix < ax + aw / 2 && iy > btnY - btnH / 2 && iy < btnY + btnH / 2) {
-      acceptedLicense = true;  showLicenseScreen = false;  saveProgress();  if (clickSfx && !clickSfx.isPlaying()) { clickSfx.stop(); clickSfx.play(); }  return;
+      acceptedLicense = true;  showLicenseScreen = false;  if (clickSfx && !clickSfx.isPlaying()) { clickSfx.stop(); clickSfx.play(); }  return;
     }
     if (ix > dx - dw / 2 && ix < dx + dw / 2 && iy > btnY - btnH / 2 && iy < btnY + btnH / 2)
       // Try to close the PWA/tab; show farewell screen as fallback
