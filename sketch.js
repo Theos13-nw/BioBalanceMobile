@@ -855,9 +855,6 @@ function draw() {
   renderGame();
   drawPersistentReturnButton();
   if (!showLicenseScreen) drawFooter();  // consistent footer on all screens
-
-  // FPS debug removed — gameplay confirmed stable
-
   pop();
 }
 
@@ -1028,15 +1025,13 @@ function updatePhase2Logic() {
     greenZoneTimer = 0;
   }
 
-  // Homeostasis reached only after sustaining green for full 30 seconds
+
   if (greenZoneTimer >= GREEN_ZONE_REQUIRED && !homeostasisReached) {
     homeostasisReached     = true;
     homeostasisJustReached = true;
     homeostasisLocked      = false;  // unlock proceed immediately
     homeostasisDisplayTimer = 0;
   }
-  // If hormones drop after reaching homeostasis, keep it reached (don't un-reach)
-  // but if they drop before the 30s, greenZoneTimer already resets above
 
   if (mouseIsPressed && (sprayType === 1 || sprayType === 2)) {
     sfx_wantSpray = true;
@@ -1723,7 +1718,7 @@ function drawFinalReport() {
   // Background: same protocolParticles as title screen
   for (let p of protocolParticles) { p.update();  p.display(); }
 
-  fill(0, 255, 200);  textStyle(BOLD);  textAlign(CENTER);  textSize(60);
+  fill(0, 255, 200);  textStyle(BOLD);  textAlign(CENTER);  textSize(50);
   text("YOUR DIGESTIVE REPORT", GAME_W / 2, 70);
   stroke(112, 240, 240, 150);  strokeWeight(2);
   line(GAME_W / 2 - 200, 95, GAME_W / 2 + 200, 95);
@@ -2041,7 +2036,7 @@ function drawTitleScreen() {
 
   fill(0, 255, 200);  textStyle(BOLD);  textAlign(CENTER);  textSize(72);
   text("BioBalance", GAME_W/2, GAME_H/2-180);
-  textSize(36);  text("DIGESTIVE SYSTEM EXPLORER", GAME_W/2, GAME_H/2-130);
+  textSize(36);  text("DIGESTIVE CONTROL", GAME_W/2, GAME_H/2-130);
 
   fill(150, 200, 255);  textStyle(NORMAL);  textSize(20);
   text("Explore, control, and understand how your body digests food.", GAME_W/2, GAME_H/2-90);
@@ -2151,7 +2146,7 @@ function drawJourneyMap() {
   for (let p of protocolParticles) { p.update();  p.display(); }
 
   fill(0,255,200);  textStyle(BOLD);  textAlign(CENTER);  textSize(56);
-  text("YOUR DIGESTIVE JOURNEY", GAME_W/2, 80);
+  text("YOUR DIGESTIVE JOURNEY", GAME_W/2, 60);
 
   let done = 0, tot = 0;
   for (let i = 0; i < 4; i++) { if (phaseCompleted[i]) { done++;  tot += phaseEfficiency[i]; } }
@@ -2181,8 +2176,8 @@ function drawJourneyMap() {
   }
 
   // Journey instruction text
-  fill(255);  textStyle(NORMAL);  textSize(18);  textAlign(CENTER);
-  text("Click an available phase node to begin or replay", GAME_W/2, GAME_H-100);
+  fill(255);  textStyle(NORMAL);  textSize(22);  textAlign(CENTER);
+  text("Click an available phase button to begin or replay", GAME_W/2, GAME_H-100);
 
   fill(0,40,60,180);  stroke(0,255,200,80);  strokeWeight(1);  rect(200,GAME_H-150,300,100,10);
   fill(0,255,200);  textStyle(BOLD);  textSize(16);  textAlign(LEFT);  text("PROGRESS",80,GAME_H-180);
@@ -2299,7 +2294,7 @@ function drawLicenseScreen() {
   for (let p of protocolParticles) { p.update();  p.display(); }
 
   fill(0,255,200);  textStyle(BOLD);  textAlign(CENTER);  textSize(56);
-  text("SOFTWARE LICENSE AGREEMENT", GAME_W/2, 120);
+  text("SOFTWARE LICENSE AGREEMENT", GAME_W/2, 100);
   stroke(0,255,200,100);  strokeWeight(2);  line(GAME_W/2-300,150,GAME_W/2+300,150);
 
   fill(15,30,50,220);  stroke(0,255,200,150);  strokeWeight(2);  rect(GAME_W/2,GAME_H/2-20,700,400,20);
@@ -2308,7 +2303,7 @@ function drawLicenseScreen() {
   noStroke();
   fill(220, 225, 235);  textStyle(NORMAL);  textSize(20);  textAlign(LEFT);
   let lines = [
-    "BioBalance: Digestive Control System",
+    "BioBalance: Digestive Control",
     "",
     "Copyright (c) 2026 Altheo Cardillo. All Rights Reserved.",
     "",
