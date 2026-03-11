@@ -74,7 +74,7 @@ let phase3ProceedSoundPlayed  = false;
 let developer       = "Developed by Altheo Cardillo © 2026";
 let creatorID       = "Theos_2026_DigestiveSystemApp";
 // ── SAVE / LOAD PROGRESS (localStorage) ───────────────────
-const SAVE_VERSION = 2;  // bump this to force-clear old saves
+const SAVE_VERSION = 3;  // bump this to force-clear old saves
 
 function saveProgress() {
   try {
@@ -943,6 +943,9 @@ function updatePhase0Logic() {
     let sStart = GAME_W / 2 - 200, sEnd = GAME_W / 2 + 200;
     smellSliderX = constrain(getInputX(), sStart, sEnd);
   }
+  if (isDraggingVolumeSlider && _settingsSliderEnd > _settingsSliderStart) {
+    masterVolume = constrain(map(getInputX(), _settingsSliderStart, _settingsSliderEnd, 0, 1), 0, 1);
+  }
   let sStart = GAME_W / 2 - 200, sEnd = GAME_W / 2 + 200;
   let inputSmell = map(smellSliderX, sStart, sEnd, 0, 100);
   delayedSmell = lerp(delayedSmell, inputSmell, 1 - pow(1 - 0.005, dt));
@@ -1800,6 +1803,39 @@ function handleInputStart() {
     let bw = 360, bh = 90, cx = GAME_W / 2;
     if (ix > cx - bw/2 && ix < cx + bw/2 && iy > GAME_H/2+40  && iy < GAME_H/2+130) { playSoundOnce(clickSfx);  mode = MODE_JOURNEY;   transitionAlpha = 0; }
     if (ix > cx - bw/2 && ix < cx + bw/2 && iy > GAME_H/2+150 && iy < GAME_H/2+240) { playSoundOnce(clickSfx);  mode = MODE_MECHANICS; currentCard = 0; transitionAlpha = 0; }
+    // Settings button (top-right)
+    let sbx = GAME_W-80, sby = 35, sbw = 120, sbh = 40;
+    if (ix > sbx-sbw/2 && ix < sbx+sbw/2 && iy > sby-sbh/2 && iy < sby+sbh/2) {
+      playSoundOnce(clickSfx);  settingsReturnMode = MODE_TITLE;  mode = MODE_SETTINGS;  transitionAlpha = 0;
+    }
+    // Website link click
+    let linkY = GAME_H/2 + 300;
+    if (iy > linkY - 20 && iy < linkY + 45) {
+      window.open('https://theos-biobalance-digestive.netlify.app', '_blank');
+    }
+  }
+
+  if (mode === MODE_SETTINGS) {
+    // Volume slider drag
+    if (dist(ix, iy, _settingsKnobX, _settingsSliderY) < 30) isDraggingVolumeSlider = true;
+    // Preset buttons
+    let presets = [0, 0.25, 0.5, 0.75, 1.0];
+    for (let i = 0; i < presets.length; i++) {
+      let bx2 = GAME_W/2 - 250 + i*125, by2 = _settingsSliderY + 110, bw2 = 100, bh2 = 40;
+      if (ix > bx2-bw2/2 && ix < bx2+bw2/2 && iy > by2-bh2/2 && iy < by2+bh2/2) {
+        masterVolume = presets[i];  playSoundOnce(clickSfx);
+      }
+    }
+    // Website link click
+    let linkY3 = _settingsSliderY + 210;
+    if (iy > linkY3 - 20 && iy < linkY3 + 45) {
+      window.open('https://theos-biobalance-digestive.netlify.app', '_blank');
+    }
+    // Back button
+    let backX = GAME_W/2, backY = GAME_H-80, backW = 200, backH = 50;
+    if (ix > backX-backW/2 && ix < backX+backW/2 && iy > backY-backH/2 && iy < backY+backH/2) {
+      playSoundOnce(clickSfx);  mode = settingsReturnMode;  transitionAlpha = 0;
+    }
   }
 
   if (mode === MODE_MECHANICS) {
@@ -1813,6 +1849,12 @@ function handleInputStart() {
   }
 
   if (mode === MODE_JOURNEY) {
+    // VIEW REPORT button
+    let done2 = phaseCompleted.filter(Boolean).length;
+    let rBtnX = GAME_W-160, rBtnY = GAME_H/2+150, rBtnW = 260, rBtnH = 60;
+    if (done2 === 4 && ix > rBtnX-rBtnW/2 && ix < rBtnX+rBtnW/2 && iy > rBtnY-rBtnH/2 && iy < rBtnY+rBtnH/2) {
+      playSoundOnce(clickSfx);  currentReportSlide = 0;  mode = MODE_FINISH;  transitionAlpha = 0;  return;
+    }
     for (let i = 0; i < 4; i++) {
       let nx = GAME_W / 2 - 450 + i * 300, ny = GAME_H / 2 - 50;
       let avail = (i === 0) || phaseCompleted[i - 1];
@@ -1912,7 +1954,7 @@ function handleInputStart() {
 function handleInputEnd() {
   draggingGlucose = draggingSodiumSGLT = draggingSodiumNHE3 = draggingLipid = false;
   sprayType = 0;
-  isDraggingSmellSlider = isDraggingPHSlider = false;
+  isDraggingSmellSlider = isDraggingPHSlider = isDraggingVolumeSlider = false;
   if (spraySfx && spraySfx.isPlaying()) spraySfx.stop();
 }
 
