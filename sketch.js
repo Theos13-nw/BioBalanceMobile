@@ -120,10 +120,12 @@ const MODE_PHASE3    = 3;
 const MODE_FINISH    = 6;
 const MODE_JOURNEY   = 8;
 const MODE_SETTINGS  = 9;
+const MODE_INFO      = 10;
 
 // ── SETTINGS ───────────────────────────────────────────────
 let masterVolume = 0.8;
 let settingsReturnMode = MODE_TITLE;
+let infoReturnMode     = MODE_TITLE;
 
 // ── GLOBAL STATE ───────────────────────────────────────────
 let mode     = MODE_TITLE;
@@ -767,7 +769,7 @@ function soundTick() {
   // ── BG loop: screen-aware volume manager (runs every frame) ─
   if (bgLoop != null && bgLoopStarted) {
     let bgAllowed = (mode === MODE_TITLE || mode === MODE_JOURNEY ||
-                     mode === MODE_MECHANICS || mode === MODE_SETTINGS || quizState === 1);
+                     mode === MODE_MECHANICS || mode === MODE_SETTINGS || mode === MODE_INFO || quizState === 1);
     let bgTarget  = bgAllowed ? (quizState === 1 ? 0.04 * masterVolume : 0.08 * masterVolume) : 0;
 
     // Smooth fade toward target
@@ -1107,6 +1109,7 @@ function renderGame() {
     case MODE_PHASE3:    phase3();              break;
     case MODE_FINISH:    drawFinalReport();     break;
     case MODE_SETTINGS:  drawSettingsScreen();  break;
+    case MODE_INFO:      drawInfoScreen();      break;
   }
   noTint();
 
@@ -1766,7 +1769,8 @@ function drawFinalReport() {
     }
   }
 
-  fill(220, 240, 255);  textStyle(NORMAL);  textSize(15);  textAlign(CENTER);
+  // Static hint — no hover, no effects
+  noStroke();  fill(160, 175, 190);  textStyle(NORMAL);  textSize(15);  textAlign(CENTER);
   text("Select a phase button above to read its detailed report", GAME_W / 2, GAME_H - 48);
   // Developer credit now handled by drawFooter() — no duplicate text here
 }
@@ -1819,10 +1823,10 @@ function handleInputStart() {
     if (ix > sbx-sbw/2 && ix < sbx+sbw/2 && iy > sby-sbh/2 && iy < sby+sbh/2) {
       playSoundOnce(clickSfx);  settingsReturnMode = MODE_TITLE;  mode = MODE_SETTINGS;  transitionAlpha = 0;
     }
-    // Website link click
-    let linkY = GAME_H/2 + 300;
-    if (iy > linkY - 20 && iy < linkY + 45) {
-      window.open('https://theos-biobalance-digestive.netlify.app', '_blank');
+    // More Info button (top-left)
+    let ibx2 = 80, iby2 = 35, ibw2 = 120, ibh2 = 40;
+    if (ix > ibx2-ibw2/2 && ix < ibx2+ibw2/2 && iy > iby2-ibh2/2 && iy < iby2+ibh2/2) {
+      playSoundOnce(clickSfx);  infoReturnMode = MODE_TITLE;  mode = MODE_INFO;  transitionAlpha = 0;
     }
   }
 
@@ -1837,15 +1841,23 @@ function handleInputStart() {
         masterVolume = presets[i];  playSoundOnce(clickSfx);
       }
     }
-    // Website link click
-    let linkY3 = _settingsSliderY + 210;
-    if (iy > linkY3 - 20 && iy < linkY3 + 45) {
-      window.open('https://theos-biobalance-digestive.netlify.app', '_blank');
-    }
     // Back button
     let backX = GAME_W/2, backY = GAME_H-80, backW = 200, backH = 50;
     if (ix > backX-backW/2 && ix < backX+backW/2 && iy > backY-backH/2 && iy < backY+backH/2) {
       playSoundOnce(clickSfx);  mode = settingsReturnMode;  transitionAlpha = 0;
+    }
+  }
+
+  if (mode === MODE_INFO) {
+    // Link box click — open site
+    let lbx = GAME_W/2, lby = GAME_H/2 + 60, lbw = 700, lbh = 80;
+    if (ix > lbx-lbw/2 && ix < lbx+lbw/2 && iy > lby-lbh/2 && iy < lby+lbh/2) {
+      window.open('https://theos13-nw.github.io/BioBalance-SITE', '_blank');
+    }
+    // Back button
+    let bi2x = GAME_W/2, bi2y = GAME_H-80, bi2w = 200, bi2h = 50;
+    if (ix > bi2x-bi2w/2 && ix < bi2x+bi2w/2 && iy > bi2y-bi2h/2 && iy < bi2y+bi2h/2) {
+      playSoundOnce(clickSfx);  mode = infoReturnMode;  transitionAlpha = 0;
     }
   }
 
@@ -2052,12 +2064,14 @@ function drawTitleScreen() {
   fill(255);  textStyle(BOLD);  textSize(16);  textAlign(CENTER,CENTER);
   text("SETTINGS", sbx, sby-2);  textStyle(NORMAL);
 
-  // Website link
-  let linkY = GAME_H/2 + 300;
-  fill(0,200,255, 180);  textStyle(NORMAL);  textSize(15);  textAlign(CENTER);
-  text("Click here to download the Windows version", cx, linkY);
-  fill(100,180,255,120);  textSize(13);
-  text("theos-biobalance-digestive.netlify.app", cx, linkY + 22);
+  // More Info button top-left (opposite of settings)
+  let ibx = 80, iby = 35, ibw = 120, ibh = 40;
+  let hinfo = getInputX()>ibx-ibw/2 && getInputX()<ibx+ibw/2 && getInputY()>iby-ibh/2 && getInputY()<iby+ibh/2;
+  fill(hinfo ? color(0,100,100) : color(0,60,80), 220);
+  stroke(0,255,200, hinfo?255:150);  strokeWeight(2);
+  rect(ibx, iby, ibw, ibh, 8);
+  fill(255);  textStyle(BOLD);  textSize(16);  textAlign(CENTER,CENTER);
+  text("MORE INFO", ibx, iby-2);  textStyle(NORMAL);
 
   // Footer text handled by drawFooter() — no duplicate here
 }
@@ -2113,16 +2127,20 @@ function drawControlProtocol() {
 }
 
 function drawProtocolCard(x, y, w, h, idx, isActive) {
-  let a = isActive ? 255 : 140;
   push();  translate(x, y);
-  fill(15,30,50,a);  stroke(0,255,200,isActive?255:100);  strokeWeight(isActive?4:2);  rect(0,0,w,h,15);
+  // Box border always visible — active gets brighter
+  fill(15,30,50, 220);
+  stroke(0,255,200, isActive?255:100);  strokeWeight(isActive?4:2);  rect(0,0,w,h,15);
   if (isActive) { noFill();  stroke(0,255,200,40);  strokeWeight(12);  rect(0,0,w-20,h-20,12); }
-  fill(isActive?color(0,255,200):color(130,150,170));
-  textStyle(BOLD);  textSize(isActive?28:24);  textAlign(CENTER);  text(cardTitles[idx],0,-h/2+45);  textStyle(NORMAL);
-  fill(isActive?color(230,240,255):color(150,160,170));
-  textSize(isActive?22:20);  textAlign(LEFT);
-  let ly = -h/2+85;
-  for (let line of cardContent[idx]) { text(line, -w/2+30, ly);  ly += 26; }
+  // Card title hover only — active is cyan, inactive is grey
+  fill(isActive ? color(0,255,200) : color(130,150,170));
+  textStyle(BOLD);  textSize(26);  textAlign(CENTER);
+  text(cardTitles[idx], 0, -h/2+45);  textStyle(NORMAL);
+  // Body content — always same size and colour, NO hover effect
+  fill(220, 235, 255);
+  textSize(20);  textAlign(LEFT);
+  let ly = -h/2+90;
+  for (let line of cardContent[idx]) { text(line, -w/2+30, ly);  ly += 28; }
   pop();
 }
 
@@ -2286,19 +2304,28 @@ function drawLicenseScreen() {
 
   fill(15,30,50,220);  stroke(0,255,200,150);  strokeWeight(2);  rect(GAME_W/2,GAME_H/2-20,700,400,20);
 
-  fill(255);  textStyle(NORMAL);  textSize(22);  textAlign(CENTER);
+  // Agreement text — plain, formal, no effects
+  noStroke();
+  fill(220, 225, 235);  textStyle(NORMAL);  textSize(19);  textAlign(LEFT);
   let lines = [
-    "BioBalance: Digestive Control System","",
-    "Copyright © 2026 Altheo Cardillo. All Rights Reserved.","",
-    "This software is licensed for educational use only.",
-    "Redistribution, modification, or commercial use",
-    "without express written permission is strictly prohibited.","",
-    "This is an Educational Game Prototype.",
-    "System Designer: Altheo Cardillo","",
-    "By clicking 'Agree', you accept these terms."
+    "BioBalance: Digestive Control System",
+    "",
+    "Copyright (c) 2026 Altheo Cardillo. All Rights Reserved.",
+    "",
+    "This software is provided for educational use only.",
+    "Redistribution, modification, or commercial use without",
+    "express written permission of the author is strictly prohibited.",
+    "",
+    "This application is an Educational Game Prototype developed as part",
+    "of a Bachelor of Secondary Education academic requirement.",
+    "System Designer: Altheo Cardillo",
+    "",
+    "By clicking AGREE below, you acknowledge that you have read",
+    "and accept the terms stated in this agreement."
   ];
-  let yp = GAME_H/2-150;
-  for (let l of lines) { text(l, GAME_W/2, yp);  yp += 25; }
+  let yp = GAME_H/2 - 175;
+  let lx = GAME_W/2 - 310;
+  for (let l of lines) { text(l, lx, yp);  yp += 26; }
 
   fill(100,120,140,50);  textSize(12);  text(creatorID, GAME_W-150, GAME_H-20);
 
@@ -2363,13 +2390,6 @@ function drawSettingsScreen() {
     text(presets[i].l, bx, by-2);  textStyle(NORMAL);
   }
 
-  // Website link
-  let linkY = sliderY + 210;
-  fill(0, 180, 255, 200);  textSize(18);  textAlign(CENTER);
-  text("Click here to download the Windows version", sliderCX, linkY);
-  fill(100, 180, 255, 150);  textSize(15);
-  text("theos-biobalance-digestive.netlify.app", sliderCX, linkY + 28);
-
   // Back button
   let backX = GAME_W/2, backY = GAME_H - 80, backW = 200, backH = 50;
   let hBack = getInputX()>backX-backW/2 && getInputX()<backX+backW/2 &&
@@ -2387,6 +2407,56 @@ function drawSettingsScreen() {
 }
 
 // =========================================================
+// MORE INFO SCREEN
+// =========================================================
+function drawInfoScreen() {
+  for (let p of protocolParticles) { p.update();  p.display(); }
+
+  // Title
+  fill(0, 255, 200);  textStyle(BOLD);  textAlign(CENTER);  textSize(52);
+  text("MORE INFO", GAME_W/2, 80);
+  stroke(0, 255, 200, 100);  strokeWeight(2);
+  line(GAME_W/2-200, 108, GAME_W/2+200, 108);
+
+  // Description block
+  fill(170, 200, 230);  textStyle(NORMAL);  textSize(20);  textAlign(CENTER);
+  text("BioBalance is available as a desktop app for Windows and as a", GAME_W/2, 155);
+  text("Progressive Web App (PWA) you can open on any phone or tablet.", GAME_W/2, 182);
+
+  // Section label
+  fill(0, 255, 200);  textStyle(BOLD);  textSize(22);
+  text("OFFICIAL WEBSITE", GAME_W/2, 240);  textStyle(NORMAL);
+
+  fill(150, 170, 200);  textSize(17);
+  text("Visit the site to download the Windows version or access the mobile app.", GAME_W/2, 270);
+
+  // Link box — looks like a clean button, clickable
+  let lbx = GAME_W/2, lby = GAME_H/2 + 60, lbw = 700, lbh = 80;
+  let hlnk = getInputX()>lbx-lbw/2 && getInputX()<lbx+lbw/2 &&
+             getInputY()>lby-lbh/2 && getInputY()<lby+lbh/2;
+  fill(hlnk ? color(0,80,70) : color(5,25,40), 230);
+  stroke(hlnk ? color(0,255,200) : color(0,180,140));  strokeWeight(hlnk ? 3 : 2);
+  rect(lbx, lby, lbw, lbh, 14);
+
+  // URL text — big, clear, no glow
+  fill(0, 255, 200);  textStyle(BOLD);  textSize(30);  textAlign(CENTER, CENTER);
+  text("theos13-nw.github.io/BioBalance-SITE", lbx, lby - 2);  textStyle(NORMAL);
+
+  // Small hint below box
+  fill(120, 140, 160);  textSize(15);  textAlign(CENTER);
+  text("Tap / click the box above to open in browser", lbx, lby + lbh/2 + 24);
+
+  // Back button
+  let bi2x = GAME_W/2, bi2y = GAME_H-80, bi2w = 200, bi2h = 50;
+  let hBack2 = getInputX()>bi2x-bi2w/2 && getInputX()<bi2x+bi2w/2 &&
+               getInputY()>bi2y-bi2h/2 && getInputY()<bi2y+bi2h/2;
+  fill(hBack2 ? color(0,100,100) : color(0,60,80), 220);
+  stroke(0,255,200);  strokeWeight(2);  rect(bi2x, bi2y, bi2w, bi2h, 10);
+  fill(255);  textStyle(BOLD);  textSize(18);  textAlign(CENTER,CENTER);
+  text("BACK", bi2x, bi2y-2);  textStyle(NORMAL);
+}
+
+// =========================================================
 // UTILITY DRAW FUNCTIONS
 // =========================================================
 function drawFooter() {
@@ -2398,7 +2468,7 @@ function drawFooter() {
 }
 
 function drawPersistentReturnButton() {
-  if (mode !== MODE_TITLE && mode !== MODE_MECHANICS && mode !== MODE_SETTINGS && quizState !== 1) {
+  if (mode !== MODE_TITLE && mode !== MODE_MECHANICS && mode !== MODE_SETTINGS && mode !== MODE_INFO && quizState !== 1) {
     let hov = getInputX()>15&&getInputX()<135&&getInputY()>10&&getInputY()<50;
     fill(hov?80:40,200);  stroke(0,255,200);  strokeWeight(2);
     rect(75,30,120,40,5);
