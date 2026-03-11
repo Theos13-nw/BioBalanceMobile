@@ -16,7 +16,7 @@ function playSoundOnce(sound) {
   let now = millis();
   if (now - (_sfxLastFired.get(sound) || 0) < 80) return;  // 80ms cooldown per sound
   _sfxLastFired.set(sound, now);
-  if (!sound.isPlaying()) sound.play();
+  if (!sound.isPlaying()) { sound.setVolume(masterVolume); sound.play(); }
   // If already playing: skip — do NOT stop+restart (avoids node stacking on mobile)
 }
 
@@ -34,7 +34,7 @@ function loopSound(sound, vol) {
     // Only call loop() when genuinely stopped — not just paused
     sound.loop();
   }
-  sound.setVolume(vol !== undefined ? vol : 0.5);
+  sound.setVolume((vol !== undefined ? vol : 0.5) * masterVolume);
 }
 
 function stopAllLoopingSounds() {
@@ -119,6 +119,11 @@ const MODE_PHASE2    = 2;
 const MODE_PHASE3    = 3;
 const MODE_FINISH    = 6;
 const MODE_JOURNEY   = 8;
+const MODE_SETTINGS  = 9;
+
+// ── SETTINGS ───────────────────────────────────────────────
+let masterVolume = 0.8;
+let settingsReturnMode = MODE_TITLE;
 
 // ── GLOBAL STATE ───────────────────────────────────────────
 let mode     = MODE_TITLE;
@@ -309,6 +314,8 @@ let sfx_bounceCooldown = 0;   // prevents bounceSfx from firing every physics fr
 
 // ── TOUCH/DRAG STATE ──────────────────────────────────────
 let isDraggingSmellSlider = false;
+let isDraggingVolumeSlider = false;
+let _settingsKnobX = 0, _settingsSliderStart = 0, _settingsSliderEnd = 0, _settingsSliderY = 0;
 let isDraggingPHSlider    = false;
 
 // ── SPAWN TIMERS (time-based, replaces frameCount %) ──────
@@ -760,8 +767,8 @@ function soundTick() {
   // ── BG loop: screen-aware volume manager (runs every frame) ─
   if (bgLoop != null && bgLoopStarted) {
     let bgAllowed = (mode === MODE_TITLE || mode === MODE_JOURNEY ||
-                     mode === MODE_MECHANICS || quizState === 1);
-    let bgTarget  = bgAllowed ? (quizState === 1 ? 0.04 : 0.08) : 0;
+                     mode === MODE_MECHANICS || mode === MODE_SETTINGS || quizState === 1);
+    let bgTarget  = bgAllowed ? (quizState === 1 ? 0.04 * masterVolume : 0.08 * masterVolume) : 0;
 
     // Smooth fade toward target
     let bgCurrent = bgLoop.getVolume ? bgLoop.getVolume() : 0;
@@ -946,6 +953,9 @@ function updatePhase0Logic() {
   if (isDraggingVolumeSlider && _settingsSliderEnd > _settingsSliderStart) {
     masterVolume = constrain(map(getInputX(), _settingsSliderStart, _settingsSliderEnd, 0, 1), 0, 1);
   }
+  if (isDraggingVolumeSlider && _settingsSliderEnd > _settingsSliderStart) {
+    masterVolume = constrain(map(getInputX(), _settingsSliderStart, _settingsSliderEnd, 0, 1), 0, 1);
+  }
   let sStart = GAME_W / 2 - 200, sEnd = GAME_W / 2 + 200;
   let inputSmell = map(smellSliderX, sStart, sEnd, 0, 100);
   delayedSmell = lerp(delayedSmell, inputSmell, 1 - pow(1 - 0.005, dt));
@@ -1096,6 +1106,7 @@ function renderGame() {
     case MODE_PHASE2:    phase2();              break;
     case MODE_PHASE3:    phase3();              break;
     case MODE_FINISH:    drawFinalReport();     break;
+    case MODE_SETTINGS:  drawSettingsScreen();  break;
   }
   noTint();
 
@@ -1851,8 +1862,8 @@ function handleInputStart() {
   if (mode === MODE_JOURNEY) {
     // VIEW REPORT button
     let done2 = phaseCompleted.filter(Boolean).length;
-    let rBtnX = GAME_W-160, rBtnY = GAME_H/2+150, rBtnW = 260, rBtnH = 60;
-    if (done2 === 4 && ix > rBtnX-rBtnW/2 && ix < rBtnX+rBtnW/2 && iy > rBtnY-rBtnH/2 && iy < rBtnY+rBtnH/2) {
+    let rBtnXi = GAME_W-160, rBtnYi = GAME_H/2+150, rBtnWi = 260, rBtnHi = 60;
+    if (done2 === 4 && ix > rBtnXi-rBtnWi/2 && ix < rBtnXi+rBtnWi/2 && iy > rBtnYi-rBtnHi/2 && iy < rBtnYi+rBtnHi/2) {
       playSoundOnce(clickSfx);  currentReportSlide = 0;  mode = MODE_FINISH;  transitionAlpha = 0;  return;
     }
     for (let i = 0; i < 4; i++) {
@@ -2032,6 +2043,22 @@ function drawTitleScreen() {
   drawTitleButton(cx, GAME_H/2+85,  bw, bh, "START JOURNEY", "Play through all 4 digestive phases", h1);
   drawTitleButton(cx, GAME_H/2+195, bw, bh, "HOW TO PLAY",   "Read the instructions before playing", h2);
 
+  // Settings button top-right
+  let sbx = GAME_W - 80, sby = 35, sbw = 120, sbh = 40;
+  let hset = getInputX()>sbx-sbw/2 && getInputX()<sbx+sbw/2 && getInputY()>sby-sbh/2 && getInputY()<sby+sbh/2;
+  fill(hset ? color(0,100,100) : color(0,60,80), 220);
+  stroke(0,255,200, hset?255:150);  strokeWeight(2);
+  rect(sbx, sby, sbw, sbh, 8);
+  fill(255);  textStyle(BOLD);  textSize(16);  textAlign(CENTER,CENTER);
+  text("SETTINGS", sbx, sby-2);  textStyle(NORMAL);
+
+  // Website link
+  let linkY = GAME_H/2 + 300;
+  fill(0,200,255, 180);  textStyle(NORMAL);  textSize(15);  textAlign(CENTER);
+  text("Click here to download the Windows version", cx, linkY);
+  fill(100,180,255,120);  textSize(13);
+  text("theos-biobalance-digestive.netlify.app", cx, linkY + 22);
+
   // Footer text handled by drawFooter() — no duplicate here
 }
 
@@ -2150,6 +2177,19 @@ function drawJourneyMap() {
     textStyle(BOLD);  textSize(28);  textAlign(CENTER);
     text("DIGESTION COMPLETE!", GAME_W-200, GAME_H-130);  textStyle(NORMAL);
   }
+
+  // VIEW REPORT button — locked until all 4 phases done
+  let rBtnX2 = GAME_W - 160, rBtnY2 = GAME_H/2 + 150, rBtnW2 = 260, rBtnH2 = 60;
+  let allDone2 = (done === 4);
+  let hRep2 = allDone2 && getInputX()>rBtnX2-rBtnW2/2 && getInputX()<rBtnX2+rBtnW2/2 &&
+              getInputY()>rBtnY2-rBtnH2/2 && getInputY()<rBtnY2+rBtnH2/2;
+  fill(allDone2 ? (hRep2 ? color(0,150,120) : color(0,100,80)) : color(30,40,50), 220);
+  stroke(allDone2 ? color(0,255,200) : color(60,70,80));  strokeWeight(allDone2 ? 3 : 1);
+  rect(rBtnX2, rBtnY2, rBtnW2, rBtnH2, 12);
+  fill(allDone2 ? 255 : color(80,90,100));
+  textStyle(BOLD);  textSize(18);  textAlign(CENTER,CENTER);
+  text(allDone2 ? "VIEW FULL REPORT" : "REPORT (Complete all phases)", rBtnX2, rBtnY2 - 2);
+  textStyle(NORMAL);
 }
 
 // FIX: replaced broken ternary fill() crash in original
@@ -2279,6 +2319,74 @@ function drawLicenseScreen() {
 }
 
 // =========================================================
+// SETTINGS SCREEN
+// =========================================================
+function drawSettingsScreen() {
+  for (let p of protocolParticles) { p.update();  p.display(); }
+
+  fill(0, 255, 200);  textStyle(BOLD);  textAlign(CENTER);  textSize(56);
+  text("SETTINGS", GAME_W/2, 80);
+  stroke(0, 255, 200, 100);  strokeWeight(2);
+  line(GAME_W/2-200, 105, GAME_W/2+200, 105);
+
+  // Volume slider
+  let sliderCX = GAME_W/2, sliderY = GAME_H/2 - 60;
+  let sliderLen = 500, sliderStart = sliderCX - sliderLen/2, sliderEnd = sliderCX + sliderLen/2;
+  let knobX = map(masterVolume, 0, 1, sliderStart, sliderEnd);
+
+  fill(150, 200, 255);  textStyle(NORMAL);  textSize(22);  textAlign(CENTER);
+  text("MASTER VOLUME", sliderCX, sliderY - 50);
+
+  stroke(60, 80, 100);  strokeWeight(8);  line(sliderStart, sliderY, sliderEnd, sliderY);
+  stroke(0, 255, 200);  strokeWeight(8);  line(sliderStart, sliderY, knobX, sliderY);
+  fill(0, 255, 200);  noStroke();  ellipse(knobX, sliderY, 36, 36);
+
+  fill(200);  textSize(16);
+  textAlign(RIGHT);  text("MUTE", sliderStart - 15, sliderY + 6);
+  textAlign(LEFT);   text("MAX",  sliderEnd   + 15, sliderY + 6);
+  textAlign(CENTER);
+
+  let volLabel = masterVolume < 0.02 ? "MUTED" : int(masterVolume * 100) + "%";
+  fill(0, 255, 200);  textStyle(BOLD);  textSize(28);
+  text(volLabel, sliderCX, sliderY + 55);  textStyle(NORMAL);
+
+  // Preset buttons
+  let presets = [{l:"MUTE",v:0},{l:"25%",v:0.25},{l:"50%",v:0.5},{l:"75%",v:0.75},{l:"MAX",v:1.0}];
+  for (let i = 0; i < presets.length; i++) {
+    let bx = GAME_W/2 - 250 + i*125, by = sliderY + 110, bw = 100, bh = 40;
+    let active = abs(masterVolume - presets[i].v) < 0.01;
+    let hov = getInputX()>bx-bw/2 && getInputX()<bx+bw/2 && getInputY()>by-bh/2 && getInputY()<by+bh/2;
+    fill(active ? color(0,150,120) : hov ? color(0,100,100) : color(20,40,50), 220);
+    stroke(active ? color(0,255,200) : color(80,100,120));  strokeWeight(active?3:1);
+    rect(bx, by, bw, bh, 8);
+    fill(255);  textStyle(active?BOLD:NORMAL);  textSize(16);  textAlign(CENTER,CENTER);
+    text(presets[i].l, bx, by-2);  textStyle(NORMAL);
+  }
+
+  // Website link
+  let linkY = sliderY + 210;
+  fill(0, 180, 255, 200);  textSize(18);  textAlign(CENTER);
+  text("Click here to download the Windows version", sliderCX, linkY);
+  fill(100, 180, 255, 150);  textSize(15);
+  text("theos-biobalance-digestive.netlify.app", sliderCX, linkY + 28);
+
+  // Back button
+  let backX = GAME_W/2, backY = GAME_H - 80, backW = 200, backH = 50;
+  let hBack = getInputX()>backX-backW/2 && getInputX()<backX+backW/2 &&
+              getInputY()>backY-backH/2 && getInputY()<backY+backH/2;
+  fill(hBack ? color(0,100,100) : color(0,60,80), 220);
+  stroke(0,255,200);  strokeWeight(2);  rect(backX, backY, backW, backH, 10);
+  fill(255);  textStyle(BOLD);  textSize(18);  textAlign(CENTER,CENTER);
+  text("BACK", backX, backY-2);  textStyle(NORMAL);
+
+  // Cache slider coords for drag/click detection
+  _settingsKnobX = knobX;
+  _settingsSliderStart = sliderStart;
+  _settingsSliderEnd   = sliderEnd;
+  _settingsSliderY     = sliderY;
+}
+
+// =========================================================
 // UTILITY DRAW FUNCTIONS
 // =========================================================
 function drawFooter() {
@@ -2290,7 +2398,7 @@ function drawFooter() {
 }
 
 function drawPersistentReturnButton() {
-  if (mode !== MODE_TITLE && mode !== MODE_MECHANICS && quizState !== 1) {
+  if (mode !== MODE_TITLE && mode !== MODE_MECHANICS && mode !== MODE_SETTINGS && quizState !== 1) {
     let hov = getInputX()>15&&getInputX()<135&&getInputY()>10&&getInputY()<50;
     fill(hov?80:40,200);  stroke(0,255,200);  strokeWeight(2);
     rect(75,30,120,40,5);
