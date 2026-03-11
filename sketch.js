@@ -54,6 +54,7 @@ function stopAllLoopingSounds() {
   pepsinSuccessPlayed   = false;
   phase2ButtonSuccessPlayed = false;
   reportSfxTriggered    = false;
+  reportSfxPlayed       = false;
 }
 
 // ── AUDIO FLAGS ────────────────────────────────────────────
@@ -62,6 +63,7 @@ let pepsinSuccessPlayed   = false;   // FIX: was missing from doc2 globals
 let warningPlayed         = false;   // FIX: was missing from doc2 globals
 let reportPlayed          = false;
 let reportSfxTriggered    = false;
+let reportSfxPlayed       = false;  // one-time trigger: fires only when report first opens
 let phase2ButtonSuccessPlayed = false;
 let phase0ProceedSoundPlayed  = false;
 let swallowProceedDelay       = 0;
@@ -119,13 +121,15 @@ const MODE_PHASE2    = 2;
 const MODE_PHASE3    = 3;
 const MODE_FINISH    = 6;
 const MODE_JOURNEY   = 8;
-const MODE_SETTINGS  = 9;
-const MODE_INFO      = 10;
+const MODE_SETTINGS      = 9;
+const MODE_INFO          = 10;
+const MODE_EXIT_CONFIRM  = 11;
 
 // ── SETTINGS ───────────────────────────────────────────────
 let masterVolume = 0.8;
 let settingsReturnMode = MODE_TITLE;
 let infoReturnMode     = MODE_TITLE;
+let exitReturnMode     = MODE_TITLE;  // remembers which screen to go back to if exit cancelled
 
 // ── GLOBAL STATE ───────────────────────────────────────────
 let mode     = MODE_TITLE;
@@ -467,6 +471,21 @@ function setup() {
       let ctx = getAudioContext();
       if (ctx && ctx.state === 'suspended') ctx.resume();
     }, { passive: true });
+  }
+
+  // ── Back-button / navigation exit intercept ──────────────
+  // Pushes a dummy history state so the hardware back button
+  // triggers popstate instead of closing the PWA immediately.
+  // On popstate, we show the exit confirm screen.
+  if (window.history && window.history.pushState) {
+    window.history.pushState({ biobalance: true }, '');
+    window.addEventListener('popstate', function() {
+      // Re-push so the back button always triggers this again
+      window.history.pushState({ biobalance: true }, '');
+      // Show exit confirm — remember where we came from
+      exitReturnMode = mode;
+      mode = MODE_EXIT_CONFIRM;
+    });
   }
 
   for (let i = 0; i < 30; i++) {
@@ -855,6 +874,9 @@ function draw() {
   renderGame();
   drawPersistentReturnButton();
   if (!showLicenseScreen) drawFooter();  // consistent footer on all screens
+
+  // FPS debug removed — gameplay confirmed stable
+
   pop();
 }
 
@@ -1025,13 +1047,15 @@ function updatePhase2Logic() {
     greenZoneTimer = 0;
   }
 
-
+  // Homeostasis reached only after sustaining green for full 30 seconds
   if (greenZoneTimer >= GREEN_ZONE_REQUIRED && !homeostasisReached) {
     homeostasisReached     = true;
     homeostasisJustReached = true;
     homeostasisLocked      = false;  // unlock proceed immediately
     homeostasisDisplayTimer = 0;
   }
+  // If hormones drop after reaching homeostasis, keep it reached (don't un-reach)
+  // but if they drop before the 30s, greenZoneTimer already resets above
 
   if (mouseIsPressed && (sprayType === 1 || sprayType === 2)) {
     sfx_wantSpray = true;
@@ -1105,6 +1129,7 @@ function renderGame() {
     case MODE_FINISH:    drawFinalReport();     break;
     case MODE_SETTINGS:  drawSettingsScreen();  break;
     case MODE_INFO:      drawInfoScreen();      break;
+    case MODE_EXIT_CONFIRM: drawExitConfirmScreen(); break;
   }
   noTint();
 
@@ -1715,11 +1740,21 @@ function updateMist() {
 // FINAL REPORT
 // =========================================================
 function drawFinalReport() {
+  // One-time report sound — fires only when report first opens, never again
+  if (!reportSfxPlayed) {
+    reportSfxPlayed = true;
+    if (reportSfx && reportSfx.isLoaded()) {
+      reportSfx.stop();
+      reportSfx.setVolume(masterVolume);
+      reportSfx.play();
+    }
+  }
+
   // Background: same protocolParticles as title screen
   for (let p of protocolParticles) { p.update();  p.display(); }
 
-  fill(0, 255, 200);  textStyle(BOLD);  textAlign(CENTER);  textSize(50);
-  text("YOUR DIGESTIVE REPORT", GAME_W / 2, 60);
+  fill(0, 255, 200);  textStyle(BOLD);  textAlign(CENTER);  textSize(60);
+  text("YOUR DIGESTIVE REPORT", GAME_W / 2, 70);
   stroke(112, 240, 240, 150);  strokeWeight(2);
   line(GAME_W / 2 - 200, 95, GAME_W / 2 + 200, 95);
 
@@ -1730,8 +1765,8 @@ function drawFinalReport() {
   rect(GAME_W / 2, boxY, boxW - 20, boxH - 20, 15);
 
   let content = reportContent[currentReportSlide];
-  fill(220, 255, 240);  textAlign(CENTER);
-  textStyle(BOLD);  textSize(70);
+  fill(220, 255, 240);  textAlign(LEFT);
+  textStyle(BOLD);  textSize(40);
   text(content[0], GAME_W / 2 - boxW / 2 + 40, boxY - boxH / 2 + 50);
   textStyle(NORMAL);
   stroke(0, 255, 150, 100);  strokeWeight(1);
@@ -1856,6 +1891,30 @@ function handleInputStart() {
     }
   }
 
+  if (mode === MODE_EXIT_CONFIRM) {
+    // EXIT button (red, left)
+    let exBtnX = GAME_W/2 - 130, exBtnY = GAME_H/2 + 75, exBtnW = 200, exBtnH = 60;
+    if (ix > exBtnX-exBtnW/2 && ix < exBtnX+exBtnW/2 &&
+        iy > exBtnY-exBtnH/2 && iy < exBtnY+exBtnH/2) {
+      playSoundOnce(clickSfx);
+      saveProgress();
+      // Try to close the PWA window; fallback to a farewell page
+      window.close();
+      document.body.innerHTML = "<div style=\"background:#000;color:#00ffc8;font-family:monospace;" +
+        "text-align:center;padding:100px 40px;font-size:28px;\">Thank you for using BioBalance.<br><br>" +
+        "<span style=\"font-size:18px;color:#aaa;\">You can close this tab.</span></div>";
+      return;
+    }
+    // CANCEL button (cyan, right)
+    let caBtnX = GAME_W/2 + 130, caBtnY = GAME_H/2 + 75, caBtnW = 200, caBtnH = 60;
+    if (ix > caBtnX-caBtnW/2 && ix < caBtnX+caBtnW/2 &&
+        iy > caBtnY-caBtnH/2 && iy < caBtnY+caBtnH/2) {
+      playSoundOnce(clickSfx);
+      mode = exitReturnMode;  transitionAlpha = 0;
+    }
+    return;  // consume all input while confirm screen is up
+  }
+
   if (mode === MODE_MECHANICS) {
     let bx = GAME_W - 80, by = GAME_H - 80;
     if (dist(ix, iy, bx, by) < 60) {
@@ -1871,7 +1930,7 @@ function handleInputStart() {
     let done2 = phaseCompleted.filter(Boolean).length;
     let rBtnXi = GAME_W-160, rBtnYi = GAME_H/2+150, rBtnWi = 260, rBtnHi = 60;
     if (done2 === 4 && ix > rBtnXi-rBtnWi/2 && ix < rBtnXi+rBtnWi/2 && iy > rBtnYi-rBtnHi/2 && iy < rBtnYi+rBtnHi/2) {
-      playSoundOnce(clickSfx);  currentReportSlide = 0;  mode = MODE_FINISH;  transitionAlpha = 0;  return;
+      playSoundOnce(clickSfx);  currentReportSlide = 0;  reportSfxPlayed=false;  mode = MODE_FINISH;  transitionAlpha = 0;  return;
     }
     for (let i = 0; i < 4; i++) {
       let nx = GAME_W / 2 - 450 + i * 300, ny = GAME_H / 2 - 50;
@@ -2090,7 +2149,7 @@ function drawControlProtocol() {
   fill(0,255,200);  textStyle(BOLD);  textAlign(CENTER);  textSize(56);
   text("HOW TO PLAY", GAME_W/2, 80);
   fill(150,200,255,200);  textStyle(NORMAL);  textSize(18);
-  text("BioBalance — Digestive System Guide", GAME_W/2, 115);
+  text("BioBalance — Digestive Control Guide", GAME_W/2, 115);
   stroke(0,255,200,100);  strokeWeight(1);
   line(GAME_W/2-250,135, GAME_W/2+250,135);
 
@@ -2146,7 +2205,7 @@ function drawJourneyMap() {
   for (let p of protocolParticles) { p.update();  p.display(); }
 
   fill(0,255,200);  textStyle(BOLD);  textAlign(CENTER);  textSize(56);
-  text("YOUR DIGESTIVE JOURNEY", GAME_W/2, 60);
+  text("YOUR DIGESTIVE JOURNEY", GAME_W/2, 80);
 
   let done = 0, tot = 0;
   for (let i = 0; i < 4; i++) { if (phaseCompleted[i]) { done++;  tot += phaseEfficiency[i]; } }
@@ -2176,8 +2235,8 @@ function drawJourneyMap() {
   }
 
   // Journey instruction text
-  fill(255);  textStyle(NORMAL);  textSize(22);  textAlign(CENTER);
-  text("Click an available phase button to begin or replay", GAME_W/2, GAME_H-100);
+  fill(255);  textStyle(NORMAL);  textSize(18);  textAlign(CENTER);
+  text("Click an available phase node to begin or replay", GAME_W/2, GAME_H-100);
 
   fill(0,40,60,180);  stroke(0,255,200,80);  strokeWeight(1);  rect(200,GAME_H-150,300,100,10);
   fill(0,255,200);  textStyle(BOLD);  textSize(16);  textAlign(LEFT);  text("PROGRESS",80,GAME_H-180);
@@ -2294,14 +2353,14 @@ function drawLicenseScreen() {
   for (let p of protocolParticles) { p.update();  p.display(); }
 
   fill(0,255,200);  textStyle(BOLD);  textAlign(CENTER);  textSize(56);
-  text("SOFTWARE LICENSE AGREEMENT", GAME_W/2, 100);
+  text("SOFTWARE LICENSE AGREEMENT", GAME_W/2, 120);
   stroke(0,255,200,100);  strokeWeight(2);  line(GAME_W/2-300,150,GAME_W/2+300,150);
 
   fill(15,30,50,220);  stroke(0,255,200,150);  strokeWeight(2);  rect(GAME_W/2,GAME_H/2-20,700,400,20);
 
   // Agreement text — plain, formal, no effects
   noStroke();
-  fill(220, 225, 235);  textStyle(NORMAL);  textSize(20);  textAlign(LEFT);
+  fill(220, 225, 235);  textStyle(NORMAL);  textSize(19);  textAlign(LEFT);
   let lines = [
     "BioBalance: Digestive Control",
     "",
@@ -2311,8 +2370,8 @@ function drawLicenseScreen() {
     "Redistribution, modification, or commercial use without",
     "express written permission of the author is strictly prohibited.",
     "",
-    "This application is an Educational Game Prototype developed by a",
-    "student of Bachelor of Secondary Education.",
+    "This application is an Educational Game Prototype developed as part",
+    "of a Bachelor of Secondary Education academic requirement.",
     "System Designer: Altheo Cardillo",
     "",
     "By clicking AGREE below, you acknowledge that you have read",
@@ -2415,7 +2474,7 @@ function drawInfoScreen() {
 
   // Description block
   fill(170, 200, 230);  textStyle(NORMAL);  textSize(20);  textAlign(CENTER);
-  text("BioBalance is available as a desktop app for Windows and as a", GAME_W/2, 155);
+  text("BioBalance: Digestive Control is available as a desktop app for Windows and as a", GAME_W/2, 155);
   text("Progressive Web App (PWA) you can open on any phone or tablet.", GAME_W/2, 182);
 
   // Section label
@@ -2452,6 +2511,47 @@ function drawInfoScreen() {
 }
 
 // =========================================================
+// EXIT CONFIRM SCREEN
+// =========================================================
+function drawExitConfirmScreen() {
+  // Dim overlay over whatever was behind
+  fill(0, 0, 0, 210);  noStroke();
+  rect(GAME_W/2, GAME_H/2, GAME_W, GAME_H);
+
+  // Panel
+  fill(10, 20, 35, 240);  stroke(0, 255, 200, 160);  strokeWeight(3);
+  rect(GAME_W/2, GAME_H/2, 560, 320, 20);
+
+  // Title
+  fill(255, 255, 255);  textStyle(BOLD);  textAlign(CENTER, CENTER);  textSize(32);
+  text("EXIT BIOBALANCE?", GAME_W/2, GAME_H/2 - 90);  textStyle(NORMAL);
+
+  fill(180, 200, 220);  textSize(18);
+  text("Your progress has been saved.", GAME_W/2, GAME_H/2 - 48);
+  text("Are you sure you want to exit?", GAME_W/2, GAME_H/2 - 20);
+
+  // EXIT button (red)
+  let exBtnX = GAME_W/2 - 130, exBtnY = GAME_H/2 + 75, exBtnW = 200, exBtnH = 60;
+  let hEx = getInputX()>exBtnX-exBtnW/2 && getInputX()<exBtnX+exBtnW/2 &&
+            getInputY()>exBtnY-exBtnH/2 && getInputY()<exBtnY+exBtnH/2;
+  fill(hEx ? color(180, 30, 30) : color(120, 20, 20), 240);
+  stroke(255, 80, 80);  strokeWeight(hEx ? 4 : 2);
+  rect(exBtnX, exBtnY, exBtnW, exBtnH, 12);
+  fill(255);  textStyle(BOLD);  textSize(22);  textAlign(CENTER, CENTER);
+  text("EXIT", exBtnX, exBtnY - 2);  textStyle(NORMAL);
+
+  // CANCEL button (cyan)
+  let caBtnX = GAME_W/2 + 130, caBtnY = GAME_H/2 + 75, caBtnW = 200, caBtnH = 60;
+  let hCa = getInputX()>caBtnX-caBtnW/2 && getInputX()<caBtnX+caBtnW/2 &&
+            getInputY()>caBtnY-caBtnH/2 && getInputY()<caBtnY+caBtnH/2;
+  fill(hCa ? color(0, 130, 110) : color(0, 80, 70), 240);
+  stroke(0, 255, 200);  strokeWeight(hCa ? 4 : 2);
+  rect(caBtnX, caBtnY, caBtnW, caBtnH, 12);
+  fill(255);  textStyle(BOLD);  textSize(22);  textAlign(CENTER, CENTER);
+  text("CANCEL", caBtnX, caBtnY - 2);  textStyle(NORMAL);
+}
+
+// =========================================================
 // UTILITY DRAW FUNCTIONS
 // =========================================================
 function drawFooter() {
@@ -2463,7 +2563,7 @@ function drawFooter() {
 }
 
 function drawPersistentReturnButton() {
-  if (mode !== MODE_TITLE && mode !== MODE_MECHANICS && mode !== MODE_SETTINGS && mode !== MODE_INFO && quizState !== 1) {
+  if (mode !== MODE_TITLE && mode !== MODE_MECHANICS && mode !== MODE_SETTINGS && mode !== MODE_INFO && mode !== MODE_EXIT_CONFIRM && quizState !== 1) {
     let hov = getInputX()>15&&getInputX()<135&&getInputY()>10&&getInputY()<50;
     fill(hov?80:40,200);  stroke(0,255,200);  strokeWeight(2);
     rect(75,30,120,40,5);
@@ -2855,7 +2955,7 @@ function handleQuizClick() {
     if      (mode===MODE_PHASE0) mode=MODE_PHASE1;
     else if (mode===MODE_PHASE1) mode=MODE_PHASE2;
     else if (mode===MODE_PHASE2) mode=MODE_PHASE3;
-    else if (mode===MODE_PHASE3) { stopAllLoopingSounds();  reportPlayed=false;  mode=MODE_FINISH; }
+    else if (mode===MODE_PHASE3) { stopAllLoopingSounds();  reportPlayed=false;  reportSfxPlayed=false;  mode=MODE_FINISH; }
     gateAttemptsCount[phaseIdx]=0;  wrongAnswers=[];  transitionAlpha=0;
     return;
   }
