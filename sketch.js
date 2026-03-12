@@ -1773,9 +1773,9 @@ function drawFinalReport() {
   line(GAME_W / 2 - boxW / 2 + 30, boxY - boxH / 2 + 70,
        GAME_W / 2 + boxW / 2 - 30, boxY - boxH / 2 + 70);
 
-  textSize(40);
+  textSize(50);
   let textY = boxY - boxH / 2 + 115;
-  for (let i = 2; i < content.length; i++) { text(content[i], GAME_W / 2 - boxW / 2 + 40, textY);  textY += 30; }
+  for (let i = 2; i < content.length; i++) { text(content[i], GAME_W / 2 - boxW / 2 + 40, textY);  textY += 50; }
 
   let btnY = boxY + boxH / 2 + 70, btnSpacing = 220;
   let startX = GAME_W / 2 - btnSpacing * 1.5;
