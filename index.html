@@ -1,67 +1,119 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 
-  <!-- ── PWA: installable + full-screen ───────────────────── -->
-  <link rel="manifest" href="manifest.json">
+    <!-- PWA Metadata -->
+    <title>BioBalance: Digestive Control</title>
+    <meta name="description" content="Interactive educational simulation of the human digestive system - 4 immersive phases with real-time telemetry and mastery tracking.">
+    
+    <!-- PWA Install + Fullscreen -->
+    <link rel="manifest" href="manifest.json">
+    
+    <!-- iOS Support -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="BioBalance">
+    <link rel="apple-touch-icon" href="icon-512.png">
+    
+    <!-- Android / Chrome -->
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#050f23">
 
-  <!-- iOS full-screen (Safari) -->
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="BioBalance">
-  <link rel="apple-touch-icon" href="icon-512.png">
+    <!-- Scripts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.4/p5.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.4/addons/p5.sound.min.js"></script>
 
-  <!-- Android / Chrome -->
-  <meta name="mobile-web-app-capable" content="yes">
-  <meta name="theme-color" content="#000000">
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: #050f23;
+            touch-action: none;
+            font-family: 'Courier New', monospace;
+        }
 
-  <title>BioBalance</title>
+        canvas {
+            display: block;
+            width: 100vw !important;
+            height: 100vh !important;
+            position: fixed;
+            top: 0;
+            left: 0;
+            image-rendering: crisp-edges;
+            image-rendering: pixelated;
+            image-rendering: -webkit-optimize-contrast;
+        }
 
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.4/p5.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.4/addons/p5.sound.min.js"></script>
+        /* Optional loading screen */
+        #loading {
+            position: fixed;
+            inset: 0;
+            background: #050f23;
+            color: #00ffc8;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            font-size: 1.1rem;
+            letter-spacing: 0.1em;
+            text-align: center;
+        }
 
-  <style>
-    html, body {
-      margin: 0;
-      padding: 0;
-      width: 100%;
-      height: 100%;
-      overflow: hidden;
-      background: #000;
-      touch-action: none;
-    }
-    canvas {
-      display: block;
-      width: 100vw !important;
-      height: 100vh !important;
-      position: fixed;
-      top: 0;
-      left: 0;
-      image-rendering: crisp-edges;
-      image-rendering: pixelated;
-      image-rendering: -webkit-optimize-contrast;
-      object-fit: fill;
-    }
-  </style>
+        .loading-text {
+            margin-top: 1.5rem;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+    </style>
 </head>
 <body>
-  <script src="sketch.js"></script>
 
-  <!-- ── PWA: register service worker ────────────────────── -->
-  <script>
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', function() {
-        navigator.serviceWorker.register('./sw.js')
-          .then(function(reg) {
-            console.log('[BioBalance] Service Worker registered, scope:', reg.scope);
-          })
-          .catch(function(err) {
-            console.warn('[BioBalance] Service Worker registration failed:', err);
-          });
-      });
-    }
-  </script>
+    <!-- Loading Screen -->
+    <div id="loading">
+        <div style="font-size: 2.2rem; color: #00ffc8; letter-spacing: 0.15em;">BioBalance</div>
+        <div style="font-size: 0.95rem; color: #b8d4e3; margin-top: 0.8rem;">DIGESTIVE CONTROL</div>
+        <div class="loading-text">INITIALIZING SYSTEM...</div>
+    </div>
+
+    <script src="sketch.js"></script>
+
+    <!-- Service Worker Registration -->
+    <script>
+        // Register Service Worker for PWA
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js')
+                    .then(reg => {
+                        console.log('[BioBalance] Service Worker registered successfully');
+                    })
+                    .catch(err => {
+                        console.warn('[BioBalance] Service Worker registration failed:', err);
+                    });
+            });
+        }
+
+        // Hide loading screen once p5.js sketch is ready
+        window.addEventListener('load', () => {
+            // Give p5 a moment to initialize
+            setTimeout(() => {
+                const loading = document.getElementById('loading');
+                if (loading) {
+                    loading.style.transition = 'opacity 0.8s ease';
+                    loading.style.opacity = '0';
+                    setTimeout(() => loading.remove(), 800);
+                }
+            }, 800);
+        });
+    </script>
 </body>
 </html>
