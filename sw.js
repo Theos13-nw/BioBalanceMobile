@@ -1,119 +1,126 @@
-// ── BioBalance Service Worker ──────────────────────────────
-// Caches all game assets on first load so the game works
-// fully offline after that. Update CACHE_NAME when you
-// deploy new files (old cache is deleted automatically).
-// ───────────────────────────────────────────────────────────
-const CACHE_NAME = 'biobalance-v3';   // MUST match version used in sketch.js
+// ── BioBalance Service Worker v3.1 ──────────────────────────────
+// Updated: March 2026
+// Caches core game files for full offline play after first visit.
+// Update CACHE_NAME whenever you change assets or sketch.js
+
+const CACHE_NAME = 'biobalance-v3.1';   // ← Bump this when updating (e.g. v3.2)
 
 const ASSETS = [
-  './',
-  './index.html',
-  './sketch.js',
-  './sw.js',
-  './manifest.json',
-  // ── Icons — use EXACT filenames from your repo ──────────
-  './DigestiveAPP_LOGO.png',
-  './DigestiveAPP_LOGO-1.png',
-  // ── p5.js libraries (CRITICAL for offline play) ─────────
-  // These MUST exist in a /lib/ folder in your repo.
-  // Without them the game cannot run offline at all.
-  './lib/p5.min.js',
-  './lib/p5.sound.min.js',
-  // ── Images ──────────────────────────────────────────────
-  './data/stomach.png',
-  './data/protein.png',
-  './data/intestine.png',
-  './data/hormone1.png',
-  './data/hormone2.png',
-  './data/villi.png',
-  './data/glucose.png',
-  './data/sodium.png',
-  './data/lipid.png',
-  './data/glucoseZone.png',
-  './data/sodiumZone.png',
-  './data/head.png',
-  './data/deliciousfood.png',
-  './data/spoiledfood.png',
-  // ── Audio ───────────────────────────────────────────────
-  './data/bgloop.mp3',
-  './data/click.wav',
-  './data/acid.wav',
-  './data/success.wav',
-  './data/spray.wav',
-  './data/drag.wav',
-  './data/warning.wav',
-  './data/report.wav',
-  './data/denature.wav',
-  './data/bounce.wav',
-  './data/nhe3.wav',
-  './data/wrong.wav',
-  './data/correct.wav',
-  './data/swallow.wav',
-  './data/chew.wav'
+    './',
+    './index.html',
+    './sketch.js',
+    './sw.js',
+    './manifest.json',
+
+    // Icons (use exact filenames)
+    './DigestiveAPP_LOGO.png',
+    './DigestiveAPP_LOGO-1.png',
+
+    // Your game assets (images, audio, data)
+    './data/stomach.png',
+    './data/protein.png',
+    './data/intestine.png',
+    './data/hormone1.png',
+    './data/hormone2.png',
+    './data/villi.png',
+    './data/glucose.png',
+    './data/sodium.png',
+    './data/lipid.png',
+    './data/glucoseZone.png',
+    './data/sodiumZone.png',
+    './data/head.png',
+    './data/deliciousfood.png',
+    './data/spoiledfood.png',
+
+    // Audio files
+    './data/bgloop.mp3',
+    './data/click.wav',
+    './data/acid.wav',
+    './data/success.wav',
+    './data/spray.wav',
+    './data/drag.wav',
+    './data/warning.wav',
+    './data/report.wav',
+    './data/denature.wav',
+    './data/bounce.wav',
+    './data/nhe3.wav',
+    './data/wrong.wav',
+    './data/correct.wav',
+    './data/swallow.wav',
+    './data/chew.wav'
 ];
 
-// ── Install: cache everything ────────────────────────────
-// IMPORTANT: cache.addAll() is all-or-nothing.
-// If ANY file above returns a 404, the entire install fails
-// and nothing gets cached. Make sure every path is correct.
+// Install — Precache all static assets
 self.addEventListener('install', function(event) {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then(function(cache) {
-      console.log('[BioBalance SW] Caching all assets');
-      return cache.addAll(ASSETS);
-    })
-  );
-  // Activate immediately — don't wait for old tabs to close
-  self.skipWaiting();
+    event.waitUntil(
+        caches.open(CACHE_NAME)
+            .then(function(cache) {
+                console.log('[BioBalance SW] Caching app assets...');
+                return cache.addAll(ASSETS);
+            })
+            .then(() => {
+                console.log('[BioBalance SW] All assets cached successfully');
+                return self.skipWaiting();   // Activate immediately
+            })
+            .catch(err => {
+                console.error('[BioBalance SW] Cache failed:', err);
+            })
+    );
 });
 
-// ── Activate: delete old caches ─────────────────────────
+// Activate — Clean up old caches
 self.addEventListener('activate', function(event) {
-  event.waitUntil(
-    caches.keys().then(function(keys) {
-      return Promise.all(
-        keys
-          .filter(function(key) { return key !== CACHE_NAME; })
-          .map(function(key) {
-            console.log('[BioBalance SW] Deleting old cache:', key);
-            return caches.delete(key);
-          })
-      );
-    })
-  );
-  // Take control of all open pages immediately
-  self.clients.claim();
+    event.waitUntil(
+        caches.keys().then(function(cacheNames) {
+            return Promise.all(
+                cacheNames.map(function(cacheName) {
+                    if (cacheName !== CACHE_NAME) {
+                        console.log('[BioBalance SW] Deleting old cache:', cacheName);
+                        return caches.delete(cacheName);
+                    }
+                })
+            );
+        })
+    );
+    return self.clients.claim();   // Take control of all tabs immediately
 });
 
-// ── Fetch: cache-first, network fallback, offline shell ─
+// Fetch — Cache-first strategy with network fallback
 self.addEventListener('fetch', function(event) {
-  // Only handle GET requests
-  if (event.request.method !== 'GET') return;
+    if (event.request.method !== 'GET') return;
 
-  event.respondWith(
-    caches.match(event.request).then(function(cached) {
-      if (cached) return cached;
+    event.respondWith(
+        caches.match(event.request)
+            .then(function(cachedResponse) {
+                // Return cached version if available
+                if (cachedResponse) {
+                    return cachedResponse;
+                }
 
-      // Not in cache — try the network
-      return fetch(event.request).then(function(response) {
-        // Only cache valid, same-origin responses
-        if (!response || response.status !== 200 || response.type === 'opaque') {
-          return response;
-        }
-        let responseClone = response.clone();
-        caches.open(CACHE_NAME).then(function(cache) {
-          cache.put(event.request, responseClone);
-        });
-        return response;
-      }).catch(function() {
-        // Network failed and asset not in cache.
-        // For page navigation, serve the cached index.html as offline shell.
-        if (event.request.mode === 'navigate') {
-          return caches.match('./index.html');
-        }
-        // For other assets, return a simple offline response
-        return new Response('', { status: 408, statusText: 'Offline' });
-      });
-    })
-  );
+                // Not in cache → try network
+                return fetch(event.request)
+                    .then(function(networkResponse) {
+                        // Only cache successful same-origin responses
+                        if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
+                            const responseClone = networkResponse.clone();
+                            caches.open(CACHE_NAME).then(function(cache) {
+                                cache.put(event.request, responseClone);
+                            });
+                        }
+                        return networkResponse;
+                    })
+                    .catch(function() {
+                        // Offline and not cached
+                        if (event.request.mode === 'navigate') {
+                            // Fallback to index.html for navigation (SPA-like behavior)
+                            return caches.match('./index.html');
+                        }
+                        // For other failed requests, return a simple offline message
+                        return new Response('Offline - Resource not available', {
+                            status: 503,
+                            statusText: 'Service Unavailable'
+                        });
+                    });
+            })
+    );
 });
