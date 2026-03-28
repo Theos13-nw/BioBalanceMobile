@@ -4,24 +4,22 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 
-    <!-- PWA Metadata -->
     <title>BioBalance: Digestive Control</title>
-    <meta name="description" content="Interactive educational simulation of the human digestive system - 4 immersive phases with real-time telemetry and mastery tracking.">
-    
-    <!-- PWA Install + Fullscreen -->
+    <meta name="description" content="Interactive educational simulation of the human digestive system — 4 immersive phases with real-time telemetry and mastery tracking.">
+
+    <!-- PWA -->
     <link rel="manifest" href="manifest.json">
-    
-    <!-- iOS Support -->
+
+    <!-- iOS -->
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="BioBalance">
-    <link rel="apple-touch-icon" href="icon-512.png">
-    
-    <!-- Android / Chrome -->
+    <link rel="apple-touch-icon" href="DigestiveAPP_LOGO-1.png">
+
+    <!-- Android -->
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="theme-color" content="#050f23">
 
-    <!-- Scripts -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.4/p5.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.4/addons/p5.sound.min.js"></script>
 
@@ -46,10 +44,8 @@
             left: 0;
             image-rendering: crisp-edges;
             image-rendering: pixelated;
-            image-rendering: -webkit-optimize-contrast;
         }
 
-        /* Optional loading screen */
         #loading {
             position: fixed;
             inset: 0;
@@ -60,19 +56,30 @@
             align-items: center;
             justify-content: center;
             z-index: 9999;
-            font-size: 1.1rem;
-            letter-spacing: 0.1em;
             text-align: center;
         }
 
+        .loading-title {
+            font-size: 2.4rem;
+            letter-spacing: 0.15em;
+            margin-bottom: 0.5rem;
+        }
+
+        .loading-subtitle {
+            font-size: 1rem;
+            color: #b8d4e3;
+            letter-spacing: 0.25em;
+            margin-bottom: 2rem;
+        }
+
         .loading-text {
-            margin-top: 1.5rem;
+            font-size: 1rem;
             animation: pulse 2s infinite;
         }
 
         @keyframes pulse {
             0%, 100% { opacity: 1; }
-            50% { opacity: 0.4; }
+            50% { opacity: 0.45; }
         }
     </style>
 </head>
@@ -80,39 +87,33 @@
 
     <!-- Loading Screen -->
     <div id="loading">
-        <div style="font-size: 2.2rem; color: #00ffc8; letter-spacing: 0.15em;">BioBalance</div>
-        <div style="font-size: 0.95rem; color: #b8d4e3; margin-top: 0.8rem;">DIGESTIVE CONTROL</div>
-        <div class="loading-text">INITIALIZING SYSTEM...</div>
+        <div class="loading-title">BioBalance</div>
+        <div class="loading-subtitle">DIGESTIVE CONTROL</div>
+        <div class="loading-text">INITIALIZING NEURAL INTERFACE...</div>
     </div>
 
     <script src="sketch.js"></script>
 
-    <!-- Service Worker Registration -->
+    <!-- Service Worker -->
     <script>
-        // Register Service Worker for PWA
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('./sw.js')
-                    .then(reg => {
-                        console.log('[BioBalance] Service Worker registered successfully');
-                    })
-                    .catch(err => {
-                        console.warn('[BioBalance] Service Worker registration failed:', err);
-                    });
+                    .then(reg => console.log('[BioBalance] Service Worker registered'))
+                    .catch(err => console.warn('[BioBalance] Service Worker failed:', err));
             });
         }
 
-        // Hide loading screen once p5.js sketch is ready
+        // Hide loading screen after p5 initializes
         window.addEventListener('load', () => {
-            // Give p5 a moment to initialize
             setTimeout(() => {
                 const loading = document.getElementById('loading');
                 if (loading) {
-                    loading.style.transition = 'opacity 0.8s ease';
+                    loading.style.transition = 'opacity 0.9s ease';
                     loading.style.opacity = '0';
-                    setTimeout(() => loading.remove(), 800);
+                    setTimeout(() => loading.remove(), 900);
                 }
-            }, 800);
+            }, 600);
         });
     </script>
 </body>
