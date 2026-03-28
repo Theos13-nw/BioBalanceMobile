@@ -416,135 +416,125 @@ function preload() {
 // SETUP
 // =========================================================
 function setup() {
-  pixelDensity(2);      // 2x pixel density for crisp text/images on high-DPI phones
-  createCanvas(windowWidth, windowHeight);
-  noSmooth();           // Sharper pixel edges, less blur on mobile upscaling
-  frameRate(60);        // Request 60fps cap
-  imageMode(CENTER);
-  rectMode(CENTER);
-  _calcScale();
+    // FIXED for mobile high-DPI screens
+    // pixelDensity(1) prevents oversized text and pixelation
+    pixelDensity(1);           
+    createCanvas(windowWidth, windowHeight);
+    
+    noSmooth();                // Keeps sharp terminal-style edges
+    frameRate(60);
+    imageMode(CENTER);
+    rectMode(CENTER);
+    
+    _calcScale();              // Recalculate scaling for current screen size
 
-  previousTime = millis();
+    previousTime = millis();
 
-  bgGradientBuffer     = createGraphics(GAME_W, GAME_H);
-  reportGradientBuffer = createGraphics(GAME_W, GAME_H);
-  updateReportGradientBuffer(reportGradientBuffer);
+    bgGradientBuffer     = createGraphics(GAME_W, GAME_H);
+    reportGradientBuffer = createGraphics(GAME_W, GAME_H);
+    updateReportGradientBuffer(reportGradientBuffer);
 
-  MEMBRANE_X   = GAME_W / 2;
-  sliderX      = GAME_W / 2 - 150;
-  smellSliderX = GAME_W / 2 - 200;
-  resetNutrientPositions();
+    MEMBRANE_X   = GAME_W / 2;
+    sliderX      = GAME_W / 2 - 150;
+    smellSliderX = GAME_W / 2 - 200;
+    resetNutrientPositions();
 
-  // ── Audio context protection ──────────────────────────────
-  // Mobile browsers suspend the Web Audio context on background/sleep.
-  // Resume it on any user interaction and on visibility restore.
-  // This prevents the distortion cascade from queued-up sounds firing all at once.
-  if (typeof getAudioContext === 'function') {
-    document.addEventListener('visibilitychange', function() {
-      if (document.hidden) {
-        // Page hidden: stop all looping/continuous sounds cleanly
-        if (bgLoop) bgLoop.setVolume(0);  // silence only — no pause/play
-        if (acidSfx && acidSfx.isPlaying()) acidSfx.stop();
-        if (warningSfx && warningSfx.isPlaying()) warningSfx.stop();
-        if (spraySfx && spraySfx.isPlaying()) spraySfx.stop();
-      } else {
-        // Page visible again: resume audio context then restart bgLoop
-        let ctx = getAudioContext();
-        if (ctx && ctx.state === 'suspended') {
-          ctx.resume().then(function() {
-            // Let soundTick volume manager handle restart
-          });
-        } else {
-          // Let soundTick volume manager handle restart
-        }
-        previousTime = millis();
-        accumulator  = 0;
-      }
-    });
+    // ── Audio context protection for mobile ──────────────────────────────
+    // Prevents audio distortion after background/sleep
+    if (typeof getAudioContext === 'function') {
+        document.addEventListener('visibilitychange', function() {
+            if (document.hidden) {
+                if (bgLoop) bgLoop.setVolume(0);
+                stopAllLoopingSounds();
+            } else {
+                let ctx = getAudioContext();
+                if (ctx && ctx.state === 'suspended') {
+                    ctx.resume();
+                }
+                previousTime = millis();
+                accumulator  = 0;
+            }
+        });
 
-    // Also resume audio context on any touch/click
-    document.addEventListener('touchstart', function() {
-      let ctx = getAudioContext();
-      if (ctx && ctx.state === 'suspended') ctx.resume();
-    }, { passive: true });
-    document.addEventListener('mousedown', function() {
-      let ctx = getAudioContext();
-      if (ctx && ctx.state === 'suspended') ctx.resume();
-    }, { passive: true });
-  }
+        // Resume audio on user interaction
+        document.addEventListener('touchstart', function() {
+            let ctx = getAudioContext();
+            if (ctx && ctx.state === 'suspended') ctx.resume();
+        }, { passive: true });
+        
+        document.addEventListener('mousedown', function() {
+            let ctx = getAudioContext();
+            if (ctx && ctx.state === 'suspended') ctx.resume();
+        }, { passive: true });
+    }
 
-  // ── Back-button / navigation exit intercept ──────────────
-  // Pushes a dummy history state so the hardware back button
-  // triggers popstate instead of closing the PWA immediately.
-  // On popstate, we show the exit confirm screen.
-  if (window.history && window.history.pushState) {
-    window.history.pushState({ biobalance: true }, '');
-    window.addEventListener('popstate', function() {
-      // Re-push so the back button always triggers this again
-      window.history.pushState({ biobalance: true }, '');
-      // Show exit confirm — remember where we came from
-      exitReturnMode = mode;
-      mode = MODE_EXIT_CONFIRM;
-    });
-  }
+    // ── Back-button handling for PWA ──────────────────────────────
+    if (window.history && window.history.pushState) {
+        window.history.pushState({ biobalance: true }, '');
+        window.addEventListener('popstate', function() {
+            window.history.pushState({ biobalance: true }, '');
+            exitReturnMode = mode;
+            mode = MODE_EXIT_CONFIRM;
+        });
+    }
 
-  for (let i = 0; i < 30; i++) {
-    let p = new ProtocolParticle();
-    p.y = random(GAME_H);
-    protocolParticles.push(p);
-  }
-  for (let i = 0; i < 15; i++) {
-    let p = new ReportParticle();
-    p.y = random(GAME_H);
-    reportParticles.push(p);
-  }
+    // Initialize particles
+    for (let i = 0; i < 30; i++) {
+        let p = new ProtocolParticle();
+        p.y = random(GAME_H);
+        protocolParticles.push(p);
+    }
+    for (let i = 0; i < 15; i++) {
+        let p = new ReportParticle();
+        p.y = random(GAME_H);
+        reportParticles.push(p);
+    }
 
-  // ── Pre-cache font metrics to prevent text-jump on first draw ──
-  // p5.js calculates textWidth/bounding boxes on first render of each string.
-  // Drawing them off-screen once here prevents the visible layout jump
-  // that occurs when proceed buttons / status text first appear in a phase.
-  push();
-  textSize(28);  textAlign(CENTER, CENTER);
-  fill(0, 0, 0, 0);  noStroke();  // fully transparent — invisible
-  let _dummyStrings = [
-    "PROCEED", "FOOD SWALLOWED — READY TO CONTINUE!",
-    "PROTEIN FULLY DIGESTED — READY TO PROCEED",
-    "HORMONES BALANCED — PROCEED", "ALL NUTRIENTS ABSORBED",
-    "CORRECT", "INCORRECT", "Score: 0 / 5 Correct",
-    "KNOWLEDGE CHECK", "ATTEMPT #1 — 80% MAXIMUM",
-    "FIRST ATTEMPT — 100% MASTERY AVAILABLE",
-    "STOMACH LINING IN DANGER — ULCER RISK HIGH!",
-    "ENZYME SHAPE BROKEN — PEPSIN STOPPED WORKING!",
-    "DIGESTING PROTEIN NOW!", "READY!", "YOUR DIGESTIVE REPORT"
-  ];
-  for (let s of _dummyStrings) { text(s, -9999, -9999); }
-  for (let sz of [12, 14, 16, 18, 20, 22, 24, 28, 32, 40, 48, 60, 72]) {
-    textSize(sz);  text("X", -9999, -9999);
-  }
-  // Pre-cache bold label style used in panel bars
-  textStyle(BOLD);  textSize(13);  textAlign(CENTER);
-  for (let s of ["SALIVA", "pH: 2.0"]) { text(s, -9999, -9999); }
-  textStyle(BOLD);  textSize(11);  textAlign(CENTER);
-  for (let s of ["INACTIVE ENZYME (Pepsinogen): 100%",
-                 "ACTIVE ENZYME (Pepsin): 0%", "INSULIN LEVEL: 35.0",
-                 "LIVER GLUCOSE: 51.4%", "BODY CELLS ABSORBING: 89.5%"]) {
-    text(s, -9999, -9999);
-  }
-  textStyle(NORMAL);  textSize(12);
-  pop();
+    // ── Pre-cache font metrics to prevent layout jumps ──
+    push();
+    textSize(28);  
+    textAlign(CENTER, CENTER);
+    fill(0, 0, 0, 0);  
+    noStroke();  
+    
+    let _dummyStrings = [
+        "PROCEED", "FOOD SWALLOWED — READY TO CONTINUE!",
+        "PROTEIN FULLY DIGESTED — READY TO PROCEED",
+        "HORMONES BALANCED — PROCEED", "ALL NUTRIENTS ABSORBED",
+        "CORRECT", "INCORRECT", "KNOWLEDGE CHECK"
+    ];
+    for (let s of _dummyStrings) { 
+        text(s, -9999, -9999); 
+    }
+    
+    // Pre-cache various text sizes
+    for (let sz of [12, 14, 16, 18, 20, 22, 24, 28, 32, 40, 48]) {
+        textSize(sz);  
+        text("X", -9999, -9999);
+    }
+    
+    textStyle(BOLD);  
+    textSize(13);  
+    textAlign(CENTER);
+    for (let s of ["SALIVA", "pH: 2.0"]) { 
+        text(s, -9999, -9999); 
+    }
+    
+    textStyle(NORMAL);  
+    textSize(12);
+    pop();
 
-  // Load saved progress after all globals are ready
-  loadProgress();
+    // Load saved progress
+    loadProgress();
 }
 
 function _calcScale() {
-  // Stretch-fill: game always covers full screen, no black bars
-  // Non-uniform scale is intentional — fills every pixel on any aspect ratio
-  scaleX  = windowWidth  / GAME_W;
-  scaleY  = windowHeight / GAME_H;
-  scaleF  = min(scaleX, scaleY);  // kept for legacy refs
-  offsetX = 0;
-  offsetY = 0;
+    // Stretch-fill the entire screen (best for mobile games)
+    scaleX = windowWidth  / GAME_W;
+    scaleY = windowHeight / GAME_H;
+    scaleF = min(scaleX, scaleY);   // kept for legacy compatibility
+    offsetX = 0;
+    offsetY = 0;
 }
 
 // =========================================================
@@ -856,12 +846,26 @@ function draw() {
   if (quizState !== 1 && correctSfx && correctSfx.isPlaying()) correctSfx.stop();
 
   // ── Landscape lock ───────────────────────────────────────
-  if (windowWidth < windowHeight) {
+if (windowWidth < windowHeight) {
     background(5, 15, 35);
-    fill(0, 255, 200);  textSize(24);  textAlign(CENTER, CENTER);
-    text("Please rotate your device to landscape", width / 2, height / 2);
+    
+    fill(0, 255, 200);
+    textAlign(CENTER, CENTER);
+    textStyle(BOLD);
+    textSize(28);
+    text("Please rotate your device", width/2, height/2 - 40);
+    
+    textStyle(NORMAL);
+    textSize(22);
+    text("to landscape mode", width/2, height/2 + 10);
+    
+    // Optional subtle hint
+    fill(100, 180, 200);
+    textSize(16);
+    text("for the best experience", width/2, height/2 + 50);
+    
     return;
-  }
+}
 
   // ── Render once per actual display frame ─────────────────
   background(0);
@@ -1753,7 +1757,7 @@ function drawFinalReport() {
   // Background: same protocolParticles as title screen
   for (let p of protocolParticles) { p.update();  p.display(); }
 
-  fill(0, 255, 200);  textStyle(BOLD);  textAlign(CENTER);  textSize(60);
+  fill(0, 255, 200);  textStyle(BOLD);  textAlign(CENTER);  textSize(50);
   text("YOUR DIGESTIVE REPORT", GAME_W / 2, 70);
   stroke(112, 240, 240, 150);  strokeWeight(2);
   line(GAME_W / 2 - 200, 95, GAME_W / 2 + 200, 95);
@@ -1773,7 +1777,7 @@ function drawFinalReport() {
   line(GAME_W / 2 - boxW / 2 + 30, boxY - boxH / 2 + 70,
        GAME_W / 2 + boxW / 2 - 30, boxY - boxH / 2 + 70);
 
-  textSize(50);
+  textSize(42);
   let textY = boxY - boxH / 2 + 115;
   for (let i = 2; i < content.length; i++) { text(content[i], GAME_W / 2 - boxW / 2 + 40, textY);  textY += 50; }
 
