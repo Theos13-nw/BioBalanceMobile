@@ -416,12 +416,11 @@ function preload() {
 // SETUP
 // =========================================================
 function setup() {
-    // FIXED for mobile high-DPI screens
-    // pixelDensity(1) prevents oversized text and pixelation
-    pixelDensity(1);           
+    // Use device's native pixel ratio for maximum sharpness on high-DPI screens.
+    // pixelDensity(2) = retina-quality on most phones; devicePixelRatio catches 3x screens.
+    pixelDensity(window.devicePixelRatio || 2);
     createCanvas(windowWidth, windowHeight);
-    
-    noSmooth();                // Keeps sharp terminal-style edges
+    smooth();                  // Browser-level smoothing — prevents blocky scaled edges
     frameRate(60);
     imageMode(CENTER);
     rectMode(CENTER);
@@ -845,30 +844,27 @@ function draw() {
   if (quizState !== 1 && wrongSfx && wrongSfx.isPlaying()) wrongSfx.stop();
   if (quizState !== 1 && correctSfx && correctSfx.isPlaying()) correctSfx.stop();
 
-  // ── Soft landscape recommendation (non-blocking) ─────────
-  // Game continues to render; message fades in over portrait content
-  if (windowWidth < windowHeight) {
+  // ── Landscape lock ───────────────────────────────────────
+if (windowWidth < windowHeight) {
     background(5, 15, 35);
+    
     fill(0, 255, 200);
     textAlign(CENTER, CENTER);
     textStyle(BOLD);
     textSize(28);
-    text("Best viewed in landscape", width/2, height/2 - 50);
+    text("Please rotate your device", width/2, height/2 - 40);
+    
     textStyle(NORMAL);
-    textSize(21);
-    text("Rotate your device", width/2, height/2);
-    fill(140, 190, 220);
-    textSize(17);
-    text("for the best experience", width/2, height/2 + 42);
-    fill(80, 120, 140);
-    textSize(14);
-    textStyle(ITALIC);
-    text("(tap below to play anyway)", width/2, height/2 + 80);
-    textStyle(NORMAL);
-    // Don't return — let the game render underneath on the next frame
-    // so tapping 'play anyway' works immediately after one rotation check
+    textSize(22);
+    text("to landscape mode", width/2, height/2 + 10);
+    
+    // Optional subtle hint
+    fill(100, 180, 200);
+    textSize(16);
+    text("for the best experience", width/2, height/2 + 50);
+    
     return;
-  }
+}
 
   // ── Render once per actual display frame ─────────────────
   background(0);
@@ -1773,18 +1769,16 @@ function drawFinalReport() {
 
   let content = reportContent[currentReportSlide];
   fill(220, 255, 240);  textAlign(LEFT);
-  // Reduced from 40 → 26 so long phase titles don't overflow the box width
-  textStyle(BOLD);  textSize(26);
-  text(content[0], GAME_W / 2 - boxW / 2 + 40, boxY - boxH / 2 + 46);
+  textStyle(BOLD);  textSize(40);
+  text(content[0], GAME_W / 2 - boxW / 2 + 40, boxY - boxH / 2 + 50);
   textStyle(NORMAL);
   stroke(0, 255, 150, 100);  strokeWeight(1);
-  line(GAME_W / 2 - boxW / 2 + 30, boxY - boxH / 2 + 62,
-       GAME_W / 2 + boxW / 2 - 30, boxY - boxH / 2 + 62);
+  line(GAME_W / 2 - boxW / 2 + 30, boxY - boxH / 2 + 70,
+       GAME_W / 2 + boxW / 2 - 30, boxY - boxH / 2 + 70);
 
-  // Reduced from 42 → 22, line gap from 50 → 36 — all lines comfortably inside box
-  textSize(22);
-  let textY = boxY - boxH / 2 + 98;
-  for (let i = 2; i < content.length; i++) { text(content[i], GAME_W / 2 - boxW / 2 + 40, textY);  textY += 36; }
+  textSize(42);
+  let textY = boxY - boxH / 2 + 115;
+  for (let i = 2; i < content.length; i++) { text(content[i], GAME_W / 2 - boxW / 2 + 40, textY);  textY += 50; }
 
   let btnY = boxY + boxH / 2 + 70, btnSpacing = 220;
   let startX = GAME_W / 2 - btnSpacing * 1.5;
