@@ -68,8 +68,8 @@ self.addEventListener('install', function(event) {
 });
 
 // ── ACTIVATE ──────────────────────────────────────────────
-// Delete every cache that isn't the current CACHE_NAME,
-// then claim all open clients so they get the new SW right away.
+// Delete every cache that isn't current, claim all clients,
+// then notify them to wipe any old-version save data.
 self.addEventListener('activate', function(event) {
     event.waitUntil(
         caches.keys()
@@ -84,8 +84,17 @@ self.addEventListener('activate', function(event) {
                 );
             })
             .then(function() {
-                // claim() inside waitUntil — guaranteed before any fetch fires
                 return self.clients.claim();
+            })
+            .then(function() {
+                // Tell all open clients to clear any save that doesn't match
+                // the current version — this is what resets progress on reinstall
+                return self.clients.matchAll({ includeUncontrolled: true });
+            })
+            .then(function(clients) {
+                clients.forEach(function(client) {
+                    client.postMessage({ type: 'CACHE_UPDATED', cacheName: CACHE_NAME });
+                });
             })
     );
 });
