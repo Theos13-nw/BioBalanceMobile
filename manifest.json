@@ -1,9 +1,7 @@
 {
   "name": "BioBalance: Digestive Control",
   "short_name": "BioBalance",
-  "description": "Interactive educational simulation of the human digestive system. Learn through 4 immersive phases with real-time telemetry, quizzes, and mastery tracking.",
   "start_url": "./",
-  "scope": "./",
   "display": "standalone",
   "orientation": "landscape-primary",
   "background_color": "#050f23",
@@ -21,8 +19,5 @@
       "type": "image/png",
       "purpose": "any maskable"
     }
-  ],
-  "categories": ["education", "simulation", "science"],
-  "lang": "en",
-  "dir": "ltr"
+  ]
 }
