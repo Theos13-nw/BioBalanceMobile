@@ -1,9 +1,9 @@
-// ── BioBalance Service Worker v3.1 ──────────────────────────────
+// ── BioBalance Service Worker v3.2 ──────────────────────────────
 // Updated: March 2026
-// Caches core game files for full offline play after first visit.
-// Update CACHE_NAME whenever you change assets or sketch.js
+// IMPORTANT: Bump CACHE_NAME every time you deploy new files.
+// The SW will delete all old caches and install fresh on next load.
 
-const CACHE_NAME = 'biobalance-v3.1';   // ← Bump this when updating (e.g. v3.2)
+const CACHE_NAME = 'biobalance-v3.2';
 
 const ASSETS = [
     './',
@@ -12,11 +12,9 @@ const ASSETS = [
     './sw.js',
     './manifest.json',
 
-    // Icons (use exact filenames)
     './DigestiveAPP_LOGO.png',
     './DigestiveAPP_LOGO-1.png',
 
-    // Your game assets (images, audio, data)
     './data/stomach.png',
     './data/protein.png',
     './data/intestine.png',
@@ -32,7 +30,6 @@ const ASSETS = [
     './data/deliciousfood.png',
     './data/spoiledfood.png',
 
-    // Audio files
     './data/bgloop.mp3',
     './data/click.wav',
     './data/acid.wav',
@@ -50,77 +47,103 @@ const ASSETS = [
     './data/chew.wav'
 ];
 
-// Install — Precache all static assets
+// ── INSTALL ───────────────────────────────────────────────
+// Cache all assets, then skipWaiting so the new SW activates
+// immediately without waiting for old tabs to close.
 self.addEventListener('install', function(event) {
     event.waitUntil(
         caches.open(CACHE_NAME)
             .then(function(cache) {
-                console.log('[BioBalance SW] Caching app assets...');
+                console.log('[BioBalance SW] Caching assets for', CACHE_NAME);
                 return cache.addAll(ASSETS);
             })
-            .then(() => {
-                console.log('[BioBalance SW] All assets cached successfully');
-                return self.skipWaiting();   // Activate immediately
+            .then(function() {
+                console.log('[BioBalance SW] Cache complete — skipping wait');
+                return self.skipWaiting();  // activate this SW immediately
             })
-            .catch(err => {
+            .catch(function(err) {
                 console.error('[BioBalance SW] Cache failed:', err);
             })
     );
 });
 
-// Activate — Clean up old caches
+// ── ACTIVATE ──────────────────────────────────────────────
+// Delete every cache that isn't the current CACHE_NAME,
+// then claim all open clients so they get the new SW right away.
 self.addEventListener('activate', function(event) {
     event.waitUntil(
-        caches.keys().then(function(cacheNames) {
-            return Promise.all(
-                cacheNames.map(function(cacheName) {
-                    if (cacheName !== CACHE_NAME) {
-                        console.log('[BioBalance SW] Deleting old cache:', cacheName);
-                        return caches.delete(cacheName);
-                    }
-                })
-            );
-        })
+        caches.keys()
+            .then(function(cacheNames) {
+                return Promise.all(
+                    cacheNames
+                        .filter(function(name) { return name !== CACHE_NAME; })
+                        .map(function(name) {
+                            console.log('[BioBalance SW] Deleting old cache:', name);
+                            return caches.delete(name);
+                        })
+                );
+            })
+            .then(function() {
+                // claim() inside waitUntil — guaranteed before any fetch fires
+                return self.clients.claim();
+            })
     );
-    return self.clients.claim();   // Take control of all tabs immediately
 });
 
-// Fetch — Cache-first strategy with network fallback
+// ── FETCH ─────────────────────────────────────────────────
+// sketch.js and index.html: network-first so updates deploy immediately.
+// Everything else: cache-first for fast offline load.
 self.addEventListener('fetch', function(event) {
     if (event.request.method !== 'GET') return;
 
-    event.respondWith(
-        caches.match(event.request)
-            .then(function(cachedResponse) {
-                // Return cached version if available
-                if (cachedResponse) {
-                    return cachedResponse;
-                }
+    let url = event.request.url;
+    let isCore = url.endsWith('sketch.js') || url.endsWith('index.html');
 
-                // Not in cache → try network
-                return fetch(event.request)
-                    .then(function(networkResponse) {
-                        // Only cache successful same-origin responses
-                        if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
-                            const responseClone = networkResponse.clone();
-                            caches.open(CACHE_NAME).then(function(cache) {
-                                cache.put(event.request, responseClone);
-                            });
-                        }
-                        return networkResponse;
-                    })
-                    .catch(function() {
-                        // Offline and not cached
-                        if (event.request.mode === 'navigate') {
-                            // Fallback to index.html for navigation (SPA-like behavior)
-                            return caches.match('./index.html');
-                        }
-                        // For other failed requests, return a simple offline message
-                        return new Response('Offline - Resource not available', {
-                            status: 503,
-                            statusText: 'Service Unavailable'
+    if (isCore) {
+        // Network-first: always try to get the freshest version
+        event.respondWith(
+            fetch(event.request)
+                .then(function(networkResponse) {
+                    if (networkResponse && networkResponse.status === 200) {
+                        let clone = networkResponse.clone();
+                        caches.open(CACHE_NAME).then(function(cache) {
+                            cache.put(event.request, clone);
                         });
-                    });
-            })
-    );
+                    }
+                    return networkResponse;
+                })
+                .catch(function() {
+                    // Offline fallback — serve cached version
+                    return caches.match(event.request);
+                })
+        );
+    } else {
+        // Cache-first for images, audio, icons
+        event.respondWith(
+            caches.match(event.request)
+                .then(function(cached) {
+                    if (cached) return cached;
+                    return fetch(event.request)
+                        .then(function(networkResponse) {
+                            if (networkResponse && networkResponse.status === 200 &&
+                                networkResponse.type === 'basic') {
+                                let clone = networkResponse.clone();
+                                caches.open(CACHE_NAME).then(function(cache) {
+                                    cache.put(event.request, clone);
+                                });
+                            }
+                            return networkResponse;
+                        })
+                        .catch(function() {
+                            if (event.request.mode === 'navigate') {
+                                return caches.match('./index.html');
+                            }
+                            return new Response('Offline — resource not available', {
+                                status: 503,
+                                statusText: 'Service Unavailable'
+                            });
+                        });
+                })
+        );
+    }
 });
