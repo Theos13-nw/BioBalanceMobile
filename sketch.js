@@ -416,11 +416,9 @@ function preload() {
 // SETUP
 // =========================================================
 function setup() {
-    // Use device's native pixel ratio for maximum sharpness on high-DPI screens.
-    // pixelDensity(2) = retina-quality on most phones; devicePixelRatio catches 3x screens.
     pixelDensity(window.devicePixelRatio || 2);
     createCanvas(windowWidth, windowHeight);
-    smooth();                  // Browser-level smoothing — prevents blocky scaled edges
+    smooth();
     frameRate(60);
     imageMode(CENTER);
     rectMode(CENTER);
@@ -1769,16 +1767,18 @@ function drawFinalReport() {
 
   let content = reportContent[currentReportSlide];
   fill(220, 255, 240);  textAlign(LEFT);
-  textStyle(BOLD);  textSize(40);
-  text(content[0], GAME_W / 2 - boxW / 2 + 40, boxY - boxH / 2 + 50);
+  // Title: 22px so even the longest phase name stays on one line inside the box
+  textStyle(BOLD);  textSize(22);
+  text(content[0], GAME_W / 2 - boxW / 2 + 40, boxY - boxH / 2 + 40);
   textStyle(NORMAL);
   stroke(0, 255, 150, 100);  strokeWeight(1);
-  line(GAME_W / 2 - boxW / 2 + 30, boxY - boxH / 2 + 70,
-       GAME_W / 2 + boxW / 2 - 30, boxY - boxH / 2 + 70);
+  line(GAME_W / 2 - boxW / 2 + 30, boxY - boxH / 2 + 55,
+       GAME_W / 2 + boxW / 2 - 30, boxY - boxH / 2 + 55);
 
-  textSize(42);
-  let textY = boxY - boxH / 2 + 115;
-  for (let i = 2; i < content.length; i++) { text(content[i], GAME_W / 2 - boxW / 2 + 40, textY);  textY += 50; }
+  // Body: 19px text, 32px line gap — 7 lines × 32 = 224px, fits inside 396px box
+  textSize(19);
+  let textY = boxY - boxH / 2 + 88;
+  for (let i = 2; i < content.length; i++) { text(content[i], GAME_W / 2 - boxW / 2 + 40, textY);  textY += 32; }
 
   let btnY = boxY + boxH / 2 + 70, btnSpacing = 220;
   let startX = GAME_W / 2 - btnSpacing * 1.5;
