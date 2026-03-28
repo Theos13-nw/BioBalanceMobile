@@ -867,27 +867,6 @@ function draw() {
   if (quizState !== 1 && wrongSfx && wrongSfx.isPlaying()) wrongSfx.stop();
   if (quizState !== 1 && correctSfx && correctSfx.isPlaying()) correctSfx.stop();
 
-  // ── Landscape lock ───────────────────────────────────────
-if (windowWidth < windowHeight) {
-    background(5, 15, 35);
-    
-    fill(0, 255, 200);
-    textAlign(CENTER, CENTER);
-    textStyle(BOLD);
-    textSize(28);
-    text("Please rotate your device", width/2, height/2 - 40);
-    
-    textStyle(NORMAL);
-    textSize(22);
-    text("to landscape mode", width/2, height/2 + 10);
-    
-    // Optional subtle hint
-    fill(100, 180, 200);
-    textSize(16);
-    text("for the best experience", width/2, height/2 + 50);
-    
-    return;
-}
 
   // ── Render once per actual display frame ─────────────────
   background(0);
