@@ -35,13 +35,14 @@
     canvas {
       display: block;
       width: 100vw !important;
+      /* 100dvh = dynamic viewport height — shrinks to exclude Chrome's browser bar.
+         100vh includes the bar and causes the top of the game to be hidden behind it.
+         Fallback to 100vh for older browsers that don't support dvh. */
       height: 100vh !important;
+      height: 100dvh !important;
       position: fixed;
       top: 0;
       left: 0;
-      /* NO image-rendering rules here — pixelDensity(devicePixelRatio) in sketch.js
-         already draws at native resolution. Adding pixelated/crisp-edges on top
-         causes the blocky appearance. Browser default (bilinear) is correct. */
     }
   </style>
 </head>
