@@ -425,7 +425,11 @@ function preload() {
 // =========================================================
 function setup() {
     pixelDensity(2);           // crisp text/images on high-DPI phones
-    createCanvas(windowWidth, windowHeight);
+    // Use visualViewport.height when available — this is the true visible height
+    // that excludes Chrome's browser bar. windowHeight/innerHeight includes it,
+    // which causes the top of the game to be clipped behind the address bar.
+    let trueH = (window.visualViewport ? window.visualViewport.height : windowHeight);
+    createCanvas(windowWidth, trueH);
     noSmooth();                // sharp pixel edges
     frameRate(60);
     imageMode(CENTER);
@@ -471,6 +475,17 @@ function setup() {
             let ctx = getAudioContext();
             if (ctx && ctx.state === 'suspended') ctx.resume();
         }, { passive: true });
+    }
+
+    // ── visualViewport resize — fixes Chrome browser bar clipping ────
+    // Chrome's address bar can appear/disappear while scrolling.
+    // This keeps the canvas sized to the true visible area at all times.
+    if (window.visualViewport) {
+        window.visualViewport.addEventListener('resize', function() {
+            let trueH = window.visualViewport.height;
+            resizeCanvas(windowWidth, trueH);
+            _calcScale();
+        });
     }
 
     // ── Back-button handling for PWA ──────────────────────────────
@@ -551,10 +566,10 @@ function setup() {
 }
 
 function _calcScale() {
-    // Stretch-fill the entire screen (best for mobile games)
-    scaleX = windowWidth  / GAME_W;
-    scaleY = windowHeight / GAME_H;
-    scaleF = min(scaleX, scaleY);   // kept for legacy compatibility
+    let trueH = (window.visualViewport ? window.visualViewport.height : windowHeight);
+    scaleX = windowWidth / GAME_W;
+    scaleY = trueH / GAME_H;
+    scaleF = min(scaleX, scaleY);
     offsetX = 0;
     offsetY = 0;
 }
@@ -2054,7 +2069,8 @@ function handleInputEnd() {
 }
 
 function windowResized() {
-  resizeCanvas(windowWidth, windowHeight);
+  let trueH = (window.visualViewport ? window.visualViewport.height : windowHeight);
+  resizeCanvas(windowWidth, trueH);
   _calcScale();
   bgGradientBuffer    = createGraphics(GAME_W, GAME_H);
   reportGradientBuffer = createGraphics(GAME_W, GAME_H);
