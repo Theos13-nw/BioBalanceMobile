@@ -1,100 +1,67 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 
-    <title>BioBalance: Digestive Control</title>
-    <meta name="description" content="Interactive educational simulation of the human digestive system — 4 immersive phases with real-time telemetry and mastery tracking.">
+  <!-- ── PWA: installable + full-screen ───────────────────── -->
+  <link rel="manifest" href="manifest.json">
 
-    <link rel="manifest" href="manifest.json">
+  <!-- iOS full-screen (Safari) -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="BioBalance">
+  <link rel="apple-touch-icon" href="icon-512.png">
 
-    <!-- iOS -->
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="BioBalance">
-    <link rel="apple-touch-icon" href="DigestiveAPP_LOGO-1.png">
+  <!-- Android / Chrome -->
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#000000">
 
-    <!-- Android -->
-    <meta name="mobile-web-app-capable" content="yes">
-    <meta name="theme-color" content="#050f23">
+  <title>BioBalance</title>
 
-    <!-- Local p5.js (for offline) -->
-    <script src="lib/p5.min.js"></script>
-    <script src="lib/p5.sound.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.4/p5.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.4/addons/p5.sound.min.js"></script>
 
-    <style>
-        html, body {
-            margin: 0;
-            padding: 0;
-            width: 100%;
-            height: 100%;
-            overflow: hidden;
-            background: #050f23;
-            touch-action: none;
-            font-family: 'Courier New', monospace;
-        }
-
-        canvas {
-            display: block;
-            width: 100vw !important;
-            height: 100vh !important;
-            position: fixed;
-            top: 0;
-            left: 0;
-            image-rendering: crisp-edges;
-        }
-
-        /* Loading Screen -->
-        #loading {
-            position: fixed;
-            inset: 0;
-            background: #050f23;
-            color: #00ffc8;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            z-index: 9999;
-            text-align: center;
-        }
-
-        .loading-title { font-size: 2.6rem; letter-spacing: 0.12em; margin-bottom: 0.4rem; }
-        .loading-subtitle { font-size: 1.05rem; color: #b8d4e3; letter-spacing: 0.28em; text-transform: uppercase; margin-bottom: 2.5rem; }
-        .loading-text { font-size: 1rem; letter-spacing: 0.15em; animation: pulse 2s infinite; }
-
-        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
-    </style>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #000;
+      touch-action: none;
+    }
+    canvas {
+      display: block;
+      width: 100vw !important;
+      height: 100vh !important;
+      position: fixed;
+      top: 0;
+      left: 0;
+      /* image-rendering intentionally NOT set — browser default bilinear
+         smoothing gives the best result when a 1280×720 canvas is scaled
+         up to fill a high-DPI screen via CSS. pixelated/crisp-edges would
+         cause the severe blocky/pixelated look reported on mobile. */
+    }
+  </style>
 </head>
 <body>
+  <script src="sketch.js"></script>
 
-    <div id="loading">
-        <div class="loading-title">BioBalance</div>
-        <div class="loading-subtitle">DIGESTIVE CONTROL</div>
-        <div class="loading-text">INITIALIZING NEURAL INTERFACE...</div>
-    </div>
-
-    <script src="sketch.js"></script>
-
-    <script>
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('./sw.js')
-                    .then(reg => console.log('[BioBalance] SW registered'))
-                    .catch(err => console.warn('[BioBalance] SW failed:', err));
-            });
-        }
-
-        // Hide loading
-        window.addEventListener('load', () => {
-            setTimeout(() => {
-                const loading = document.getElementById('loading');
-                if (loading) {
-                    loading.style.opacity = '0';
-                    setTimeout(() => loading.remove(), 900);
-                }
-            }, 800);
-        });
-    </script>
+  <!-- ── PWA: register service worker ────────────────────── -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function() {
+        navigator.serviceWorker.register('./sw.js')
+          .then(function(reg) {
+            console.log('[BioBalance] Service Worker registered, scope:', reg.scope);
+          })
+          .catch(function(err) {
+            console.warn('[BioBalance] Service Worker registration failed:', err);
+          });
+      });
+    }
+  </script>
 </body>
 </html>
