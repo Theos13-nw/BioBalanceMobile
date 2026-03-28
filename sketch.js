@@ -75,13 +75,19 @@ let phase3ProceedSoundPlayed  = false;
 // ── LICENSE ────────────────────────────────────────────────
 let developer       = "Developed by Altheo Cardillo © 2026";
 let creatorID       = "Theos_2026_DigestiveSystemApp";
-// ── SAVE / LOAD PROGRESS (localStorage) ───────────────────
-const SAVE_VERSION = 3;  // bump this to force-clear old saves
+
+// ── SAVE / LOAD PROGRESS ───────────────────────────────────
+// SAVE_KEY is tied to the SW cache name (biobalance-v3.2).
+// When the user uninstalls the PWA or clears app cache/storage,
+// the SW cache is wiped — and since the key includes the version,
+// any old localStorage entry from a different version is ignored.
+// This mirrors Play Store behaviour: uninstall = fresh start,
+// normal exit = progress kept.
+const SAVE_KEY = 'biobalance-save-v3.2';  // ← must match CACHE_NAME in sw.js
 
 function saveProgress() {
   try {
-    localStorage.setItem('biobalanceProgress', JSON.stringify({
-      version:         SAVE_VERSION,
+    localStorage.setItem(SAVE_KEY, JSON.stringify({
       acceptedLicense: acceptedLicense,
       phaseCompleted:  phaseCompleted,
       phaseEfficiency: phaseEfficiency,
@@ -92,20 +98,22 @@ function saveProgress() {
 
 function loadProgress() {
   try {
-    let raw = localStorage.getItem('biobalanceProgress');
+    // Wipe any save from a different version (old SAVE_KEY won't match)
+    for (let i = 0; i < localStorage.length; i++) {
+      let k = localStorage.key(i);
+      if (k && k.startsWith('biobalance-save-') && k !== SAVE_KEY) {
+        localStorage.removeItem(k);
+      }
+    }
+    let raw = localStorage.getItem(SAVE_KEY);
     if (!raw) return;
     let p = JSON.parse(raw);
-    // Wipe saves from older versions — forces clean start
-    if (!p.version || p.version < SAVE_VERSION) {
-      localStorage.removeItem('biobalanceProgress');
-      return;
-    }
     if (p.acceptedLicense === true) { acceptedLicense = true; showLicenseScreen = false; }
     if (Array.isArray(p.phaseCompleted))  phaseCompleted  = p.phaseCompleted;
     if (Array.isArray(p.phaseEfficiency)) phaseEfficiency = p.phaseEfficiency;
     if (Array.isArray(p.firstTrySuccess)) firstTrySuccess = p.firstTrySuccess;
   } catch(e) {
-    localStorage.removeItem('biobalanceProgress');
+    localStorage.removeItem(SAVE_KEY);
   }
 }
 
@@ -416,9 +424,9 @@ function preload() {
 // SETUP
 // =========================================================
 function setup() {
-    pixelDensity(window.devicePixelRatio || 2);
+    pixelDensity(2);           // crisp text/images on high-DPI phones
     createCanvas(windowWidth, windowHeight);
-    smooth();
+    noSmooth();                // sharp pixel edges
     frameRate(60);
     imageMode(CENTER);
     rectMode(CENTER);
@@ -523,6 +531,23 @@ function setup() {
 
     // Load saved progress
     loadProgress();
+
+    // Listen for SW cache-updated message — wipes old save keys on reinstall
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.addEventListener('message', function(event) {
+            if (event.data && event.data.type === 'CACHE_UPDATED') {
+                // Remove any biobalance save that doesn't match current SAVE_KEY
+                let keysToRemove = [];
+                for (let i = 0; i < localStorage.length; i++) {
+                    let k = localStorage.key(i);
+                    if (k && k.startsWith('biobalance-save-') && k !== SAVE_KEY) {
+                        keysToRemove.push(k);
+                    }
+                }
+                keysToRemove.forEach(function(k) { localStorage.removeItem(k); });
+            }
+        });
+    }
 }
 
 function _calcScale() {
@@ -1766,19 +1791,30 @@ function drawFinalReport() {
   rect(GAME_W / 2, boxY, boxW - 20, boxH - 20, 15);
 
   let content = reportContent[currentReportSlide];
-  fill(220, 255, 240);  textAlign(LEFT);
-  // Title: 22px so even the longest phase name stays on one line inside the box
-  textStyle(BOLD);  textSize(22);
-  text(content[0], GAME_W / 2 - boxW / 2 + 40, boxY - boxH / 2 + 40);
-  textStyle(NORMAL);
-  stroke(0, 255, 150, 100);  strokeWeight(1);
-  line(GAME_W / 2 - boxW / 2 + 30, boxY - boxH / 2 + 55,
-       GAME_W / 2 + boxW / 2 - 30, boxY - boxH / 2 + 55);
+  let cx = GAME_W / 2;
+  let bodyLines = content.slice(2);
+  let titleSize = 40, bodySize = 38, lineGap = 48;
+  let totalBodyH = bodyLines.length * lineGap;
+  let blockH = titleSize + 20 + 12 + totalBodyH;
+  let blockTop = boxY - blockH / 2;
 
-  // Body: 19px text, 32px line gap — 7 lines × 32 = 224px, fits inside 396px box
-  textSize(19);
-  let textY = boxY - boxH / 2 + 88;
-  for (let i = 2; i < content.length; i++) { text(content[i], GAME_W / 2 - boxW / 2 + 40, textY);  textY += 32; }
+  // Title — centered, bold
+  fill(220, 255, 240);  textAlign(CENTER, TOP);
+  textStyle(BOLD);  textSize(titleSize);
+  text(content[0], cx, blockTop);
+
+  // Divider line
+  let divY = blockTop + titleSize + 10;
+  stroke(0, 255, 150, 120);  strokeWeight(1);
+  line(cx - boxW / 2 + 60, divY, cx + boxW / 2 - 60, divY);
+
+  // Body lines — centered, normal weight
+  textStyle(NORMAL);  textSize(bodySize);  fill(210, 245, 230);
+  let textY = divY + 20;
+  for (let i = 0; i < bodyLines.length; i++) {
+    text(bodyLines[i], cx, textY);
+    textY += lineGap;
+  }
 
   let btnY = boxY + boxH / 2 + 70, btnSpacing = 220;
   let startX = GAME_W / 2 - btnSpacing * 1.5;
