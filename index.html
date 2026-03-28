@@ -5,22 +5,21 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 
     <title>BioBalance: Digestive Control</title>
-    <meta name="description" content="Interactive educational simulation of the human digestive system — 4 immersive phases with real-time telemetry, quizzes, and mastery tracking.">
+    <meta name="description" content="Interactive educational simulation of the human digestive system — 4 immersive phases with real-time telemetry and mastery tracking.">
 
-    <!-- PWA Manifest -->
     <link rel="manifest" href="manifest.json">
 
-    <!-- iOS Support -->
+    <!-- iOS -->
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="BioBalance">
     <link rel="apple-touch-icon" href="DigestiveAPP_LOGO-1.png">
 
-    <!-- Android / Chrome -->
+    <!-- Android -->
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="theme-color" content="#050f23">
 
-    <!-- Local p5.js for offline support -->
+    <!-- Local p5.js (for offline) -->
     <script src="lib/p5.min.js"></script>
     <script src="lib/p5.sound.min.js"></script>
 
@@ -44,10 +43,9 @@
             top: 0;
             left: 0;
             image-rendering: crisp-edges;
-            image-rendering: pixelated;
         }
 
-        /* Loading Screen - Terminal Style -->
+        /* Loading Screen -->
         #loading {
             position: fixed;
             inset: 0;
@@ -59,73 +57,41 @@
             justify-content: center;
             z-index: 9999;
             text-align: center;
-            transition: opacity 0.9s ease;
         }
 
-        .loading-title {
-            font-size: 2.6rem;
-            font-weight: 900;
-            letter-spacing: 0.12em;
-            margin-bottom: 0.4rem;
-        }
+        .loading-title { font-size: 2.6rem; letter-spacing: 0.12em; margin-bottom: 0.4rem; }
+        .loading-subtitle { font-size: 1.05rem; color: #b8d4e3; letter-spacing: 0.28em; text-transform: uppercase; margin-bottom: 2.5rem; }
+        .loading-text { font-size: 1rem; letter-spacing: 0.15em; animation: pulse 2s infinite; }
 
-        .loading-subtitle {
-            font-size: 1.05rem;
-            color: #b8d4e3;
-            letter-spacing: 0.28em;
-            text-transform: uppercase;
-            margin-bottom: 2.5rem;
-        }
-
-        .loading-text {
-            font-size: 1rem;
-            letter-spacing: 0.15em;
-            animation: pulse 2s infinite;
-        }
-
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.4; }
-        }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
     </style>
 </head>
 <body>
 
-    <!-- Loading Screen -->
     <div id="loading">
         <div class="loading-title">BioBalance</div>
-        <div class="loading-subtitle">Digestive Control</div>
+        <div class="loading-subtitle">DIGESTIVE CONTROL</div>
         <div class="loading-text">INITIALIZING NEURAL INTERFACE...</div>
     </div>
 
-    <!-- Main Game Script -->
     <script src="sketch.js"></script>
 
-    <!-- Service Worker Registration -->
     <script>
-        // Register Service Worker for offline support
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('./sw.js')
-                    .then(reg => {
-                        console.log('[BioBalance] Service Worker registered successfully. Scope:', reg.scope);
-                    })
-                    .catch(err => {
-                        console.warn('[BioBalance] Service Worker registration failed:', err);
-                    });
+                    .then(reg => console.log('[BioBalance] SW registered'))
+                    .catch(err => console.warn('[BioBalance] SW failed:', err));
             });
         }
 
-        // Hide loading screen once the game is ready
+        // Hide loading
         window.addEventListener('load', () => {
-            // Give p5.js some time to initialize the canvas
             setTimeout(() => {
-                const loadingScreen = document.getElementById('loading');
-                if (loadingScreen) {
-                    loadingScreen.style.opacity = '0';
-                    setTimeout(() => {
-                        loadingScreen.remove();
-                    }, 900);
+                const loading = document.getElementById('loading');
+                if (loading) {
+                    loading.style.opacity = '0';
+                    setTimeout(() => loading.remove(), 900);
                 }
             }, 800);
         });
