@@ -39,10 +39,9 @@
       position: fixed;
       top: 0;
       left: 0;
-      /* image-rendering intentionally NOT set — browser default bilinear
-         smoothing gives the best result when a 1280×720 canvas is scaled
-         up to fill a high-DPI screen via CSS. pixelated/crisp-edges would
-         cause the severe blocky/pixelated look reported on mobile. */
+      /* NO image-rendering rules here — pixelDensity(devicePixelRatio) in sketch.js
+         already draws at native resolution. Adding pixelated/crisp-edges on top
+         causes the blocky appearance. Browser default (bilinear) is correct. */
     }
   </style>
 </head>
