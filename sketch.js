@@ -242,7 +242,7 @@ let peristalsisActive    = false;
 let peristalsissComplete = false;
 let phase4Ready          = false;
 let phase4ProceedDelay   = 0;
-const PHASE4_PROCEED_DELAY_FRAMES = 45;
+const PHASE4_PROCEED_DELAY_FRAMES = 180;  // 3 seconds at 60fps — hold optimal then proceed
 const WP_X = [
   -153.3,-163.0,-183.0,-193.0,-206.0,-217.0,-223.0,-186.0,-154.0,-129.0,
   -101.0,-79.0,-46.0,-23.0,19.0,56.0,97.0,142.0,180.0,209.0,
@@ -1163,15 +1163,17 @@ function updatePhase4Logic() {
     waterSliderX = constrain(getInputX(), sliderStart, sliderEnd);
   waterSliderX = constrain(waterSliderX, sliderStart, sliderEnd);
   waterAbsorbed = map(waterSliderX, sliderStart, sliderEnd, 0, 100);
-  // Slow lerp — matches the gradual feel of other phases (0.015 ≈ 7s to settle)
-  actualWaterAbsorbed = lerp(actualWaterAbsorbed, waterAbsorbed, 1 - pow(1 - 0.005, dt));
-  stoolConsistency    = lerp(stoolConsistency, map(actualWaterAbsorbed, 0, 100, 0, 100), 1 - pow(1 - 0.004, dt));
+  // Moderate lerp — responsive but not instant (~3.5s to fully settle)
+  actualWaterAbsorbed = lerp(actualWaterAbsorbed, waterAbsorbed, 1 - pow(1 - 0.012, dt));
+  stoolConsistency    = lerp(stoolConsistency, map(actualWaterAbsorbed, 0, 100, 0, 100), 1 - pow(1 - 0.010, dt));
   let waterGood = (actualWaterAbsorbed >= 40 && actualWaterAbsorbed <= 72);
   if (peristalsisActive && !peristalsissComplete) {
-    // ~60 seconds of held-button time: 100 / (60s × 60fps) ≈ 0.0278 per tick
-    peristalsisProgress = min(100, peristalsisProgress + (100 / 3600) * dt);
+    // ~35 seconds of held-button time: 100 / (35s × 60fps) = 100/2100 per tick
+    peristalsisProgress = min(100, peristalsisProgress + (100 / 2100) * dt);
     if (peristalsisProgress >= 100) peristalsissComplete = true;
   }
+  // phase4Ready: stool at end AND water in optimal zone
+  // PROCEED shows after holding optimal for 3 seconds (3s × 60 = 180 ticks)
   phase4Ready = waterGood && peristalsissComplete;
   if (phase4Ready) phase4ProceedDelay = min(PHASE4_PROCEED_DELAY_FRAMES, phase4ProceedDelay + dt);
 }
@@ -1190,16 +1192,16 @@ function phase4() {
   let waterGood = (actualWaterAbsorbed >= 40 && actualWaterAbsorbed <= 72);
 
   // All positions relative to GAME_W / GAME_H — no hardcoded pixels
-  let imgCX   = GAME_W * 0.56;       // organ image centre x (shifted right to leave room for panel)
-  let imgCY   = GAME_H * 0.47;       // organ image centre y
-  let imgW    = GAME_W * 0.52;       // organ image width  (~650 at 1280px)
-  let imgH    = GAME_H * 0.77;       // organ image height (~550 at 720px)
-  let sliderY4    = GAME_H * 0.86;
+  let imgCX   = GAME_W * 0.56;       // organ image centre x (right side, leaves room for panel)
+  let imgCY   = GAME_H * 0.54;       // organ image centre y (pushed down to clear guide/button row)
+  let imgW    = GAME_W * 0.52;       // organ image width  (~665 at 1280px)
+  let imgH    = GAME_H * 0.72;       // organ image height (~518 at 720px) — slightly shorter so slider fits
+  let sliderY4    = GAME_H * 0.94;   // slider well below image
   let sliderStart = GAME_W * 0.34;
   let sliderEnd   = GAME_W * 0.66;
   let panelX  = GAME_W * 0.135;      // panel centre x
-  let panelY  = GAME_H * 0.47;       // panel centre y
-  let guideY  = GAME_H * 0.125;      // guide text y
+  let panelY  = GAME_H * 0.50;       // panel centre y — keep vertically centred
+  let guideY  = GAME_H * 0.10;       // guide text near top
 
   if (largeIntImg != null) {
     push();
@@ -1261,13 +1263,26 @@ function phase4() {
 
   // Guide text + buttons — positioned relative to guideY
   textStyle(BOLD);  textSize(min(20, GAME_W*0.016));  textAlign(CENTER);
-  if (phase4Ready) {
+  if (phase4Ready && phase4ProceedDelay >= PHASE4_PROCEED_DELAY_FRAMES) {
+    // Fully ready — show completion text and PROCEED
     fill(0,255,150);
     text("ELIMINATION COMPLETE — DIGESTION CYCLE FINISHED!", GAME_W/2, guideY);
-    if (phase4ProceedDelay >= PHASE4_PROCEED_DELAY_FRAMES) {
-      if (!phase4ProceedSoundPlayed) { playSoundOnce(successSfx);  phase4ProceedSoundPlayed = true; }
-      drawProceedButton(GAME_W/2, guideY + GAME_H*0.067);
-    }
+    if (!phase4ProceedSoundPlayed) { playSoundOnce(successSfx);  phase4ProceedSoundPlayed = true; }
+    drawProceedButton(GAME_W/2, guideY + GAME_H*0.067);
+  } else if (phase4Ready && phase4ProceedDelay < PHASE4_PROCEED_DELAY_FRAMES) {
+    // Stool at end + water optimal — holding for 3s before proceed
+    let holdSec = nf((PHASE4_PROCEED_DELAY_FRAMES - phase4ProceedDelay) / 60, 0, 0);
+    fill(0,255,150);
+    text("STOOL REACHED RECTUM — HOLD OPTIMAL LEVEL...", GAME_W/2, guideY);
+    // Progress bar showing the 3s countdown
+    let pct = phase4ProceedDelay / PHASE4_PROCEED_DELAY_FRAMES;
+    noStroke();  fill(30,40,60);
+    rect(GAME_W/2, guideY + GAME_H*0.055, GAME_W*0.28, 14, 7);
+    fill(0,255,150);
+    rect(GAME_W/2 - GAME_W*0.14 + pct*GAME_W*0.14, guideY + GAME_H*0.055, pct*GAME_W*0.28, 14, 7);
+    fill(255);  textStyle(NORMAL);  textSize(12);
+    text(holdSec + "s remaining...", GAME_W/2, guideY + GAME_H*0.085);
+    textStyle(BOLD);  textSize(min(20, GAME_W*0.016));
   } else if (actualWaterAbsorbed < 40) {
     fill(100,200,255);
     text("STOOL TOO WATERY — INCREASE WATER ABSORPTION!", GAME_W/2, guideY);
@@ -2279,18 +2294,19 @@ function handleInputStart() {
   }
 
   if (mode === MODE_PHASE4) {
-    let guideY      = GAME_H * 0.125;
+    // Mirror exact coords from phase4() draw function
+    let guideY      = GAME_H * 0.10;
     let btnPY       = guideY + GAME_H * 0.06;
-    let sliderY4    = GAME_H * 0.86;
+    let sliderY4    = GAME_H * 0.94;
     let sliderStart = GAME_W * 0.34;
     let sliderEnd   = GAME_W * 0.66;
-    // Peristalsis hold button
+    // Peristalsis hold button — only when stool not yet at end
     if (!peristalsissComplete &&
         ix > GAME_W/2 - 110 && ix < GAME_W/2 + 110 &&
         iy > btnPY - 27  && iy < btnPY + 27) {
       peristalsisActive = true;
     }
-    // Proceed button
+    // Proceed button — only after full 3s countdown
     if (phase4Ready && phase4ProceedDelay >= PHASE4_PROCEED_DELAY_FRAMES) {
       let proceedY = guideY + GAME_H * 0.067;
       if (ix > GAME_W/2 - 100 && ix < GAME_W/2 + 100 &&
@@ -2299,10 +2315,9 @@ function handleInputStart() {
         startReflectionGate();
       }
     }
-    // Water slider drag — knob-centred hitbox
-    let knobX = map(waterAbsorbed, 0, 100, sliderStart, sliderEnd);
-    if (iy > sliderY4 - 22 && iy < sliderY4 + 22 &&
-        ix > sliderStart && ix < sliderEnd)
+    // Water slider drag — full track hitbox, tight vertical tolerance
+    if (iy > sliderY4 - 20 && iy < sliderY4 + 20 &&
+        ix > sliderStart - 16 && ix < sliderEnd + 16)
       isDraggingWaterSlider = true;
   }
 
