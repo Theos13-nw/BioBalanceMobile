@@ -261,8 +261,8 @@ let phaseCompleted  = [false, false, false, false, false];
 let phaseEfficiency = [0, 0, 0, 0, 0];
 let nodePulse       = [0, 0, 0, 0, 0];
 let connectionGlow  = 0;
-let phaseNames     = ["BRAIN FOOD RESPONSE", "STOMACH ACID CONTROL", "HORMONE BALANCE", "NUTRIENT ABSORPTION", "WASTE & ELIMINATION"];
-let phaseSubtitles = ["Cephalic Phase", "Gastric Phase", "Intestinal Phase", "Villi Transport", "Large Intestine"];
+let phaseNames     = ["CEPHALIC PHASE", "STOMACH DIGESTION", "HORMONE SECRETION", "NUTRIENT ABSORPTION", "WATER & ELIMINATION"];
+let phaseSubtitles = ["Brain Signals", "Stomach", "Small Intestine", "Villi Absorption", "Large Intestine"];
 let phaseColors;   // initialised in preload() — needs p5 color() available
 let selectedPhase = -1;
 
@@ -272,9 +272,9 @@ let currentCard = 0;
 let totalCards  = 4;
 let cardTitles  = ["OBJECTIVE", "CONTROLS", "FEEDBACK", "TIPS"];
 let cardContent = [
-  ["Your goal is to complete the digestive", "journey! Each phase shows a different",
-   "part of how your body breaks down food.", "Control what happens at each step and",
-   "keep your body in balance."],
+  ["Your goal is to trace food through the", "digestive tract! Each phase models a",
+   "different digestive process in the body.", "Control what happens at each step and",
+   "keep the system in balance."],
   ["Touch and drag nutrients to the correct", "zones. Press hormone buttons to balance",
    "acid levels. Use the NEXT button to move", "forward when each phase is complete.",
    "Pay attention to timing!"],
@@ -383,47 +383,46 @@ function preload() {
   ];
 
   reportContent = [
-    ["PHASE 0 — Your Brain Prepares for Food", "",
-     "Your digestive system started before you",
-     "even took a bite! The smell and sight of",
-     "food sent a signal through the vagus nerve",
-     "to your stomach, triggering saliva and",
-     "getting your body ready. This is called",
-     "the cephalic phase — your brain literally",
-     "starts digestion for you!"],
-    ["PHASE 1 — Stomach Acid and Enzyme Activity", "",
-     "Protein digestion happened successfully",
-     "in the stomach. Stomach acid unfolded the",
-     "protein structure (denaturation), allowing",
-     "pepsin to break it into smaller pieces.",
-     "The stomach wall was protected by its",
-     "mucus lining, and churning helped mix",
-     "everything together."],
-    ["PHASE 2 — Balancing Acid in the Small Intestine", "",
-     "The stomach acid was neutralized as it",
-     "entered the small intestine. The hormone",
-     "Secretin triggered bicarbonate to reduce",
-     "the acid, while CCK released bile and",
-     "enzymes to digest fats. Both hormones",
-     "worked together to create the right",
-     "environment for nutrient absorption."],
-    ["PHASE 3 — Nutrient Absorption Through the Villi", "",
-     "Digested nutrients were absorbed through",
-     "tiny finger-like structures called villi.",
-     "Glucose and sodium entered the bloodstream,",
-     "while fats were packaged and sent through",
-     "the lymph vessel (lacteal). Nutrients now",
-     "travel to cells — the body prepares for",
-     "the final stage of digestion!"],
-    ["PHASE 4 — Water Reabsorption & Elimination", "",
-     "Undigested material entered the large",
-     "intestine, where water and electrolytes",
-     "were reabsorbed back into the body.",
-     "Beneficial gut bacteria fermented fibre,",
-     "producing short-chain fatty acids that",
-     "feed the colon lining. Peristalsis then",
-     "moved the formed stool to the rectum",
-     "for elimination — completing digestion!"]
+    ["PHASE 0 — The Brain Starts Digestion", "",
+     "Before you even take a bite, your brain",
+     "gets your body ready! Seeing or smelling",
+     "food sends nerve signals that trigger",
+     "saliva in your mouth. This is called the",
+     "cephalic phase — a type of secretion",
+     "where your digestive system prepares",
+     "for the food that is coming."],
+    ["PHASE 1 — Mechanical and Chemical Digestion", "",
+     "Inside the stomach, food is broken down",
+     "in two ways. Churning muscles mash food",
+     "into smaller pieces (mechanical digestion).",
+     "At the same time, stomach acid unfolds",
+     "proteins so the enzyme pepsin can split",
+     "them apart (chemical digestion). Mucus",
+     "protects the stomach wall from the acid."],
+    ["PHASE 2 — Hormones Balance the Small Intestine", "",
+     "When food enters the small intestine,",
+     "hormones are secreted to balance the",
+     "conditions. Secretin signals the release",
+     "of bicarbonate to reduce acid. CCK signals",
+     "release of bile and enzymes to break down",
+     "fats and proteins — this is digestion",
+     "coordinated by the body's systems."],
+    ["PHASE 3 — Absorption Through the Villi", "",
+     "The small intestine absorbs nutrients",
+     "through tiny finger-like folds called",
+     "villi. Glucose and minerals enter the",
+     "bloodstream and travel to body cells.",
+     "Fats are packed into vessels called",
+     "lacteals. This absorption step connects",
+     "digestion to the circulatory system."],
+    ["PHASE 4 — Water Recovery and Elimination", "",
+     "In the large intestine, water is absorbed",
+     "back into the body from leftover waste.",
+     "Muscle contractions called peristalsis",
+     "push the solid waste toward the rectum.",
+     "Elimination removes undigested material",
+     "from the body — completing the digestive",
+     "and excretory process together."]
   ];
 
   stomachImg    = loadImage("data/stomach.png");
@@ -562,7 +561,7 @@ function setup() {
     noStroke();  
     
     let _dummyStrings = [
-        "PROCEED", "FOOD SWALLOWED — READY TO CONTINUE!",
+        "PROCEED", "FOOD SWALLOWED — MOVING TO THE STOMACH!",
         "PROTEIN FULLY DIGESTED — READY TO PROCEED",
         "HORMONES BALANCED — PROCEED", "ALL NUTRIENTS ABSORBED",
         "CORRECT", "INCORRECT", "KNOWLEDGE CHECK"
@@ -1188,15 +1187,15 @@ function resetPhase4() {
 
 function phase4() {
   updateAndDrawPhaseParticles(4);
-  drawPhaseTitle("PHASE 4 — WATER REABSORPTION & ELIMINATION", 50);
+  drawPhaseTitle("PHASE 4 — WATER REABSORPTION AND ELIMINATION", 50);
   let waterGood = (actualWaterAbsorbed >= 40 && actualWaterAbsorbed <= 72);
 
   // All positions relative to GAME_W / GAME_H — no hardcoded pixels
   let imgCX   = GAME_W * 0.50;       // organ image centre x — centred, leaving panel space on left
-  let imgCY   = GAME_H * 0.53;       // organ image centre y — pushed down to clear guide/button row
+  let imgCY   = GAME_H * 0.51;       // organ image centre y
   let imgW    = GAME_W * 0.52;       // organ image width  (~665 at 1280px)
-  let imgH    = GAME_H * 0.68;       // organ image height — compact so slider fits below
-  let sliderY4    = GAME_H * 0.90;   // slider just below image, visible and not off-screen
+  let imgH    = imgW * (550/650);    // height preserves original WP aspect ratio (550/650 ≈ 0.846)
+  let sliderY4    = GAME_H * 0.89;   // slider just below image
   let sliderStart = GAME_W * 0.34;
   let sliderEnd   = GAME_W * 0.66;
   let panelX  = GAME_W * 0.135;      // panel centre x
@@ -1266,24 +1265,24 @@ function phase4() {
   if (phase4Ready && phase4ProceedDelay >= PHASE4_PROCEED_DELAY_FRAMES) {
     // 3s elapsed — show completion text and PROCEED
     fill(0,255,150);
-    text("ELIMINATION COMPLETE — DIGESTION CYCLE FINISHED!", GAME_W/2, guideY);
+    text("ELIMINATION COMPLETE — DIGESTIVE CYCLE FINISHED!", GAME_W/2, guideY);
     if (!phase4ProceedSoundPlayed) { playSoundOnce(successSfx);  phase4ProceedSoundPlayed = true; }
     drawProceedButton(GAME_W/2, guideY + GAME_H*0.067);
   } else if (phase4Ready && phase4ProceedDelay < PHASE4_PROCEED_DELAY_FRAMES) {
     // Stool at end + water optimal — silent 3s wait, just show guide text
     fill(0,255,150);
-    text("STOOL REACHED RECTUM — HOLD OPTIMAL LEVEL...", GAME_W/2, guideY);
+    text("WASTE REACHED RECTUM — MAINTAINING OPTIMAL...", GAME_W/2, guideY);
   } else if (actualWaterAbsorbed < 40) {
     fill(100,200,255);
-    text("STOOL TOO WATERY — INCREASE WATER ABSORPTION!", GAME_W/2, guideY);
+    text("WASTE TOO WATERY — INCREASE WATER ABSORPTION!", GAME_W/2, guideY);
     if (!peristalsissComplete) drawPeristalsisButton(GAME_W/2, guideY + GAME_H*0.06);
   } else if (actualWaterAbsorbed > 72) {
     fill(255,140,60);
-    text("STOOL TOO DRY — DECREASE WATER ABSORPTION!", GAME_W/2, guideY);
+    text("WASTE TOO DRY — DECREASE WATER ABSORPTION!", GAME_W/2, guideY);
     if (!peristalsissComplete) drawPeristalsisButton(GAME_W/2, guideY + GAME_H*0.06);
   } else if (waterGood && !peristalsissComplete) {
     fill(180,120,255);
-    text("WATER OPTIMAL — HOLD PERISTALSIS TO MOVE STOOL!", GAME_W/2, guideY);
+    text("WATER ABSORBED — HOLD PERISTALSIS TO MOVE WASTE!", GAME_W/2, guideY);
     drawPeristalsisButton(GAME_W/2, guideY + GAME_H*0.06);
   } else {
     fill(200,180,255);  text("ALMOST THERE...", GAME_W/2, guideY);
@@ -1304,7 +1303,7 @@ function drawPhase4Panel(x, y, waterGood) {
   push();
   fill(20,30,50,220);  stroke(255,150);  strokeWeight(2);  rect(x, y, 275, 260, 15);
   fill(0,255,200);  textStyle(BOLD);  textSize(16);  textAlign(CENTER);
-  text("COLON STATUS", x, y-95);  textStyle(NORMAL);
+  text("LARGE INTESTINE STATUS", x, y-95);  textStyle(NORMAL);
   let r1Y = y-40;
   let wCol = waterGood ? color(0,255,150) : (actualWaterAbsorbed<40 ? color(100,180,255) : color(255,140,60));
   fill(30,40,60);  rect(x, r1Y, 240, 40, 5);
@@ -1322,7 +1321,7 @@ function drawPhase4Panel(x, y, waterGood) {
   noStroke();  fill(30,40,60);  rect(x, r2Y, 240, 20, 5);
   fill(sCol);  rect(x-120+map(stoolConsistency,0,100,0,240)/2, r2Y, map(stoolConsistency,0,100,0,240), 20, 5);
   fill(255);  textSize(11);  textAlign(CENTER);
-  text("STOOL CONSISTENCY: "+sLabel, x, r2Y-14);
+  text("WASTE CONSISTENCY: "+sLabel, x, r2Y-14);
   let r3Y = y+65;
   let pLabel = peristalsissComplete ? "COMPLETE" : "IN PROGRESS";
   let pCol   = peristalsissComplete ? color(180,120,255) : color(100,70,160);
@@ -1336,8 +1335,8 @@ function drawPhase4Panel(x, y, waterGood) {
   text("PERISTALSIS: "+pLabel, x, r3Y-14);
   noStroke();  textStyle(BOLD);  textSize(13);
   if (phase4Ready)                         { fill(0,255,150);   text("READY!",                   x, r3Y+52); }
-  else if (waterGood&&!peristalsissComplete){ fill(180,120,255); text("HOLD PERISTALSIS BUTTON", x, r3Y+52); }
-  else if (!waterGood)                     { fill(255,200,0);   text("ADJUST ABSORPTION LEVEL",  x, r3Y+52); }
+  else if (waterGood&&!peristalsissComplete){ fill(180,120,255); text("PRESS PERISTALSIS TO MOVE WASTE", x, r3Y+52); }
+  else if (!waterGood)                     { fill(255,200,0);   text("ADJUST WATER ABSORPTION",  x, r3Y+52); }
   else                                     { fill(200,180,255); text("ALMOST THERE...",           x, r3Y+52); }
   textStyle(NORMAL);
   pop();
@@ -1400,7 +1399,7 @@ function phase0() {
   textStyle(NORMAL);  textSize(20);  // lock clean state for entire frame
   // Particles already updated in updateGameLogic(); just draw them
   let arr0 = phase0Particles; for (let p of arr0) p.display();
-  drawPhaseTitle("PHASE 0 — YOUR BRAIN PREPARES FOR FOOD", 50);
+  drawPhaseTitle("PHASE 0 — YOUR BRAIN SIGNALS DIGESTION TO BEGIN", 50);
 
   let foodX = GAME_W * 0.85, foodY = GAME_H / 2 + 20;
   let headX = GAME_W * 0.35, headY = GAME_H / 2 - 40;
@@ -1453,42 +1452,42 @@ function phase0() {
   if (hasSwallowed) {
     swallowProceedDelay = min(swallowProceedDelay + 1, SWALLOW_PROCEED_FRAMES + 1);
     if (swallowProceedDelay >= SWALLOW_PROCEED_FRAMES) {
-      p0Text  = "FOOD SWALLOWED — READY TO CONTINUE!";
+      p0Text  = "FOOD SWALLOWED — MOVING TO THE STOMACH!";
       p0Color = color(0, 255, 150);
       if (!phase0ProceedSoundPlayed) { playSoundOnce(successSfx);  phase0ProceedSoundPlayed = true; }
       drawProceedButton(GAME_W / 2, buttonY);
     } else {
-      p0Text  = "SWALLOWING FOOD...";
+      p0Text  = "SWALLOWING FOOD DOWN THE OESOPHAGUS...";
       p0Color = color(0, 255, 200);
     }
   } else if (isChewing) {
-    p0Text  = "CHEWING: BREAKING DOWN YOUR FOOD!";
+    p0Text  = "CHEWING: MECHANICAL DIGESTION IN THE MOUTH!";
     p0Color = color(255, 200, 0);
     drawNextButton(GAME_W / 2, buttonY, "SWALLOW");
   } else if (foodType === 1 && cephalicActive) {
     cephalicReady = true;
-    p0Text  = "BRAIN SIGNAL SENT — VAGUS NERVE ACTIVATED!";
+    p0Text  = "BRAIN SIGNAL SENT — SECRETION IS STARTING!";
     p0Color = color(0, 255, 150, 150 + sin(millis() * 0.004) * 105);
   } else if (foodType === 1 && inputSmell >= 99 && salivaLevel >= 170 && !metabolismReady) {
     cephalicReady = false;
-    p0Text = "SALIVA READY — YOUR BODY IS GETTING READY...";  p0Color = color(255, 200, 0);
+    p0Text = "SALIVA SECRETED — BODY IS GETTING READY...";  p0Color = color(255, 200, 0);
   } else if (foodType === 1 && inputSmell >= 99 && salivaLevel < 170) {
     cephalicReady = false;
-    p0Text = "SALIVA IS BUILDING UP — KEEP THE SCENT HIGH!";  p0Color = color(255, 255, 0);
+    p0Text = "SALIVA IS BEING SECRETED — KEEP THE SCENT HIGH!";  p0Color = color(255, 255, 0);
   } else if (foodType === 1 && inputSmell >= 99) {
     cephalicReady = false;  p0Text = "GETTING READY...";  p0Color = color(200);
   } else if (foodType === 1) {
     cephalicReady = false;
-    p0Text = "SMELL THE FOOD: MOVE THE SCENT SLIDER TO START!";  p0Color = color(200);
+    p0Text = "SMELL THE FOOD: MOVE THE SCENT SLIDER TO BEGIN!";  p0Color = color(200);
   } else if (foodType === 2) {
     cephalicReady = false;
-    if      (delayedSmell < 30)              p0Text = "SOMETHING SMELLS ODD...";
-    else if (delayedSmell < 60)              p0Text = "SOMETHING SMELLS BAD — BODY IS REJECTING IT!";
-    else if (emeticTimer >= EMETIC_THRESHOLD) p0Text = "SPOILED FOOD DETECTED — NAUSEA RESPONSE TRIGGERED!";
-    else                                      p0Text = "SMELL GETTING WORSE — REJECTION INTENSIFYING...";
+    if      (delayedSmell < 30)              p0Text = "SOMETHING SMELLS OFF...";
+    else if (delayedSmell < 60)              p0Text = "THE FOOD SMELLS SPOILED — BODY IS REJECTING IT!";
+    else if (emeticTimer >= EMETIC_THRESHOLD) p0Text = "SPOILED FOOD DETECTED — NAUSEA REFLEX TRIGGERED!";
+    else                                      p0Text = "SMELL GETTING WORSE — BODY IS RESPONDING...";
     p0Color = color(255, 50, 50);
   } else {
-    cephalicReady = false;  p0Text = "SELECT A FOOD TYPE TO BEGIN";  p0Color = color(200);
+    cephalicReady = false;  p0Text = "SELECT A FOOD TYPE TO START THE SIMULATION";  p0Color = color(200);
   }
 
   textStyle(NORMAL);  textSize(20);  textAlign(CENTER);
@@ -1507,7 +1506,7 @@ function phase0() {
   textAlign(RIGHT);  text("FAINT",  sStart - 20, sliderY + 7);
   textAlign(LEFT);   text("STRONG", sEnd   + 20, sliderY + 7);
   textAlign(CENTER);
-  text("SCENT CONCENTRATION: " + int(inputSmell) + "%", GAME_W / 2, sliderY + 45);
+  text("SCENT LEVEL: " + int(inputSmell) + "%", GAME_W / 2, sliderY + 45);
 
   drawPhase0Button(GAME_W / 2 - 110, sliderY + 90, "DELICIOUS FOOD", 1);
   drawPhase0Button(GAME_W / 2 + 110, sliderY + 90, "SPOILED FOOD",   2);
@@ -1590,7 +1589,7 @@ function drawPhase0Button(x, y, label, type) {
 function phase1() {
   textStyle(NORMAL);  textSize(20);  // lock clean state for entire frame
   updateAndDrawPhaseParticles(1);
-  drawPhaseTitle("PHASE 1 — STOMACH ACID & ENZYME ACTIVITY", 50);
+  drawPhaseTitle("PHASE 1 — MECHANICAL AND CHEMICAL DIGESTION", 50);
 
   let sliderY = GAME_H - 110, sliderStart = GAME_W / 2 - 150, sliderEnd = GAME_W / 2 + 150;
   let currentPH = map(sliderX, sliderStart, sliderEnd, 7.0, 1.0);
@@ -1632,41 +1631,41 @@ function phase1() {
 
   if (ulcerRisk > 100) {
     fill(255, 0, 0);  textStyle(NORMAL);  textSize(20);
-    text("STOMACH LINING IN DANGER — ULCER RISK HIGH!", GAME_W / 2, statusY);
+    text("STOMACH LINING IN DANGER — TOO MUCH ACID!", GAME_W / 2, statusY);
     sfx_wantWarning = true;
   } else {
     sfx_wantWarning = false;
 
     if (pepsinState === PepsinState.DENATURED) {
       fill(255, 50, 50);  textStyle(NORMAL);  textSize(20);
-      text("ENZYME SHAPE BROKEN — PEPSIN STOPPED WORKING!", GAME_W / 2, statusY);
+      text("ENZYME DENATURED — PEPSIN STOPPED WORKING!", GAME_W / 2, statusY);
       drawRestorePepsinButton(GAME_W / 2, statusY + spacing);
     } else if (pepsinConcentration > 0 && currentPH > 4.5 && currentPH <= 5.0) {
       fill(255, 100 + (sin(millis() * 0.018) + 1) / 2.0 * 155, 0);
       textStyle(NORMAL);  textSize(20);
-      text("WARNING: PEPSIN ABOUT TO BREAK DOWN — LOWER THE ACID!", GAME_W / 2, statusY);
+      text("WARNING: PEPSIN WILL DENATURE — LOWER THE PH!", GAME_W / 2, statusY);
     } else if (currentPH < 1.5) {
       fill(255, (sin(millis() * 0.004) + 1) / 2.0 * 100, 0);
       textStyle(NORMAL);  textSize(20);
-      text("DANGER: TOO MUCH ACID — MOVE SLIDER LEFT!", GAME_W / 2, statusY);
+      text("DANGER: ACID TOO STRONG — MOVE SLIDER LEFT!", GAME_W / 2, statusY);
     } else if (inPHWindow && !enzymeActive) {
       fill(pepsinState === PepsinState.PARTIAL ? color(255, 200, 0) : color(255, 255, 0));
       textStyle(NORMAL);  textSize(20);
       text(pepsinState === PepsinState.PARTIAL
         ? "ENZYME WEAKENING — KEEP pH BETWEEN 1.5 AND 3.0!"
-        : "INACTIVE ENZYME BECOMING ACTIVE — HOLD THE pH!", GAME_W / 2, statusY);
+        : "PEPSINOGEN ACTIVATING INTO PEPSIN — HOLD THE pH!", GAME_W / 2, statusY);
     } else if (enzymeActive) {
       if (proteinScale < 0.3) {
         fill(0, 255, 150);  textStyle(NORMAL);  textSize(20);
-        text("PROTEIN DIGESTION COMPLETE!", GAME_W / 2, statusY);
+        text("CHEMICAL DIGESTION COMPLETE!", GAME_W / 2, statusY);
         phase1Complete = true;
         if (!phase1ProceedSoundPlayed) { playSoundOnce(successSfx);  phase1ProceedSoundPlayed = true; }
         drawProceedButton(GAME_W / 2, statusY + spacing);
       } else {
         fill(0, 255, 150);  textStyle(NORMAL);  textSize(20);
-        text("PEPSIN ACTIVE — PROTEIN IS BEING BROKEN DOWN!", GAME_W / 2, statusY);
+        text("PEPSIN IS ACTIVE — PROTEIN IS BEING DIGESTED!", GAME_W / 2, statusY);
         fill(255, 200, 0);  textStyle(NORMAL);  textSize(16);
-        text("Wait for protein digestion to complete...", GAME_W / 2, statusY + spacing);
+        text("Wait for chemical digestion to finish...", GAME_W / 2, statusY + spacing);
       }
     }
   }
@@ -1783,7 +1782,7 @@ function drawPepsinPanelBig(x, y, currentPH, inPHWindow, enzymeActive) {
 // =========================================================
 function phase2() {
   updateAndDrawPhaseParticles(2);
-  drawPhaseTitle("PHASE 2 — BALANCING ACID IN THE SMALL INTESTINE", 50);
+  drawPhaseTitle("PHASE 2 — HORMONE SECRETION IN THE SMALL INTESTINE", 50);
 
   let yOffset = 40, phLabelY = 75, phBarY = 95, warningY = 130;
 
@@ -1809,7 +1808,7 @@ function phase2() {
   textAlign(CENTER);
   if (homeostasisReached) {
     fill(0, 255, 150);  textStyle(BOLD);  textSize(22);
-    text("ACID NEUTRALIZED — READY FOR NUTRIENT ABSORPTION!", GAME_W / 2, warningY);  textStyle(NORMAL);
+    text("ACID NEUTRALIZED — READY FOR DIGESTION!", GAME_W / 2, warningY);  textStyle(NORMAL);
     if (!phase2ProceedSoundPlayed) { playSoundOnce(successSfx);  phase2ProceedSoundPlayed = true; }
     drawProceedButton(GAME_W / 2, warningY + 45);
   } else if (greenZoneTimer > 0) {
@@ -1824,8 +1823,8 @@ function phase2() {
     rect(GAME_W / 2 - 200 + pct * 200, warningY + 40, pct * 400, 18, 5);
   } else {
     let p2T = (secretinLevel <= 150 && cckLevel <= 150) ? "TOO MUCH ACID AND FAT! SPRAY BOTH HORMONES!" :
-              (secretinLevel <= 150)                    ? "TOO MUCH STOMACH ACID HERE — SPRAY SECRETIN!" :
-                                                          "FATS DETECTED — SPRAY CCK TO HELP DIGEST THEM!";
+              (secretinLevel <= 150)                    ? "TOO MUCH ACID — SPRAY SECRETIN TO NEUTRALIZE IT!" :
+                                                          "FATS DETECTED — SPRAY CCK TO RELEASE ENZYMES!";
     fill(255);  textStyle(BOLD);  textSize(22);  text(p2T, GAME_W / 2, warningY);  textStyle(NORMAL);
   }
 
@@ -1849,7 +1848,7 @@ function phase2() {
 // PHASE 3 — NUTRIENT ABSORPTION
 // =========================================================
 function phase3() {
-  drawPhaseTitle("PHASE 3 — NUTRIENT ABSORPTION THROUGH THE VILLI", 50);
+  drawPhaseTitle("PHASE 3 — ABSORPTION OF NUTRIENTS IN THE SMALL INTESTINE", 50);
   updateAndDrawPhaseParticles(3);
 
   if (villusImg != null) image(villusImg, GAME_W / 2, GAME_H / 2, GAME_W, GAME_H);
@@ -1862,13 +1861,13 @@ function phase3() {
   renderZoneStrict(zoneX, lacY, "LACTEAL",          color(100, 150, 255), 400, 120, lactealPulse,   lipidSorted);
 
   fill(200);  textSize(16);  textAlign(CENTER);
-  text("DRAG EACH NUTRIENT TO ITS CORRECT ZONE IN THE VILLI!", GAME_W / 2, 75);
+  text("DRAG EACH NUTRIENT TO WHERE IT IS ABSORBED IN THE VILLI!", GAME_W / 2, 75);
 
   // Physics+mist already ticked in updateGameLogic(); draw nutrients
   for (let m of hormoneMist) m.display();
   drawNutrient(glucoseImg, glucoseX,    glucoseY,    "Glucose",        [0, 255, 0],   glucoseSorted,    draggingGlucose,    gTimer);
-  drawNutrient(sodiumImg,  sodiumSGLTX, sodiumSGLTY, "Sodium — SGLT1", [0, 200, 150], sodiumSGLTSorted, draggingSodiumSGLT, sGLTTimer);
-  drawNutrient(sodiumImg,  sodiumNH3X,  sodiumNH3Y,  "Sodium — NHE3",  [0, 100, 200], sodiumNHE3Sorted, draggingSodiumNHE3, nhe3Timer);
+  drawNutrient(sodiumImg,  sodiumSGLTX, sodiumSGLTY, "Sodium (SGLT1)", [0, 200, 150], sodiumSGLTSorted, draggingSodiumSGLT, sGLTTimer);
+  drawNutrient(sodiumImg,  sodiumNH3X,  sodiumNH3Y,  "Sodium (NHE3)",  [0, 100, 200], sodiumNHE3Sorted, draggingSodiumNHE3, nhe3Timer);
   drawNutrient(lipidImg,   lipidX,      lipidY,      "Lipids (Fats)",  [255, 255, 0], lipidSorted,      draggingLipid,      lTimer);
 
   let allAbsorbed = glucoseSorted && sodiumSGLTSorted && sodiumNHE3Sorted && lipidSorted;
@@ -1876,11 +1875,11 @@ function phase3() {
     if (phase3ProceedDelay < PHASE3_PROCEED_DELAY_FRAMES) {
       fill(0, 255, 150, 150 + sin(millis() * 0.004) * 105);
       textStyle(BOLD);  textSize(22);  textAlign(CENTER);
-      text("COMPLETING THE PROCESS — WAIT...", GAME_W / 2, 105);  textStyle(NORMAL);
+      text("ABSORPTION COMPLETE — PROCESSING...", GAME_W / 2, 105);  textStyle(NORMAL);
     } else {
       fill(0, 0, 0, 180);  rect(GAME_W / 2, GAME_H / 2, GAME_W, GAME_H);
       fill(0, 255, 200);  textStyle(BOLD);  textSize(26);  textAlign(CENTER);
-      text("ALL NUTRIENTS ABSORBED SUCCESSFULLY!", GAME_W / 2, GAME_H / 2 - 60);  textStyle(NORMAL);
+      text("ALL NUTRIENTS SUCCESSFULLY ABSORBED!", GAME_W / 2, GAME_H / 2 - 60);  textStyle(NORMAL);
       if (!phase3ProceedSoundPlayed) { playSoundOnce(successSfx);  phase3ProceedSoundPlayed = true; }
       drawProceedButton(GAME_W / 2, GAME_H / 2 + 22);
     }
@@ -2020,28 +2019,27 @@ function drawFinalReport() {
   let content = reportContent[currentReportSlide];
   let cx = GAME_W / 2;
   let bodyLines = content.slice(2);
-  let titleSize = 40, bodySize = 38, lineGap = 48;
-  let totalBodyH = bodyLines.length * lineGap;
-  let blockH = titleSize + 20 + 12 + totalBodyH;
-  let blockTop = boxY - blockH / 2;
+  let titleSize = 40, bodySize = 38;
+  // Phase 4 has one extra line — use tighter spacing so it fits
+  let lineGap = (currentReportSlide === 4) ? 38 : 45;
 
-  // Title — centered, bold
-  fill(220, 255, 240);  textAlign(CENTER, TOP);
+  // Anchor to box top edge (matches desktop .pde layout)
+  fill(220, 255, 240);  textAlign(LEFT, TOP);
   textStyle(BOLD);  textSize(titleSize);
-  text(content[0], cx, blockTop);
+  text(content[0], cx - boxW/2 + 40, boxY - boxH/2 + 20);
 
   // Divider line
-  let divY = blockTop + titleSize + 10;
+  let divY = boxY - boxH/2 + 72;
   stroke(0, 255, 150, 120);  strokeWeight(1);
-  line(cx - boxW / 2 + 60, divY, cx + boxW / 2 - 60, divY);
+  line(cx - boxW/2 + 30, divY, cx + boxW/2 - 30, divY);
 
-  // Body lines — phase 4 uses tighter spacing to fit 8 lines in the box
-  let lineGapActual = (currentReportSlide === 4) ? 40 : lineGap;
+  // Body lines — left-aligned, anchored from top of box
   textStyle(NORMAL);  textSize(bodySize);  fill(210, 245, 230);
-  let textY = divY + 20;
+  textAlign(LEFT, TOP);
+  let textY = divY + 18;
   for (let i = 0; i < bodyLines.length; i++) {
-    text(bodyLines[i], cx, textY);
-    textY += lineGapActual;
+    text(bodyLines[i], cx - boxW/2 + 40, textY);
+    textY += lineGap;
   }
 
   let btnY = boxY + boxH / 2 + 70, btnSpacing = 195;
@@ -2284,10 +2282,10 @@ function handleInputStart() {
   }
 
   if (mode === MODE_PHASE4) {
-    // Mirror exact coords from phase4() draw function
+    // Exact mirror of phase4() draw function coords
     let guideY      = GAME_H * 0.115;
     let btnPY       = guideY + GAME_H * 0.06;
-    let sliderY4    = GAME_H * 0.90;
+    let sliderY4    = GAME_H * 0.88;
     let sliderStart = GAME_W * 0.34;
     let sliderEnd   = GAME_W * 0.66;
     // Peristalsis hold button — only when stool not yet at end
@@ -2296,7 +2294,7 @@ function handleInputStart() {
         iy > btnPY - 27  && iy < btnPY + 27) {
       peristalsisActive = true;
     }
-    // Proceed button — only after full 3s countdown
+    // Proceed button — only after full 3s silent countdown
     if (phase4Ready && phase4ProceedDelay >= PHASE4_PROCEED_DELAY_FRAMES) {
       let proceedY = guideY + GAME_H * 0.067;
       if (ix > GAME_W/2 - 100 && ix < GAME_W/2 + 100 &&
@@ -2305,7 +2303,7 @@ function handleInputStart() {
         startReflectionGate();
       }
     }
-    // Water slider drag — full track hitbox, tight vertical tolerance
+    // Water slider drag — tight vertical, full horizontal track
     if (iy > sliderY4 - 20 && iy < sliderY4 + 20 &&
         ix > sliderStart - 16 && ix < sliderEnd + 16)
       isDraggingWaterSlider = true;
@@ -2984,89 +2982,94 @@ function initQuizBanks() {
   let fullBank = [];
 
   if (phaseIdx === 0) {
+    // Competency: trace food; explain secretion; brain-gut connection
     fullBank = [
-      new Question("What nerve carries signals from your brain to your stomach when you smell food?",
-        ["The vagus nerve connects brain to digestive organs","The spinal cord connects brain to digestive organs","The optic nerve connects brain to digestive organs"],0),
-      new Question("Why does your mouth produce more saliva when smelling delicious food?",
-        ["Saliva contains enzymes that start breaking down food","Saliva contains minerals that start breaking down food","Saliva contains chemicals that start breaking down food"],0),
-      new Question("What happens to your liver's glucose output when insulin levels rise?",
-        ["Glucose release decreases to prepare for incoming food","Glucose release increases to prepare for incoming food","Glucose release stabilizes to prepare for incoming food"],0),
-      new Question("How does your body react when you smell potentially spoiled food?",
-        ["Saliva decreases and nausea signals are triggered","Saliva increases and nausea signals are triggered","Saliva continues and nausea signals are triggered"],0),
-      new Question("Why does insulin release before you start the eating process?",
-        ["To prepare cells for absorbing incoming glucose sugar","To prepare cells for absorbing incoming protein sugar","To prepare cells for absorbing incoming mineral sugar"],0),
-      new Question("Why does your body prepare for digestion before food arrives?",
-        ["Early preparation improves nutrient processing efficiency","Early preparation destroys nutrient processing efficiency","Early preparation minimizes nutrient processing efficiency"],0),
-      new Question("What does the scent slider control in the simulation game?",
-        ["The concentration of food aroma reaching the brain","The concentration of food taste reaching the brain","The concentration of food color reaching the brain"],0),
+      new Question("What type of process happens in your mouth when you smell food and saliva is produced?",
+        ["Secretion — the body releases digestive fluids to get ready","Absorption — the body takes in nutrients through the mouth wall","Elimination — the body removes waste before digestion starts"],0),
+      new Question("Which nerve sends signals from the brain to the digestive organs before you eat?",
+        ["The vagus nerve — it connects the brain to the gut","The spinal cord — it carries signals between the body and brain","The optic nerve — it carries signals from the eyes to the brain"],0),
+      new Question("Why does your mouth water when you smell delicious food?",
+        ["Saliva contains enzymes that begin breaking down food early","Saliva cools the food so the stomach is not damaged","Saliva fights bacteria before they enter the digestive tract"],0),
+      new Question("What is the first digestive organ that food enters after it is swallowed?",
+        ["The oesophagus — a muscular tube that carries food to the stomach","The stomach — where most chemical digestion takes place","The small intestine — where most nutrients are absorbed"],0),
+      new Question("What does the cephalic phase tell us about how the digestive and nervous systems work together?",
+        ["The nervous system triggers digestive secretions before food arrives","The digestive system sends signals to the brain when full","The nervous system absorbs nutrients on behalf of the gut"],0),
+      new Question("In the simulation, what does moving the scent slider to the right represent?",
+        ["A stronger food smell reaching the brain and triggering more secretion","A stronger acid level building up inside the stomach","A faster rate of absorption in the small intestine"],0),
+      new Question("What would happen if the vagus nerve were cut before a meal?",
+        ["The brain could not signal the stomach to prepare for digestion","The stomach would produce too much acid and digest itself","The small intestine would stop absorbing all nutrients"],0),
     ];
   } else if (phaseIdx === 1) {
+    // Competency: mechanical processing + chemical digestion in the stomach
     fullBank = [
-      new Question("Why must proteins unfold before enzymes can digest them?",
-        ["Unfolding exposes bonds for enzymes to reach and break","Unfolding shields bonds for enzymes to reach and break","Unfolding blocks bonds for enzymes to reach and break"],0),
-      new Question("What protects your stomach from its own digestive acid?",
-        ["A thick mucus layer and bicarbonate barrier system","A thin mucus layer and bicarbonate barrier system","A hard mucus layer and bicarbonate barrier system"],0),
-      new Question("How does pepsinogen become active pepsin in the simulation?",
-        ["Stomach acid triggers the change to active form","Stomach base triggers the change to active form","Stomach salt triggers the change to active form"],0),
-      new Question("What happens if stomach acid drops below pH 1.5?",
-        ["The protective mucus barrier can be damaged here","The protective mucus barrier can be restored here","The protective mucus barrier can be thickened here"],0),
-      new Question("Why does pepsin stop working when pH rises above 5?",
-        ["The enzyme's shape changes and stops functioning","The enzyme's shape remains and stops functioning","The enzyme's shape enlarges and stops functioning"],0),
-      new Question("What does the pH slider control in the simulation game?",
-        ["The acidity level of stomach digestive acid","The motility level of stomach digestive acid","The viscosity level of stomach digestive acid"],0),
-      new Question("What happens to the protein image when pepsin is active?",
-        ["It shrinks as pepsin breaks the protein chains","It expands as pepsin breaks the protein chains","It vibrates as pepsin breaks the protein chains"],0),
+      new Question("What is the difference between mechanical and chemical digestion in the stomach?",
+        ["Mechanical churns food into smaller pieces; chemical uses acid and enzymes to break molecules","Mechanical uses enzymes to break food down; chemical uses muscles to mash it","Mechanical absorbs nutrients; chemical removes waste from the body"],0),
+      new Question("Why does the stomach produce a thick layer of mucus?",
+        ["To protect the stomach lining from being damaged by its own acid","To help enzymes move through the stomach faster","To slow digestion so the body has more time to absorb nutrients"],0),
+      new Question("What happens to a protein molecule when it meets stomach acid?",
+        ["It unfolds (denatures) so that enzymes can break it into smaller parts","It dissolves completely without the need for any enzymes","It becomes a carbohydrate that is absorbed directly into the blood"],0),
+      new Question("What does pepsin do during chemical digestion?",
+        ["It breaks protein chains into shorter peptide pieces","It neutralises stomach acid to protect the stomach wall","It churns food together with acid through muscle movement"],0),
+      new Question("In this simulation, what does lowering the pH slider represent?",
+        ["Increasing the acidity of the stomach to activate pepsin","Decreasing the amount of mucus protecting the stomach","Slowing the mechanical movement of food in the stomach"],0),
+      new Question("What does the shrinking protein image in the simulation show?",
+        ["That chemical digestion is breaking the protein into smaller pieces","That the food has moved from the stomach to the small intestine","That the stomach is producing less acid than it should"],0),
+      new Question("How do the digestive and muscular systems work together in the stomach?",
+        ["Stomach muscles churn food while digestive enzymes break it down chemically","The muscular system absorbs nutrients and the digestive system removes waste","Muscles stop digestion while enzymes physically mash the food instead"],0),
     ];
   } else if (phaseIdx === 2) {
+    // Competency: hormone secretion; body systems working together; small intestine
     fullBank = [
-      new Question("Why must stomach acid be reduced in the small intestine?",
-        ["Intestinal enzymes need neutral pH to function","Intestinal enzymes need acidic pH to function","Intestinal enzymes need basic pH to function"],0),
-      new Question("What does the Secretin hormone button spray in the simulation?",
-        ["Hormone that triggers bicarbonate to reduce acid","Hormone that triggers bicarbonate to increase acid","Hormone that triggers bicarbonate to modify acid"],0),
-      new Question("What does the CCK hormone button spray in the simulation?",
-        ["Hormone that triggers bile and fat-digesting enzymes","Hormone that triggers bile and fat-digesting hormones","Hormone that triggers bile and fat-digesting peptides"],0),
-      new Question("Why do hormone levels drop when you stop spraying?",
-        ["The body regulates to prevent over-neutralizing","The body regulates to prevent under-neutralizing","The body regulates to prevent re-neutralizing"],0),
-      new Question("What does it mean when both hormone meters hit the green zone?",
-        ["The intestine has balanced pH for digestion","The intestine has elevated pH for digestion","The intestine has restricted pH for digestion"],0),
-      new Question("Why are both Secretin and CCK needed together?",
-        ["One reduces acid while the other digests fats","One produces acid while the other digests fats","One modifies acid while the other digests fats"],0),
-      new Question("What happens if you only spray Secretin and not CCK?",
-        ["Acid reduces but fats won't be properly digested","Acid increases but fats won't be properly digested","Acid stabilizes but fats won't be properly digested"],0),
+      new Question("What is secretion in the digestive system?",
+        ["The release of fluids like hormones and enzymes to help digestion","The movement of food from the stomach to the small intestine","The absorption of nutrients through the walls of the intestine"],0),
+      new Question("Why must the acid from the stomach be neutralised in the small intestine?",
+        ["The enzymes in the small intestine work best at a neutral or slightly basic pH","The small intestine produces its own acid so the incoming acid must be removed","The acid would speed up absorption too much in the small intestine"],0),
+      new Question("What does the hormone Secretin do in the small intestine?",
+        ["It signals the pancreas to release bicarbonate to reduce acid","It signals the stomach to increase acid production","It signals the liver to release more glucose into the blood"],0),
+      new Question("What does the hormone CCK do when fats enter the small intestine?",
+        ["It triggers the release of bile and enzymes to digest fats and proteins","It slows the stomach so fat cannot enter the intestine too fast","It signals the large intestine to begin reabsorbing water"],0),
+      new Question("In this simulation, what happens if you only spray Secretin and not CCK?",
+        ["Acid is reduced but fats are not properly broken down for absorption","Fats are broken down but acid remains too high for enzymes to work","Both acid and fats are handled because Secretin does both jobs"],0),
+      new Question("How do the digestive system and endocrine system work together in Phase 2?",
+        ["Hormones secreted by the intestine control enzyme and fluid release","The intestine digests hormones to release energy for the body","Enzymes in the intestine signal the brain to produce hormones"],0),
+      new Question("What do both Secretin and CCK have in common?",
+        ["They are both hormones secreted to help digestion in the small intestine","They are both enzymes produced in the stomach to digest protein","They are both produced in the large intestine to reabsorb water"],0),
     ];
   } else if (phaseIdx === 3) {
+    // Competency: absorption; villi; digestion+circulatory systems together
     fullBank = [
-      new Question("Why do glucose and sodium enter the blood capillary together?",
-        ["They share a channel using sodium's energy","They share a channel using sodium's pressure","They share a channel using sodium's velocity"],0),
-      new Question("Why do lipids go to the lacteal instead of blood capillaries?",
-        ["Fats are too large to fit into blood vessels directly","Fats are too small to fit into blood vessels directly","Fats are too dense to fit into blood vessels directly"],0),
-      new Question("What does the NHE3 zone do with sodium in the simulation?",
-        ["Trades sodium for hydrogen ions to balance pH","Trades sodium for carbon ions to balance pH","Trades sodium for oxygen ions to balance pH"],0),
-      new Question("Why do nutrients bounce back from wrong zones?",
-        ["Cell membranes only allow specific molecules through","Cell membranes only allow multiple molecules through","Cell membranes only allow reactive molecules through"],0),
-      new Question("What happens when you drag sodium near glucose in the capillary zone?",
-        ["Sodium helps glucose absorb faster together","Sodium helps glucose absorb slower together","Sodium helps glucose absorb steady together"],0),
-      new Question("What do the three zones in the villi simulation represent?",
-        ["Blood capillary, sodium exchanger, and lymphatic lacteal","Blood capillary, sodium exchanger, and stomach lining","Blood capillary, sodium exchanger, and mouth cavity"],0),
-      new Question("Why are villi shaped like tiny fingers?",
-        ["More surface area absorbs nutrients faster","Less surface area absorbs nutrients faster","Same surface area absorbs nutrients faster"],0),
+      new Question("What is absorption in the digestive system?",
+        ["The process where nutrients pass through the intestine wall into the blood","The process where food is broken down into smaller chemical molecules","The process where the body removes undigested waste at the end of digestion"],0),
+      new Question("Why are villi in the small intestine shaped like tiny finger-like folds?",
+        ["The folds increase surface area so more nutrients can be absorbed faster","The folds slow digestion so that enzymes have more time to work","The folds protect the intestine wall from being damaged by acid"],0),
+      new Question("Why does glucose travel into the blood capillary and not the lacteal?",
+        ["Glucose is small enough to pass directly into blood vessels for transport","Glucose is a fat that is too large for blood capillaries to accept","Glucose travels with lipids through the lymph system to reach the liver"],0),
+      new Question("Why do fats travel to the lacteal instead of the blood capillary?",
+        ["Fats are packaged into large molecules that must travel through the lymph system","Fats are small enough to dissolve in blood but too slow for the capillary","Fats are broken down into glucose before entering the blood capillary"],0),
+      new Question("How do the digestive and circulatory systems work together during absorption?",
+        ["Nutrients absorbed through the villi enter the bloodstream to reach body cells","The circulatory system digests nutrients using enzymes from the heart","The digestive system carries blood through the intestine for oxygenation"],0),
+      new Question("In the simulation, what does it mean when a nutrient bounces back from a zone?",
+        ["That the wrong zone was chosen — cell membranes only allow certain molecules","That the zone is full and cannot accept any more nutrients","That the nutrient has already been absorbed and is returning to the intestine"],0),
+      new Question("After nutrients are absorbed, which body system transports them to cells?",
+        ["The circulatory system — blood carries nutrients to every cell in the body","The excretory system — the kidneys filter nutrients out of the blood","The nervous system — nerve signals carry nutrients to organs that need them"],0),
     ];
   } else if (phaseIdx === 4) {
+    // Competency: elimination; digestion+excretion working together; large intestine
     fullBank = [
-      new Question("What is the main job of the large intestine in digestion?",
-        ["To reabsorb water and compact undigested material into solid stool","To produce digestive enzymes that break down the last bits of food","To absorb glucose and amino acids that the small intestine missed"],0),
-      new Question("Why must the large intestine reabsorb water from the waste material?",
-        ["To prevent dehydration and to form solid stool the body can pass","To cool down the body after the heat produced during digestion","To flush harmful bacteria away before they enter the bloodstream"],0),
-      new Question("What happens to stool if the large intestine absorbs too little water?",
-        ["The stool stays too watery and passes out as diarrhoea","The stool becomes so hard it cannot move and causes a blockage","The stool dissolves back into the intestine wall and is lost"],0),
-      new Question("What role do gut bacteria play in the large intestine?",
-        ["They ferment fibre to produce fatty acids that feed the colon lining","They produce digestive enzymes that break down proteins","They destroy any bacteria that entered the body with food"],0),
-      new Question("What is peristalsis, and why does the large intestine need it?",
-        ["Wave-like muscle contractions that push waste toward the rectum","A chemical signal that tells the body when to release stool","The process of water being pumped out through the gut wall"],0),
-      new Question("What would happen if peristalsis in the large intestine stopped?",
-        ["Waste would not move forward, causing constipation and build-up","Digestion would reverse and nutrients would leak back into the gut","Water would stop being absorbed so stool would remain liquid"],0),
-      new Question("Why is elimination the final and necessary step of digestion?",
-        ["It removes undigested waste and prevents harmful build-up","It signals the brain that digestion is finished and hunger can start","It pushes leftover digestive enzymes out before they cause damage"],0),
+      new Question("What is elimination in the digestive process?",
+        ["The removal of undigested waste from the body through the rectum","The absorption of water from the large intestine into the blood","The breakdown of fibre by gut bacteria in the large intestine"],0),
+      new Question("Why is water reabsorbed in the large intestine before waste is eliminated?",
+        ["To prevent dehydration and to form solid waste the body can pass","To kill any bacteria left in the waste before it leaves the body","To add enzymes that finish digesting food in the large intestine"],0),
+      new Question("What does peristalsis do in the large intestine?",
+        ["Wave-like muscle contractions push waste toward the rectum for elimination","Peristalsis pumps water out of the blood into the large intestine","Peristalsis produces enzymes that break down undigested food"],0),
+      new Question("How do the digestive and excretory systems work together in Phase 4?",
+        ["The large intestine reabsorbs water (digestion) and then removes waste (excretion)","The excretory system digests food while the digestive system removes waste","The digestive system filters blood and the excretory system absorbs nutrients"],0),
+      new Question("In the simulation, what happens when too little water is absorbed from the waste?",
+        ["The waste stays too watery and would pass as diarrhoea","The waste becomes too hard and would cause constipation","The waste dissolves back into the intestine wall completely"],0),
+      new Question("What does the water absorption slider in the simulation represent?",
+        ["How much water the large intestine is reabsorbing from the waste","How much saliva the mouth is producing at the start of digestion","How fast peristalsis is moving waste toward the rectum"],0),
+      new Question("What would happen to the body if the large intestine did not reabsorb water?",
+        ["The body would lose too much water, leading to dehydration","The body would absorb too many nutrients from the large intestine","The body would produce more digestive enzymes to replace the water"],0),
     ];
   }
 
@@ -3089,41 +3092,43 @@ function prepareQuestion() {
 // Hardcoded 2-question banks: index 0 = structure Q, index 1 = function Q
 function initShortQuizBank() {
   let phaseIdx = currentPhaseIndex();
+  // 2-question banks: Q1 = structure, Q2 = function
+  // MATATAG Grade 8: "Structure and function of the human digestive system"
   let banks = [
-    // Phase 0 — Brain / Cephalic
+    // Phase 0 — Mouth / Brain signalling
     [
-      new Question("What is the structure that connects the brain to the digestive organs to start the cephalic response?",
-        ["The vagus nerve — a long cranial nerve running from the brainstem","The spinal cord — the main relay cable inside the backbone","The optic nerve — the sensory cable connecting the eyes to the brain"],0),
-      new Question("What is the function of saliva during the cephalic phase before food even enters the mouth?",
-        ["It begins breaking down carbohydrates and lubricates the mouth for food","It destroys harmful bacteria that might enter with the incoming food","It cools the food temperature so the stomach lining is not damaged"],0),
+      new Question("Which part of the digestive system is the first to receive food and begin mechanical digestion?",
+        ["The mouth — teeth crush food and saliva is secreted to begin digestion","The stomach — where food is churned and broken down by acid","The small intestine — where most chemical digestion takes place"],0),
+      new Question("What is the main function of the cephalic phase before food is even swallowed?",
+        ["To prepare the digestive system by secreting saliva and signalling the stomach","To absorb any liquid nutrients that enter the mouth with food","To eliminate waste from the previous meal before new food arrives"],0),
     ],
     // Phase 1 — Stomach
     [
-      new Question("What structure in the stomach wall produces the protective barrier against stomach acid?",
-        ["Mucus-secreting cells lining the stomach wall","Parietal cells that release hydrochloric acid","Chief cells that store pepsinogen enzyme"],0),
-      new Question("What is the function of pepsin in the stomach during protein digestion?",
-        ["It breaks peptide bonds in proteins, splitting them into smaller peptides","It neutralises stomach acid to create the right pH for digestion","It signals the small intestine to prepare for incoming food material"],0),
+      new Question("What is the main structural feature of the stomach that allows it to perform mechanical digestion?",
+        ["Thick muscular walls that churn and mix food with digestive juices","A smooth inner lining covered with villi to absorb broken-down proteins","A network of blood vessels that carry enzymes directly into the stomach"],0),
+      new Question("What is the function of stomach acid (hydrochloric acid) during chemical digestion?",
+        ["It unfolds proteins and activates the enzyme pepsin to break them down","It neutralises food so that nutrients can be absorbed through the stomach wall","It moves food quickly into the small intestine once mechanical digestion is done"],0),
     ],
-    // Phase 2 — Small intestine hormones
+    // Phase 2 — Small intestine
     [
-      new Question("What structure releases Secretin and CCK when acid and fat enter the small intestine?",
-        ["Enteroendocrine cells in the lining of the small intestine","The pancreas itself, which detects acid through pressure sensors","The liver, which monitors blood pH and releases hormones accordingly"],0),
-      new Question("What is the function of CCK (cholecystokinin) when fat enters the small intestine?",
-        ["It triggers the gallbladder and pancreas to release bile and digestive enzymes","It signals the stomach to slow emptying so fat is not overwhelmed","It raises blood sugar by releasing stored glucose from the liver"],0),
+      new Question("What structures in the wall of the small intestine secrete hormones that control digestion?",
+        ["Enteroendocrine cells — specialised cells that detect acid and fat and release hormones","Mucus glands — cells that release thick mucus to protect the intestine wall","Lacteals — tiny lymph vessels that carry fat-soluble nutrients away from the intestine"],0),
+      new Question("What is the function of bile in the small intestine during fat digestion?",
+        ["Bile breaks fat into tiny droplets so that enzymes can digest it more easily","Bile neutralises stomach acid so that intestinal enzymes can work properly","Bile absorbs fat directly through the intestine wall into the bloodstream"],0),
     ],
-    // Phase 3 — Villi / nutrient absorption
+    // Phase 3 — Small intestine villi
     [
-      new Question("What are the tiny finger-like structures on the small intestine wall that absorb nutrients?",
-        ["Villi — microscopic projections that dramatically increase surface area","Lacteals — lymph vessels that carry fat away from the intestine","Microvilli — brush-border enzymes that break down complex sugars"],0),
-      new Question("What is the function of the lacteal inside each villus during fat absorption?",
-        ["It absorbs fatty acids and glycerol and carries them through the lymph system","It absorbs glucose and amino acids and passes them into the bloodstream","It secretes bile salts to emulsify fats before they can be absorbed"],0),
+      new Question("What is the main structural feature of the small intestine that makes it very good at absorption?",
+        ["Millions of finger-like villi that greatly increase the surface area for absorption","A very long and wide tube that gives food more time to be digested","A thick muscular wall that squeezes nutrients directly into the bloodstream"],0),
+      new Question("What is the function of the lacteal found inside each villus?",
+        ["It absorbs digested fats and transports them through the lymphatic system","It absorbs glucose and minerals and releases them directly into the blood","It secretes digestive enzymes to finish breaking down fats in the intestine"],0),
     ],
     // Phase 4 — Large intestine
     [
-      new Question("What structure in the large intestine wall actively pumps water back into the body?",
-        ["Specialised epithelial cells with aquaporin channels in the colon lining","Peristaltic muscle fibres that squeeze water out of the waste material","Goblet cells that secrete mucus to draw water away from the stool"],0),
-      new Question("What is the function of peristalsis in the large intestine after water has been reabsorbed?",
-        ["Wave-like muscle contractions push the formed stool toward the rectum for elimination","Peristalsis churns the stool to mix it with digestive enzymes","Peristalsis pumps additional water into the stool to soften it"],0),
+      new Question("What is the main structural difference between the large intestine and the small intestine?",
+        ["The large intestine is wider but shorter, with no villi — it absorbs water not nutrients","The large intestine is narrower and longer, with more villi for nutrient absorption","The large intestine has the most digestive enzymes and is the longest organ in the gut"],0),
+      new Question("What is the main function of the large intestine in the digestive system?",
+        ["To reabsorb water from waste and form solid material to be eliminated from the body","To absorb proteins and carbohydrates that were missed by the small intestine","To produce digestive enzymes that finish breaking down any remaining food"],0),
     ],
   ];
   shortQuizBank = banks[phaseIdx] || [];
@@ -3193,33 +3198,30 @@ function drawReflectionGate() {
     text(pnameShort, cx, 120);
 
     fill(255);  textSize(19);  textAlign(CENTER);
-    text("Choose how many questions you want to answer:", cx, 180);
+    text("Choose how many questions you want to answer:", cx, 185);
 
-    // 2-question button
-    let b2x = cx - 200, b2y = 290, b2w = 340, b2h = 140;
+    // 2-question button — TOP, cyan
+    let b2x = cx, b2y = 300, b2w = 420, b2h = 120;
     let h2 = getInputX()>b2x-b2w/2 && getInputX()<b2x+b2w/2 && getInputY()>b2y-b2h/2 && getInputY()<b2y+b2h/2;
-    fill(h2 ? color(0,100,80) : color(0,60,50), 230);
+    fill(h2 ? color(0,100,100) : color(0,60,80), 230);
     stroke(0,255,200);  strokeWeight(h2?3:2);  rect(b2x, b2y, b2w, b2h, 15);
-    fill(0,255,200);  textStyle(BOLD);  textSize(36);  textAlign(CENTER,CENTER);
-    text("2 QUESTIONS", b2x, b2y-20);
+    fill(0,255,200);  textStyle(BOLD);  textSize(32);  textAlign(CENTER,CENTER);
+    text("2 QUESTIONS", b2x, b2y-18);
     fill(200,255,240);  textStyle(NORMAL);  textSize(15);
-    text("Structure & Function", b2x, b2y+12);
-    text("(quick check)", b2x, b2y+32);
+    text("Structure & Function — quick check", b2x, b2y+14);
 
-    // 5-question button
-    let b5x = cx + 200, b5y = 290, b5w = 340, b5h = 140;
+    // 5-question button — BOTTOM, cyan
+    let b5x = cx, b5y = 460, b5w = 420, b5h = 120;
     let h5 = getInputX()>b5x-b5w/2 && getInputX()<b5x+b5w/2 && getInputY()>b5y-b5h/2 && getInputY()<b5y+b5h/2;
-    fill(h5 ? color(80,60,0) : color(60,40,0), 230);
-    stroke(255,200,0);  strokeWeight(h5?3:2);  rect(b5x, b5y, b5w, b5h, 15);
-    fill(255,215,0);  textStyle(BOLD);  textSize(36);  textAlign(CENTER,CENTER);
-    text("5 QUESTIONS", b5x, b5y-20);
-    fill(255,240,180);  textStyle(NORMAL);  textSize(15);
-    text("Full knowledge check", b5x, b5y+12);
-    text("(7-question bank, 5 drawn)", b5x, b5y+32);
+    fill(h5 ? color(0,100,100) : color(0,60,80), 230);
+    stroke(0,255,200);  strokeWeight(h5?3:2);  rect(b5x, b5y, b5w, b5h, 15);
+    fill(0,255,200);  textStyle(BOLD);  textSize(32);  textAlign(CENTER,CENTER);
+    text("5 QUESTIONS", b5x, b5y-18);
+    fill(200,255,240);  textStyle(NORMAL);  textSize(15);
+    text("Full knowledge check — 7-question bank, 5 drawn", b5x, b5y+14);
 
-    fill(160,180,200);  textSize(14);  textAlign(CENTER);
-    text("Both modes use the same mastery scoring (100% → 90% → 80%)", cx, 420);
-    text("Tip: 2-question mode is ideal for quick review during debugging", cx, 442);
+    fill(160,180,200);  textSize(13);  textAlign(CENTER);
+    text("Both modes use the same mastery scoring: 100% → 90% → 80%", cx, 545);
     return;
   }
 
@@ -3311,11 +3313,11 @@ function drawReflectionGate() {
     textStyle(BOLD);  text(pname2, cx, GAME_H/2+70);  textStyle(NORMAL);
 
     if (mode===MODE_PHASE4) {
-      textSize(22);  fill(0,255,200);  text("The digestive journey is complete!", cx, GAME_H/2+115);
+      textSize(22);  fill(0,255,200);  text("The full digestive process is complete!", cx, GAME_H/2+115);
       textSize(19);  fill(200,255,230);
-      text("From smelling food all the way to eliminating waste —", cx, GAME_H/2+148);
-      text("you've explored how your entire digestive system works.", cx, GAME_H/2+172);
-      text("Well done, BioBalancer!", cx, GAME_H/2+196);
+      text("From the brain signal all the way to elimination —", cx, GAME_H/2+148);
+      text("you have traced how the entire digestive system works.", cx, GAME_H/2+172);
+      text("Great work, BioBalancer!", cx, GAME_H/2+196);
     } else {
       if (eff===100) { textStyle(BOLD);  textSize(28);  fill(255,215,0);  text("★ PERFECT FIRST-TRY MASTERY ★", cx, GAME_H/2+110);  textStyle(NORMAL); }
       else if (eff===90) { textSize(20);  fill(220,220,255);  text("First-try on replay (100% only on first attempt)", cx, GAME_H/2+110); }
@@ -3375,13 +3377,13 @@ function handleQuizClick() {
 
   // ── Mode selector (substate -1) ──────────────────────
   if (quizSubState === -1) {
-    // 2-question button
-    let b2x = cx - 200, b2y = 290, b2w = 340, b2h = 140;
+    // 2-question button (top, centred)
+    let b2x = cx, b2y = 300, b2w = 420, b2h = 120;
     if (getInputX()>b2x-b2w/2 && getInputX()<b2x+b2w/2 && getInputY()>b2y-b2h/2 && getInputY()<b2y+b2h/2) {
       playSoundOnce(clickSfx);  startShortQuiz();  return;
     }
-    // 5-question button
-    let b5x = cx + 200, b5y = 290, b5w = 340, b5h = 140;
+    // 5-question button (bottom, centred)
+    let b5x = cx, b5y = 460, b5w = 420, b5h = 120;
     if (getInputX()>b5x-b5w/2 && getInputX()<b5x+b5w/2 && getInputY()>b5y-b5h/2 && getInputY()<b5y+b5h/2) {
       playSoundOnce(clickSfx);  startFullQuiz();  return;
     }
