@@ -308,6 +308,8 @@ let gateAttemptsCount = [0, 0, 0, 0, 0];
 let firstTrySuccess   = [false, false, false, false, false];
 let wrongAnswers      = [];
 let lastClickTime     = 0;   // debounce for quiz clicks
+let quizModeSelected  = 0;   // 0=not chosen, 2=short quiz, 5=full quiz
+let shortQuizBank     = [];  // 2 hardcoded structural/functional Q per phase
 
 // ── ASSETS ─────────────────────────────────────────────────
 let stomachImg, intestineImg, glucoseImg, sodiumImg, proteinImg, lipidImg, villusImg;
@@ -487,7 +489,7 @@ function setup() {
     MEMBRANE_X   = GAME_W / 2;
     sliderX      = GAME_W / 2 - 150;
     smellSliderX = GAME_W / 2 - 200;
-    waterSliderX = GAME_W / 2 - 150;
+    waterSliderX = GAME_W * 0.34;
     resetNutrientPositions();
 
     // ── Audio context protection for mobile ──────────────────────────────
@@ -1156,16 +1158,18 @@ function updatePhase3Logic() {
 
 // ── PHASE 4 LOGIC ─────────────────────────────────────────
 function updatePhase4Logic() {
-  let sliderStart = GAME_W / 2 - 150, sliderEnd = GAME_W / 2 + 150;
+  let sliderStart = GAME_W * 0.34, sliderEnd = GAME_W * 0.66;
   if (isDraggingWaterSlider)
     waterSliderX = constrain(getInputX(), sliderStart, sliderEnd);
   waterSliderX = constrain(waterSliderX, sliderStart, sliderEnd);
-  waterAbsorbed       = map(waterSliderX, sliderStart, sliderEnd, 0, 100);
-  actualWaterAbsorbed = lerp(actualWaterAbsorbed, waterAbsorbed, 1 - pow(1 - 0.04, dt));
-  stoolConsistency    = lerp(stoolConsistency, map(actualWaterAbsorbed, 0, 100, 0, 100), 1 - pow(1 - 0.03, dt));
+  waterAbsorbed = map(waterSliderX, sliderStart, sliderEnd, 0, 100);
+  // Slow lerp — matches the gradual feel of other phases (0.015 ≈ 7s to settle)
+  actualWaterAbsorbed = lerp(actualWaterAbsorbed, waterAbsorbed, 1 - pow(1 - 0.005, dt));
+  stoolConsistency    = lerp(stoolConsistency, map(actualWaterAbsorbed, 0, 100, 0, 100), 1 - pow(1 - 0.004, dt));
   let waterGood = (actualWaterAbsorbed >= 40 && actualWaterAbsorbed <= 72);
   if (peristalsisActive && !peristalsissComplete) {
-    peristalsisProgress = min(100, peristalsisProgress + 0.4 * dt);
+    // ~60 seconds of held-button time: 100 / (60s × 60fps) ≈ 0.0278 per tick
+    peristalsisProgress = min(100, peristalsisProgress + (100 / 3600) * dt);
     if (peristalsisProgress >= 100) peristalsissComplete = true;
   }
   phase4Ready = waterGood && peristalsissComplete;
@@ -1173,7 +1177,7 @@ function updatePhase4Logic() {
 }
 
 function resetPhase4() {
-  waterSliderX = GAME_W / 2 - 150;
+  waterSliderX = GAME_W * 0.34;   // start at left of relative slider
   waterAbsorbed = 0;  actualWaterAbsorbed = 0;  stoolConsistency = 0;
   peristalsisProgress = 0;  peristalsisActive = false;  peristalsissComplete = false;
   phase4Ready = false;  phase4ProceedDelay = 0;  phase4ProceedSoundPlayed = false;
@@ -1184,74 +1188,98 @@ function phase4() {
   updateAndDrawPhaseParticles(4);
   drawPhaseTitle("PHASE 4 — WATER REABSORPTION & ELIMINATION", 50);
   let waterGood = (actualWaterAbsorbed >= 40 && actualWaterAbsorbed <= 72);
+
+  // All positions relative to GAME_W / GAME_H — no hardcoded pixels
+  let imgCX   = GAME_W * 0.56;       // organ image centre x (shifted right to leave room for panel)
+  let imgCY   = GAME_H * 0.47;       // organ image centre y
+  let imgW    = GAME_W * 0.52;       // organ image width  (~650 at 1280px)
+  let imgH    = GAME_H * 0.77;       // organ image height (~550 at 720px)
+  let sliderY4    = GAME_H * 0.86;
+  let sliderStart = GAME_W * 0.34;
+  let sliderEnd   = GAME_W * 0.66;
+  let panelX  = GAME_W * 0.135;      // panel centre x
+  let panelY  = GAME_H * 0.47;       // panel centre y
+  let guideY  = GAME_H * 0.125;      // guide text y
+
   if (largeIntImg != null) {
     push();
-    translate(GAME_W / 2, GAME_H / 2 - 10);  scale(organPulse);
-    tint(255, transitionAlpha);  image(largeIntImg, 0, 0, 650, 550);  noTint();
+    translate(imgCX, imgCY);  scale(organPulse);
+    tint(255, transitionAlpha);  image(largeIntImg, 0, 0, imgW, imgH);  noTint();
     pop();
   }
-  let imgCX = GAME_W / 2, imgCY = GAME_H / 2 - 10;
-  let t4 = peristalsisProgress / 100.0;
+
+  // Stool position: scale waypoints proportionally to image size
+  let scaleWP = imgW / 650.0;   // WP_X/WP_Y were designed for 650×550
+  let t4  = peristalsisProgress / 100.0;
   let segF = t4 * (WP_X.length - 1);
   let seg  = int(constrain(segF, 0, WP_X.length - 2));
   let frac = segF - seg;
-  let stoolX = imgCX + lerp(WP_X[seg], WP_X[seg + 1], frac);
-  let stoolY = imgCY + lerp(WP_Y[seg], WP_Y[seg + 1], frac);
-  let stoolW  = map(stoolConsistency, 0, 100, 52, 72);
-  let stoolH  = stoolW * 0.72;
+  let stoolX = imgCX + lerp(WP_X[seg], WP_X[seg + 1], frac) * scaleWP;
+  let stoolY = imgCY + lerp(WP_Y[seg], WP_Y[seg + 1], frac) * scaleWP;
+
+  let stoolW = map(stoolConsistency, 0, 100, 52, 72) * scaleWP;
+  let stoolH = stoolW * 0.72;
   let sB, sSh, sHi;
   if      (stoolConsistency < 35) { sB=[115,160,80,230]; sSh=[80,120,50,200];  sHi=[160,210,110,150]; }
   else if (stoolConsistency > 80) { sB=[80,42,18,240];   sSh=[55,28,10,210];   sHi=[115,68,38,160];   }
   else                            { sB=[135,82,38,235];  sSh=[95,55,22,205];   sHi=[180,125,68,155];  }
+
   if (peristalsisActive || peristalsissComplete) {
     noFill();
-    stroke(180, 120, 255, 70 + sin(millis()*0.00032)*50);  strokeWeight(4);
-    ellipse(stoolX, stoolY, stoolW + 30 + sin(millis()*0.0003)*8, stoolH + 24);
+    stroke(180,120,255, 70+sin(millis()*0.00032)*50);  strokeWeight(4);
+    ellipse(stoolX, stoolY, stoolW+30*scaleWP+sin(millis()*0.0003)*8, stoolH+24*scaleWP);
   }
   noStroke();
-  fill(sB[0],sB[1],sB[2],sB[3]);   ellipse(stoolX, stoolY, stoolW, stoolH);
+  fill(sB[0],sB[1],sB[2],sB[3]);     ellipse(stoolX, stoolY, stoolW, stoolH);
   fill(sSh[0],sSh[1],sSh[2],sSh[3]); ellipse(stoolX-stoolW*0.1, stoolY+stoolH*0.12, stoolW*0.62, stoolH*0.52);
   fill(sHi[0],sHi[1],sHi[2],sHi[3]); ellipse(stoolX+stoolW*0.15, stoolY-stoolH*0.18, stoolW*0.36, stoolH*0.28);
+
   if (waterGood) {
     for (let d = 0; d < 5; d++) {
       let angle = millis()*0.00008 + d*TWO_PI/5;
       fill(100,180,255,160);  noStroke();
-      ellipse(stoolX+cos(angle)*(stoolW*0.5+22+sin(millis()*0.00013+d)*8),
-              stoolY+sin(angle)*(stoolH*0.5+14+cos(millis()*0.00013+d)*6), 8, 8);
+      ellipse(stoolX+cos(angle)*(stoolW*0.5+22*scaleWP+sin(millis()*0.00013+d)*8),
+              stoolY+sin(angle)*(stoolH*0.5+14*scaleWP+cos(millis()*0.00013+d)*6), 8, 8);
     }
   }
   for (let m of hormoneMist) m.display();
-  drawPhase4Panel(155, GAME_H / 2 - 10, waterGood);
-  let sliderStart = GAME_W/2-150, sliderEnd = GAME_W/2+150, sliderY4 = GAME_H-110;
+
+  drawPhase4Panel(panelX, panelY, waterGood);
+
+  // Slider — all relative
   let sCol = lerpColor(color(100,200,255), color(180,120,50), map(actualWaterAbsorbed,0,100,0,1));
   stroke(255,150);  strokeWeight(4);  line(sliderStart, sliderY4, sliderEnd, sliderY4);
-  fill(sCol);  noStroke();  ellipse(waterSliderX, sliderY4, 32, 32);
+  fill(sCol);  noStroke();
+  // keep slider knob within track
+  let knobX = map(waterAbsorbed, 0, 100, sliderStart, sliderEnd);
+  ellipse(knobX, sliderY4, 32, 32);
   fill(255);  textStyle(NORMAL);  textSize(14);  textAlign(CENTER);
   text("WATER ABSORPTION CONTROL", GAME_W/2, sliderY4+45);
   textAlign(RIGHT);  text("LOW (0%)",    sliderStart-20, sliderY4+7);
   textAlign(LEFT);   text("HIGH (100%)", sliderEnd  +20, sliderY4+7);
   textAlign(CENTER);
-  let guideY = 90;
-  textStyle(BOLD);  textSize(20);  textAlign(CENTER);
+
+  // Guide text + buttons — positioned relative to guideY
+  textStyle(BOLD);  textSize(min(20, GAME_W*0.016));  textAlign(CENTER);
   if (phase4Ready) {
     fill(0,255,150);
     text("ELIMINATION COMPLETE — DIGESTION CYCLE FINISHED!", GAME_W/2, guideY);
     if (phase4ProceedDelay >= PHASE4_PROCEED_DELAY_FRAMES) {
       if (!phase4ProceedSoundPlayed) { playSoundOnce(successSfx);  phase4ProceedSoundPlayed = true; }
-      drawProceedButton(GAME_W/2, guideY+48);
+      drawProceedButton(GAME_W/2, guideY + GAME_H*0.067);
     }
   } else if (actualWaterAbsorbed < 40) {
     fill(100,200,255);
     text("STOOL TOO WATERY — INCREASE WATER ABSORPTION!", GAME_W/2, guideY);
-    if (!peristalsissComplete) drawPeristalsisButton(GAME_W/2, guideY+43);
+    if (!peristalsissComplete) drawPeristalsisButton(GAME_W/2, guideY + GAME_H*0.06);
   } else if (actualWaterAbsorbed > 72) {
     fill(255,140,60);
     text("STOOL TOO DRY — DECREASE WATER ABSORPTION!", GAME_W/2, guideY);
-    if (!peristalsissComplete) drawPeristalsisButton(GAME_W/2, guideY+43);
+    if (!peristalsissComplete) drawPeristalsisButton(GAME_W/2, guideY + GAME_H*0.06);
   } else if (waterGood && !peristalsissComplete) {
     fill(180,120,255);
     text("WATER OPTIMAL — HOLD PERISTALSIS TO MOVE STOOL!", GAME_W/2, guideY);
-    drawPeristalsisButton(GAME_W/2, guideY+43);
+    drawPeristalsisButton(GAME_W/2, guideY + GAME_H*0.06);
   } else {
     fill(200,180,255);  text("ALMOST THERE...", GAME_W/2, guideY);
   }
@@ -2163,13 +2191,13 @@ function handleInputStart() {
     // VIEW REPORT button
     let done2 = phaseCompleted.filter(Boolean).length;
     let rBtnXi = GAME_W-160, rBtnYi = GAME_H/2+150, rBtnWi = 260, rBtnHi = 60;
-    if (done2 === 5 && ix > rBtnXi-rBtnWi/2 && ix < rBtnXi+rBtnWi/2 && iy > rBtnYi-rBtnHi/2 && iy < rBtnYi+rBtnHi/2) {
+    if (ix > rBtnXi-rBtnWi/2 && ix < rBtnXi+rBtnWi/2 && iy > rBtnYi-rBtnHi/2 && iy < rBtnYi+rBtnHi/2) {  // DEBUG: always accessible
       playSoundOnce(clickSfx);  currentReportSlide = 0;  reportSfxPlayed=false;  mode = MODE_FINISH;  transitionAlpha = 0;  return;
     }
     for (let i = 0; i < 5; i++) {
       let nx = GAME_W / 2 - 440 + i * 220, ny = GAME_H / 2 - 50;
-      let avail = (i === 0) || phaseCompleted[i - 1];
-      if (dist(ix, iy, nx, ny) < 50 && avail) {
+      // DEBUG: all phases always accessible for fast testing
+      if (dist(ix, iy, nx, ny) < 50) {
         playSoundOnce(clickSfx);
         selectedPhase = i;
         gateAttemptsCount[i] = 0;
@@ -2251,23 +2279,29 @@ function handleInputStart() {
   }
 
   if (mode === MODE_PHASE4) {
-    let guideY = 90;
-    let btnPX = GAME_W / 2, btnPY = guideY + 43;
+    let guideY      = GAME_H * 0.125;
+    let btnPY       = guideY + GAME_H * 0.06;
+    let sliderY4    = GAME_H * 0.86;
+    let sliderStart = GAME_W * 0.34;
+    let sliderEnd   = GAME_W * 0.66;
+    // Peristalsis hold button
     if (!peristalsissComplete &&
-        ix > btnPX - 110 && ix < btnPX + 110 &&
+        ix > GAME_W/2 - 110 && ix < GAME_W/2 + 110 &&
         iy > btnPY - 27  && iy < btnPY + 27) {
       peristalsisActive = true;
     }
+    // Proceed button
     if (phase4Ready && phase4ProceedDelay >= PHASE4_PROCEED_DELAY_FRAMES) {
+      let proceedY = guideY + GAME_H * 0.067;
       if (ix > GAME_W/2 - 100 && ix < GAME_W/2 + 100 &&
-          iy > (guideY + 48) - 25 && iy < (guideY + 48) + 25) {
+          iy > proceedY - 25 && iy < proceedY + 25) {
         playSoundOnce(clickSfx);
         startReflectionGate();
       }
     }
-    let sliderY4 = GAME_H - 110;
-    let sliderStart = GAME_W / 2 - 150, sliderEnd = GAME_W / 2 + 150;
-    if (iy > sliderY4 - 20 && iy < sliderY4 + 20 &&
+    // Water slider drag — knob-centred hitbox
+    let knobX = map(waterAbsorbed, 0, 100, sliderStart, sliderEnd);
+    if (iy > sliderY4 - 22 && iy < sliderY4 + 22 &&
         ix > sliderStart && ix < sliderEnd)
       isDraggingWaterSlider = true;
   }
@@ -2303,7 +2337,7 @@ function windowResized() {
   MEMBRANE_X   = GAME_W / 2;
   smellSliderX = GAME_W / 2 - 200;
   sliderX      = GAME_W / 2 - 150;
-  waterSliderX = GAME_W / 2 - 150;
+  waterSliderX = GAME_W * 0.34;
 }
 
 // =========================================================
@@ -3047,33 +3081,149 @@ function prepareQuestion() {
   }
 }
 
+// Hardcoded 2-question banks: index 0 = structure Q, index 1 = function Q
+function initShortQuizBank() {
+  let phaseIdx = currentPhaseIndex();
+  let banks = [
+    // Phase 0 — Brain / Cephalic
+    [
+      new Question("What is the structure that connects the brain to the digestive organs to start the cephalic response?",
+        ["The vagus nerve — a long cranial nerve running from the brainstem","The spinal cord — the main relay cable inside the backbone","The optic nerve — the sensory cable connecting the eyes to the brain"],0),
+      new Question("What is the function of saliva during the cephalic phase before food even enters the mouth?",
+        ["It begins breaking down carbohydrates and lubricates the mouth for food","It destroys harmful bacteria that might enter with the incoming food","It cools the food temperature so the stomach lining is not damaged"],0),
+    ],
+    // Phase 1 — Stomach
+    [
+      new Question("What structure in the stomach wall produces the protective barrier against stomach acid?",
+        ["Mucus-secreting cells lining the stomach wall","Parietal cells that release hydrochloric acid","Chief cells that store pepsinogen enzyme"],0),
+      new Question("What is the function of pepsin in the stomach during protein digestion?",
+        ["It breaks peptide bonds in proteins, splitting them into smaller peptides","It neutralises stomach acid to create the right pH for digestion","It signals the small intestine to prepare for incoming food material"],0),
+    ],
+    // Phase 2 — Small intestine hormones
+    [
+      new Question("What structure releases Secretin and CCK when acid and fat enter the small intestine?",
+        ["Enteroendocrine cells in the lining of the small intestine","The pancreas itself, which detects acid through pressure sensors","The liver, which monitors blood pH and releases hormones accordingly"],0),
+      new Question("What is the function of CCK (cholecystokinin) when fat enters the small intestine?",
+        ["It triggers the gallbladder and pancreas to release bile and digestive enzymes","It signals the stomach to slow emptying so fat is not overwhelmed","It raises blood sugar by releasing stored glucose from the liver"],0),
+    ],
+    // Phase 3 — Villi / nutrient absorption
+    [
+      new Question("What are the tiny finger-like structures on the small intestine wall that absorb nutrients?",
+        ["Villi — microscopic projections that dramatically increase surface area","Lacteals — lymph vessels that carry fat away from the intestine","Microvilli — brush-border enzymes that break down complex sugars"],0),
+      new Question("What is the function of the lacteal inside each villus during fat absorption?",
+        ["It absorbs fatty acids and glycerol and carries them through the lymph system","It absorbs glucose and amino acids and passes them into the bloodstream","It secretes bile salts to emulsify fats before they can be absorbed"],0),
+    ],
+    // Phase 4 — Large intestine
+    [
+      new Question("What structure in the large intestine wall actively pumps water back into the body?",
+        ["Specialised epithelial cells with aquaporin channels in the colon lining","Peristaltic muscle fibres that squeeze water out of the waste material","Goblet cells that secrete mucus to draw water away from the stool"],0),
+      new Question("What is the function of peristalsis in the large intestine after water has been reabsorbed?",
+        ["Wave-like muscle contractions push the formed stool toward the rectum for elimination","Peristalsis churns the stool to mix it with digestive enzymes","Peristalsis pumps additional water into the stool to soften it"],0),
+    ],
+  ];
+  shortQuizBank = banks[phaseIdx] || [];
+}
+
 function startReflectionGate() {
   let phaseIdx = currentPhaseIndex();
   if (phaseIdx < 0) return;
-  stopAllLoopingSounds();  // stop acid/warning/spray before entering quiz
-  gateAttemptsCount[phaseIdx]++;
-  initQuizBanks();
-  quizState = 1;  quizSubState = 0;
+  stopAllLoopingSounds();
+  // Show mode selector first — quizSubState = -1
+  quizModeSelected = 0;
+  quizState = 1;  quizSubState = -1;
   score = 0;  currentQuestionIdx = 0;
   feedbackMsg = "";  feedbackTimer = 0;
-  gateJustCompleted = false;
+  gateJustCompleted = false;  wrongAnswers = [];
+}
+
+function startShortQuiz() {
+  let phaseIdx = currentPhaseIndex();
+  gateAttemptsCount[phaseIdx]++;
+  initShortQuizBank();
+  quizModeSelected = 2;
+  quizSubState = 0;
+  score = 0;  currentQuestionIdx = 0;
+  feedbackMsg = "";  feedbackTimer = 0;
+  wrongAnswers = [];
+  // shuffle answer order for first question
+  for (let i = 0; i < 3; i++) {
+    let r = Math.floor(random(3));
+    [answerOrder[i], answerOrder[r]] = [answerOrder[r], answerOrder[i]];
+  }
+}
+
+function startFullQuiz() {
+  let phaseIdx = currentPhaseIndex();
+  gateAttemptsCount[phaseIdx]++;
+  initQuizBanks();
+  quizModeSelected = 5;
+  quizSubState = 0;
+  score = 0;  currentQuestionIdx = 0;
+  feedbackMsg = "";  feedbackTimer = 0;
   wrongAnswers = [];
   prepareQuestion();
 }
 
 function drawReflectionGate() {
-  // FIX: replaced emptied setGradient() call with cached buffer
   image(bgGradientBuffer, GAME_W / 2, GAME_H / 2);
   for (let p of protocolParticles) { p.update();  p.display(); }
-
   fill(10, 15, 25, 200);  noStroke();
   rect(GAME_W / 2, GAME_H / 2, GAME_W, GAME_H);
 
   let cx = GAME_W / 2;
   let phaseIdx = currentPhaseIndex();
+  let pnameShort = ["PHASE 0 — BRAIN FOOD RESPONSE","PHASE 1 — STOMACH ACID & ENZYMES",
+                    "PHASE 2 — HORMONE BALANCE","PHASE 3 — NUTRIENT ABSORPTION",
+                    "PHASE 4 — WATER REABSORPTION & ELIMINATION"][phaseIdx] || "";
+
+  // ── Sub-state -1: MODE SELECTOR ──────────────────────
+  if (quizSubState === -1) {
+    noFill();
+    stroke(0,255,200, 100+sin(millis()*0.0009)*50);  strokeWeight(3);
+    rect(cx, GAME_H/2, GAME_W-40, GAME_H-40, 20);
+
+    fill(0,255,200);  textStyle(BOLD);  textAlign(CENTER);  textSize(48);
+    text("KNOWLEDGE CHECK", cx, 80);
+    textStyle(NORMAL);  textSize(22);  fill(150,200,255);
+    text(pnameShort, cx, 120);
+
+    fill(255);  textSize(19);  textAlign(CENTER);
+    text("Choose how many questions you want to answer:", cx, 180);
+
+    // 2-question button
+    let b2x = cx - 200, b2y = 290, b2w = 340, b2h = 140;
+    let h2 = getInputX()>b2x-b2w/2 && getInputX()<b2x+b2w/2 && getInputY()>b2y-b2h/2 && getInputY()<b2y+b2h/2;
+    fill(h2 ? color(0,100,80) : color(0,60,50), 230);
+    stroke(0,255,200);  strokeWeight(h2?3:2);  rect(b2x, b2y, b2w, b2h, 15);
+    fill(0,255,200);  textStyle(BOLD);  textSize(36);  textAlign(CENTER,CENTER);
+    text("2 QUESTIONS", b2x, b2y-20);
+    fill(200,255,240);  textStyle(NORMAL);  textSize(15);
+    text("Structure & Function", b2x, b2y+12);
+    text("(quick check)", b2x, b2y+32);
+
+    // 5-question button
+    let b5x = cx + 200, b5y = 290, b5w = 340, b5h = 140;
+    let h5 = getInputX()>b5x-b5w/2 && getInputX()<b5x+b5w/2 && getInputY()>b5y-b5h/2 && getInputY()<b5y+b5h/2;
+    fill(h5 ? color(80,60,0) : color(60,40,0), 230);
+    stroke(255,200,0);  strokeWeight(h5?3:2);  rect(b5x, b5y, b5w, b5h, 15);
+    fill(255,215,0);  textStyle(BOLD);  textSize(36);  textAlign(CENTER,CENTER);
+    text("5 QUESTIONS", b5x, b5y-20);
+    fill(255,240,180);  textStyle(NORMAL);  textSize(15);
+    text("Full knowledge check", b5x, b5y+12);
+    text("(7-question bank, 5 drawn)", b5x, b5y+32);
+
+    fill(160,180,200);  textSize(14);  textAlign(CENTER);
+    text("Both modes use the same mastery scoring (100% → 90% → 80%)", cx, 420);
+    text("Tip: 2-question mode is ideal for quick review during debugging", cx, 442);
+    return;
+  }
 
   // ── Sub-state 0: question ─────────────────────────────
   if (quizSubState === 0) {
+    let totalQ = (quizModeSelected === 2) ? 2 : 5;
+    let bank   = (quizModeSelected === 2) ? shortQuizBank : phaseBank;
+    let order  = (quizModeSelected === 2) ? [0,1] : questionOrder;
+
     noFill();
     stroke(0, 255, 200, 100 + sin(millis() * 0.0009) * 50);
     strokeWeight(3);  rect(cx, GAME_H/2, GAME_W-40, GAME_H-40, 20);
@@ -3081,9 +3231,7 @@ function drawReflectionGate() {
     fill(0, 255, 200);  textStyle(BOLD);  textAlign(CENTER);  textSize(48);
     text("KNOWLEDGE CHECK", cx, 80);
     textStyle(NORMAL);  textSize(22);  fill(150, 200, 255);
-    let pname = ["PHASE 0 — BRAIN FOOD RESPONSE","PHASE 1 — STOMACH ACID & ENZYMES",
-                  "PHASE 2 — HORMONE BALANCE","PHASE 3 — NUTRIENT ABSORPTION"][phaseIdx] || "";
-    text(pname, cx, 115);
+    text(pnameShort, cx, 115);
 
     textSize(15);  fill(200);
     let att = gateAttemptsCount[phaseIdx];
@@ -3091,20 +3239,20 @@ function drawReflectionGate() {
     else if (firstTrySuccess[phaseIdx])              text("REPLAY ATTEMPT — 90% MAXIMUM", cx, 135);
     else                                             text("ATTEMPT #"+att+" — 80% MAXIMUM", cx, 135);
     fill(0, 255, 150);  textSize(15);
-    text("Score: " + score + " / 5 Correct", cx, 155);
+    text("Score: " + score + " / " + totalQ + " Correct", cx, 155);
 
     let barW=400, barH=20;
     noFill();  stroke(255,50);  strokeWeight(1);  rect(cx,182,barW,barH,10);
     fill(0,255,150);  noStroke();
-    let pw2 = map(currentQuestionIdx,0,5,0,barW);
+    let pw2 = map(currentQuestionIdx, 0, totalQ, 0, barW);
     rect(cx-barW/2+pw2/2, 182, pw2, barH, 10);
-    fill(200);  textSize(16);  text("Question "+(currentQuestionIdx+1)+" of 5", cx, 215);
+    fill(200);  textSize(16);  text("Question "+(currentQuestionIdx+1)+" of "+totalQ, cx, 215);
 
-    if (!phaseBank || currentQuestionIdx >= 5) {
+    if (!bank || bank.length === 0 || currentQuestionIdx >= totalQ) {
       fill(255,0,0);  textSize(20);  text("ERROR: Quiz data missing. Please restart.", cx, 250);  return;
     }
 
-    let q = phaseBank[questionOrder[currentQuestionIdx]];
+    let q = bank[order[currentQuestionIdx]];
     fill(255);  textSize(22);  textAlign(CENTER,CENTER);
     drawWrappedText(q.question, cx, 270, GAME_W-200, 30, null, 22);
 
@@ -3114,8 +3262,6 @@ function drawReflectionGate() {
       let tw = textWidth(ch);
       let bw3 = min(GAME_W-100, max(500, tw+80)), bh3 = 80;
       let y   = 370 + i * 115;
-      // hov: only highlight while actively pressing AND no feedback showing
-      // mouseIsPressed covers both mouse and touch (false after finger lifts)
       let hov = feedbackTimer <= 0 && mouseIsPressed &&
                getInputX()>cx-bw3/2 && getInputX()<cx+bw3/2 &&
                getInputY()>y-bh3/2  && getInputY()<y+bh3/2;
@@ -3127,13 +3273,10 @@ function drawReflectionGate() {
       else             text(ch, cx, y);
     }
 
-    // Score display moved to header area (removed from bottom)
-
     if (feedbackTimer > 0) {
       if (feedbackMsg === "CORRECT") {
         fill(0, 255, 100);
         if (feedbackTimer === 35) {
-          // FIX: pass array [r,g,b] — NOT color() object — so display() can index it
           for (let i = 0; i < 20; i++)
             successParticles.push(new SuccessParticle(cx, GAME_H-80, [0, 255, 100]));
         }
@@ -3196,7 +3339,7 @@ function drawReflectionGate() {
     fill(255,100,100);  textStyle(BOLD);  textSize(48);  textAlign(CENTER,CENTER);
     text("NOT QUITE — LET'S TRY AGAIN!", cx, GAME_H/2-100);
     fill(255);  textStyle(NORMAL);  textSize(22);
-    text("You need all 5 correct to move forward.", cx, GAME_H/2-55);
+    text("You need all " + (quizModeSelected===2?"2":"5") + " correct to move forward.", cx, GAME_H/2-55);
 
     // FIX: wrong answers are now displayed so students can learn
     if (wrongAnswers.length > 0) {
@@ -3219,20 +3362,36 @@ function drawReflectionGate() {
 }
 
 function handleQuizClick() {
-  // Debounce: ignore clicks < 300ms apart (prevents double-trigger / lingering highlight)
   if (millis() - lastClickTime < 300) return;
   lastClickTime = millis();
 
   let phaseIdx = currentPhaseIndex();
+  let cx = GAME_W / 2;
 
+  // ── Mode selector (substate -1) ──────────────────────
+  if (quizSubState === -1) {
+    // 2-question button
+    let b2x = cx - 200, b2y = 290, b2w = 340, b2h = 140;
+    if (getInputX()>b2x-b2w/2 && getInputX()<b2x+b2w/2 && getInputY()>b2y-b2h/2 && getInputY()<b2y+b2h/2) {
+      playSoundOnce(clickSfx);  startShortQuiz();  return;
+    }
+    // 5-question button
+    let b5x = cx + 200, b5y = 290, b5w = 340, b5h = 140;
+    if (getInputX()>b5x-b5w/2 && getInputX()<b5x+b5w/2 && getInputY()>b5y-b5h/2 && getInputY()<b5y+b5h/2) {
+      playSoundOnce(clickSfx);  startFullQuiz();  return;
+    }
+    return;  // consume all clicks on selector screen
+  }
+
+  // ── Success screen (substate 1) ──────────────────────
   if (quizSubState === 1) {
-    stopAllLoopingSounds();  // clean up before any mode transition
-    quizState=0;  quizSubState=0;  successParticles=[];
+    stopAllLoopingSounds();
+    quizState=0;  quizSubState=0;  quizModeSelected=0;  successParticles=[];
     let eff2=calculateEfficiency(phaseIdx);
-    if (eff2===100 && !phaseCompleted[phaseIdx]) firstTrySuccess[phaseIdx]=true;  // only on first ever pass
-    phaseEfficiency[phaseIdx] = eff2;  // always reflect current run — map matches success screen
+    if (eff2===100 && !phaseCompleted[phaseIdx]) firstTrySuccess[phaseIdx]=true;
+    phaseEfficiency[phaseIdx] = eff2;
     phaseCompleted[phaseIdx]=true;
-    saveProgress();  // persist completed phase + efficiency to localStorage
+    saveProgress();
     if      (mode===MODE_PHASE0) mode=MODE_PHASE1;
     else if (mode===MODE_PHASE1) mode=MODE_PHASE2;
     else if (mode===MODE_PHASE2) mode=MODE_PHASE3;
@@ -3242,15 +3401,21 @@ function handleQuizClick() {
     return;
   }
 
+  // ── Failure screen (substate 2) ──────────────────────
   if (quizSubState === 2) {
-    stopAllLoopingSounds();  // clean up before phase restart
-    quizState=0;  quizSubState=0;  successParticles=[];  wrongAnswers=[];
+    stopAllLoopingSounds();
+    quizState=0;  quizSubState=0;  quizModeSelected=0;  successParticles=[];  wrongAnswers=[];
     resetSimulationToPhaseStart();  return;
   }
 
-  if (!phaseBank || currentQuestionIdx >= 5) return;
+  // ── Active question (substate 0) ─────────────────────
+  let totalQ = (quizModeSelected === 2) ? 2 : 5;
+  let bank   = (quizModeSelected === 2) ? shortQuizBank : phaseBank;
+  let order  = (quizModeSelected === 2) ? [0,1] : questionOrder;
 
-  let q   = phaseBank[questionOrder[currentQuestionIdx]];
+  if (!bank || bank.length === 0 || currentQuestionIdx >= totalQ) return;
+
+  let q   = bank[order[currentQuestionIdx]];
   let cxq = GAME_W / 2;
 
   for (let i = 0; i < 3; i++) {
@@ -3268,15 +3433,20 @@ function handleQuizClick() {
         if (wrongSfx) { wrongSfx.stop(); wrongSfx.play(); }
       }
       feedbackTimer=40;  currentQuestionIdx++;
-      if (currentQuestionIdx >= 5) {
+      if (currentQuestionIdx >= totalQ) {
         feedbackMsg="";  feedbackTimer=0;
-        if (score===5) {
+        if (score === totalQ) {
           quizSubState=1;
-          // FIX: array not color()
           for (let i2=0;i2<50;i2++)
             successParticles.push(new SuccessParticle(random(GAME_W),random(GAME_H),[0,255,200]));
         } else { quizSubState=2; }
-      } else { prepareQuestion(); }
+      } else {
+        // Shuffle answer order for next question
+        for (let j = 0; j < 3; j++) {
+          let r = Math.floor(random(3));
+          [answerOrder[j], answerOrder[r]] = [answerOrder[r], answerOrder[j]];
+        }
+      }
       break;
     }
   }
