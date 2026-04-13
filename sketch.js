@@ -1144,7 +1144,7 @@ function updatePhase2Logic() {
 }
 
 function updatePhase3Logic() {
-  handleNutrientPhysicsStrict(MEMBRANE_X + 280, 400, 120, GAME_H*0.35, GAME_H*0.55, GAME_H*0.75);
+  handleNutrientPhysicsStrict(MEMBRANE_X + 280, 400, 100, GAME_H*0.28, GAME_H*0.52, GAME_H*0.76);
 
   let allAbsorbed = glucoseSorted && sodiumSGLTSorted && sodiumNHE3Sorted && lipidSorted;
   if (allAbsorbed) phase3ProceedDelay += dt;
@@ -1496,7 +1496,7 @@ function phase0() {
   if (!hasSwallowed && cephalicReady && !isChewing)
     drawNextButton(GAME_W / 2, buttonY, "CHEW FOOD");
 
-  drawMetabolicPanelWithSaliva(160, GAME_H / 2);
+  drawMetabolicPanelWithSaliva(GAME_W * 0.135, GAME_H / 2);
 
   stroke(0, 255, 200);  strokeWeight(4);
   line(sStart, sliderY, sEnd, sliderY);
@@ -1615,7 +1615,7 @@ function phase1() {
   // Bubbles updated in logic tick; just display here
   for (let ab of acidBubbles) ab.display();
 
-  drawPepsinPanelBig(140, GAME_H / 2, currentPH, inPHWindow, enzymeActive);
+  drawPepsinPanelBig(GAME_W * 0.135, GAME_H / 2, currentPH, inPHWindow, enzymeActive);
 
   let phC = lerpColor(color(0, 150, 255), color(255, 0, 0), map(currentPH, 7, 1, 0, 1));
   stroke(255, 150);  strokeWeight(4);
@@ -1845,11 +1845,13 @@ function phase3() {
   if (villusImg != null) image(villusImg, GAME_W / 2, GAME_H / 2, GAME_W, GAME_H);
 
   let zoneX = MEMBRANE_X + 280;
-  let capY = GAME_H * 0.35, nheY = GAME_H * 0.55, lacY = GAME_H * 0.75;
+  // Spread zones further apart so labels never overlap
+  let zoneW = 400, zoneH = 100;
+  let capY = GAME_H * 0.28, nheY = GAME_H * 0.52, lacY = GAME_H * 0.76;
 
-  renderZoneStrict(zoneX, capY, "BLOOD CAPILLARY",  color(255, 100, 100), 400, 120, capillaryPulse, glucoseSorted && sodiumSGLTSorted);
-  renderZoneStrict(zoneX, nheY, "SODIUM EXCHANGER", color(100, 150, 255), 400, 120, nhe3Pulse,      sodiumNHE3Sorted);
-  renderZoneStrict(zoneX, lacY, "LACTEAL",          color(100, 150, 255), 400, 120, lactealPulse,   lipidSorted);
+  renderZoneStrict(zoneX, capY, "BLOOD CAPILLARY",  color(255, 100, 100), zoneW, zoneH, capillaryPulse, glucoseSorted && sodiumSGLTSorted);
+  renderZoneStrict(zoneX, nheY, "SODIUM EXCHANGER", color(100, 150, 255), zoneW, zoneH, nhe3Pulse,      sodiumNHE3Sorted);
+  renderZoneStrict(zoneX, lacY, "LACTEAL",          color(100, 150, 255), zoneW, zoneH, lactealPulse,   lipidSorted);
 
   fill(200);  textSize(16);  textAlign(CENTER);
   text("DRAG EACH NUTRIENT TO WHERE IT IS ABSORBED IN THE VILLI!", GAME_W / 2, 75);
@@ -1996,12 +1998,13 @@ function drawFinalReport() {
   // Background: same protocolParticles as title screen
   for (let p of protocolParticles) { p.update();  p.display(); }
 
-  fill(0, 255, 200);  textStyle(BOLD);  textAlign(CENTER);  textSize(50);
-  text("YOUR DIGESTIVE REPORT", GAME_W / 2, 70);
+  fill(0, 255, 200);  textStyle(NORMAL);  textAlign(CENTER);  textSize(36);
+  text("YOUR DIGESTIVE REPORT", GAME_W / 2, 60);
   stroke(112, 240, 240, 150);  strokeWeight(2);
-  line(GAME_W / 2 - 200, 95, GAME_W / 2 + 200, 95);
+  line(GAME_W / 2 - 180, 80, GAME_W / 2 + 180, 80);
 
-  let boxW = GAME_W * 0.85, boxH = GAME_H * 0.55, boxY = GAME_H / 2 - 40;
+  // Box sized to content — centred, not full width
+  let boxW = GAME_W * 0.62, boxH = GAME_H * 0.52, boxY = GAME_H * 0.43;
   fill(10, 40, 30, 200);  stroke(0, 255, 150, 100);  strokeWeight(3);
   rect(GAME_W / 2, boxY, boxW, boxH, 20);
   noFill();  stroke(0, 255, 150, 50);  strokeWeight(8);
@@ -2046,13 +2049,9 @@ function drawFinalReport() {
     stroke(isActive ? color(0, 255, 200) : isDone ? color(0, 255, 150) : color(80, 100, 110));
     strokeWeight(isActive ? 3 : 2);  rect(bx, btnY, 160, 95, 10);
     fill(255);
-    textStyle(BOLD);  textSize(18);  textAlign(CENTER);  text("PHASE " + i, bx, btnY - 15);  textStyle(NORMAL);
+    textStyle(NORMAL);  textSize(16);  textAlign(CENTER);  text("PHASE " + i, bx, btnY - 15);
     fill(220, 240, 255);
-    textSize(13);  text(isDone ? "COMPLETED" : "PENDING", bx, btnY + 10);
-    if (isDone) {
-      fill(phaseColors[i][0], phaseColors[i][1], phaseColors[i][2]);
-      textStyle(BOLD);  textSize(20);  text(nf(phaseEfficiency[i], 0, 0) + "%", bx, btnY + 38);  textStyle(NORMAL);
-    }
+    textSize(12);  text(isDone ? "COMPLETED" : "PENDING", bx, btnY + 10);
   }
 
   // Static hint — no hover, no effects
@@ -2119,12 +2118,16 @@ function handleInputStart() {
   if (mode === MODE_SETTINGS) {
     // Volume slider drag
     if (dist(ix, iy, _settingsKnobX, _settingsSliderY) < 30) isDraggingVolumeSlider = true;
-    // MUTE button only
-    let muteBtnX2 = GAME_W/2, muteBtnY2 = _settingsSliderY + 100, muteBtnW2 = 140, muteBtnH2 = 44;
-    if (ix > muteBtnX2-muteBtnW2/2 && ix < muteBtnX2+muteBtnW2/2 &&
-        iy > muteBtnY2-muteBtnH2/2 && iy < muteBtnY2+muteBtnH2/2) {
-      masterVolume = masterVolume < 0.02 ? 0.8 : 0;  // toggle mute/80%
-      playSoundOnce(clickSfx);
+    // 5 step circles: 0%, 25%, 50%, 75%, 100%
+    let steps2 = [0, 0.25, 0.5, 0.75, 1.0];
+    let stepSpacing2 = 500 / (steps2.length - 1);
+    let sStart2 = GAME_W/2 - 250;
+    for (let i = 0; i < steps2.length; i++) {
+      let sx3 = sStart2 + i * stepSpacing2;
+      let sy3 = _settingsSliderY + 95;
+      if (dist(ix, iy, sx3, sy3) < 22) {
+        masterVolume = steps2[i];  playSoundOnce(clickSfx);
+      }
     }
     // Back button
     let backX = GAME_W/2, backY = GAME_H-80, backW = 200, backH = 50;
@@ -2183,7 +2186,7 @@ function handleInputStart() {
   if (mode === MODE_JOURNEY) {
     // VIEW REPORT button
     let done2 = phaseCompleted.filter(Boolean).length;
-    let rBtnXi = GAME_W-160, rBtnYi = GAME_H/2+150, rBtnWi = 260, rBtnHi = 60;
+    let rBtnXi = GAME_W-160, rBtnYi = GAME_H-110, rBtnWi = 260, rBtnHi = 60;
     if (ix > rBtnXi-rBtnWi/2 && ix < rBtnXi+rBtnWi/2 && iy > rBtnYi-rBtnHi/2 && iy < rBtnYi+rBtnHi/2) {  // DEBUG: always accessible
       playSoundOnce(clickSfx);  currentReportSlide = 0;  reportSfxPlayed=false;  mode = MODE_FINISH;  transitionAlpha = 0;  return;
     }
@@ -2492,55 +2495,61 @@ function drawProtocolCard(x, y, w, h, idx, isActive) {
 function drawJourneyMap() {
   for (let p of protocolParticles) { p.update();  p.display(); }
 
-  fill(0,255,200);  textStyle(BOLD);  textAlign(CENTER);  textSize(56);
-  text("YOUR DIGESTIVE JOURNEY", GAME_W/2, 80);
+  // Smaller, non-bold title
+  fill(0,255,200);  textStyle(NORMAL);  textAlign(CENTER);  textSize(38);
+  text("YOUR DIGESTIVE JOURNEY", GAME_W/2, 65);
 
   let done = 0, tot = 0;
   for (let i = 0; i < 5; i++) { if (phaseCompleted[i]) { done++;  tot += phaseEfficiency[i]; } }
   let sysInt = done === 0 ? 0 : tot / done;
 
-  fill(150,200,255);  textStyle(NORMAL);  textSize(18);
-  text("Overall Score: " + nf(sysInt,0,1) + "%  |  Phases Completed: " + done + " / 5", GAME_W/2, 120);
+  fill(150,200,255);  textStyle(NORMAL);  textSize(16);
+  text("Overall Score: " + nf(sysInt,0,1) + "%  |  Phases Completed: " + done + " / 5", GAME_W/2, 95);
 
-  // Connection lines between 5 nodes (4 gaps), node spacing 220
+  // DIGESTION COMPLETE — between score line and nodes
+  if (done === 5) {
+    fill(0,255,200, 100+(sin(millis()*0.002)+1)/2.0*155);
+    textStyle(NORMAL);  textSize(22);  textAlign(CENTER);
+    text("Digestion Complete!", GAME_W/2, 125);
+  }
+
+  // Connection lines — nodes shifted up slightly to leave room below
+  let nodeY = GAME_H/2 - 60;
   strokeWeight(4);
   for (let i = 0; i < 4; i++) {
-    let x1 = GAME_W/2-440+(i*220), x2 = x1+220, y = GAME_H/2-50;
+    let x1 = GAME_W/2-440+(i*220), x2 = x1+220;
     stroke(phaseCompleted[i] ? color(0,255,200, 100+connectionGlow*155)
            : (i===0||phaseCompleted[i-1]) ? color(0,255,200,50) : color(50,60,80,100));
-    line(x1, y, x2, y);
+    line(x1, nodeY, x2, nodeY);
     if (phaseCompleted[i]) {
       fill(0,255,200,200);  noStroke();
-      ellipse(x1 + (millis()/8.333)%220, y, 8, 8);
+      ellipse(x1 + (millis()/8.333)%220, nodeY, 8, 8);
     }
   }
 
-  for (let i = 0; i < 5; i++) drawPhaseNode(GAME_W/2-440+i*220, GAME_H/2-50, i);
+  for (let i = 0; i < 5; i++) drawPhaseNode(GAME_W/2-440+i*220, nodeY, i);
 
   if (selectedPhase >= 0) {
-    let sx = GAME_W/2-440+selectedPhase*220, sy = GAME_H/2-50;
+    let sx = GAME_W/2-440+selectedPhase*220;
     noFill();  stroke(255,255,0, 150+sin(millis()*0.002)*105);  strokeWeight(3);
-    ellipse(sx,sy,120,120);
+    ellipse(sx, nodeY, 120, 120);
   }
 
-  // Journey instruction text
-  fill(255);  textStyle(NORMAL);  textSize(18);  textAlign(CENTER);
-  text("Click an available phase node to begin or replay", GAME_W/2, GAME_H-100);
+  fill(200,220,255);  textStyle(NORMAL);  textSize(16);  textAlign(CENTER);
+  text("Select a phase node to begin or replay", GAME_W/2, GAME_H - 42);
 
-  fill(0,40,60,180);  stroke(0,255,200,80);  strokeWeight(1);  rect(200,GAME_H-150,300,100,10);
-  fill(0,255,200);  textStyle(BOLD);  textSize(16);  textAlign(LEFT);  text("PROGRESS",80,GAME_H-180);
-  fill(200,220,255);  textStyle(NORMAL);  textSize(14);
-  text("Status: " + (done===5?"COMPLETE!":done>=2?"IN PROGRESS":"JUST STARTING"), 80, GAME_H-155);
-  text("Score: " + nf(sysInt,0,1)+"%", 80, GAME_H-135);
+  // PROGRESS table — bottom left, same level as VIEW REPORT button
+  let progY = GAME_H - 110;
+  fill(0,30,50,200);  stroke(0,255,200,60);  strokeWeight(1);
+  rect(120, progY, 200, 70, 8);
+  fill(0,255,200);  textStyle(NORMAL);  textSize(14);  textAlign(LEFT);
+  text("Progress", 35, progY - 22);
+  fill(190,210,240);  textSize(13);
+  text("Status: " + (done===5?"Complete":done>=2?"In Progress":"Just Starting"), 35, progY - 2);
+  text("Score:  " + nf(sysInt,0,1)+"%", 35, progY + 18);
 
-  if (done === 5) {
-    fill(0,255,200, 100+(sin(millis()*0.002)+1)/2.0*155);
-    textStyle(BOLD);  textSize(28);  textAlign(CENTER);
-    text("DIGESTION COMPLETE!", GAME_W-200, GAME_H-130);  textStyle(NORMAL);
-  }
-
-  // VIEW REPORT button — locked until all 5 phases done
-  let rBtnX2 = GAME_W - 160, rBtnY2 = GAME_H/2 + 150, rBtnW2 = 260, rBtnH2 = 60;
+  // VIEW REPORT button — bottom right, same vertical level as progress table
+  let rBtnX2 = GAME_W - 160, rBtnY2 = progY, rBtnW2 = 260, rBtnH2 = 60;
   let allDone2 = (done === 5);
   let hRep2 = allDone2 && getInputX()>rBtnX2-rBtnW2/2 && getInputX()<rBtnX2+rBtnW2/2 &&
               getInputY()>rBtnY2-rBtnH2/2 && getInputY()<rBtnY2+rBtnH2/2;
@@ -2548,9 +2557,8 @@ function drawJourneyMap() {
   stroke(allDone2 ? color(0,255,200) : color(60,70,80));  strokeWeight(allDone2 ? 3 : 1);
   rect(rBtnX2, rBtnY2, rBtnW2, rBtnH2, 12);
   fill(allDone2 ? 255 : color(80,90,100));
-  textStyle(BOLD);  textSize(18);  textAlign(CENTER,CENTER);
-  text(allDone2 ? "VIEW FULL REPORT" : "REPORT (Complete all phases)", rBtnX2, rBtnY2 - 2);
-  textStyle(NORMAL);
+  textStyle(NORMAL);  textSize(16);  textAlign(CENTER,CENTER);
+  text(allDone2 ? "View Full Report" : "Report (Complete all phases)", rBtnX2, rBtnY2 - 2);
 }
 
 // FIX: replaced broken ternary fill() crash in original
@@ -2613,8 +2621,8 @@ function drawPhaseNode(x, y, phaseIndex) {
   else                   fill(120,130,140);
   textSize(14);  textAlign(CENTER,CENTER);  text("PHASE "+phaseIndex, x, y-65);
 
-  fill(255);  textStyle(BOLD);  textSize(16);  text(phaseNames[phaseIndex], x, y+65);  textStyle(NORMAL);
-  fill(180,190,200);  textSize(12);  text(phaseSubtitles[phaseIndex], x, y+85);
+  fill(255);  textStyle(NORMAL);  textSize(14);  text(phaseNames[phaseIndex], x, y+65);
+  fill(180,190,200);  textSize(11);  text(phaseSubtitles[phaseIndex], x, y+82);
 
   let statusLabel, statusColor;
   if (isCompleted)      { statusLabel = "COMPLETED"; statusColor = color(0,255,150); }
@@ -2711,25 +2719,33 @@ function drawSettingsScreen() {
   stroke(0, 255, 200);  strokeWeight(8);  line(sliderStart, sliderY, knobX, sliderY);
   fill(0, 255, 200);  noStroke();  ellipse(knobX, sliderY, 36, 36);
 
-  fill(200);  textSize(16);
-  textAlign(RIGHT);  text("MUTE", sliderStart - 15, sliderY + 6);
-  textAlign(LEFT);   text("MAX",  sliderEnd   + 15, sliderY + 6);
+  fill(200);  textSize(14);
+  textAlign(RIGHT);  text("0%", sliderStart - 15, sliderY + 6);
+  textAlign(LEFT);   text("100%", sliderEnd + 15, sliderY + 6);
   textAlign(CENTER);
 
-  let volLabel = masterVolume < 0.02 ? "MUTED" : int(masterVolume * 100) + "%";
-  fill(0, 255, 200);  textStyle(BOLD);  textSize(28);
-  text(volLabel, sliderCX, sliderY + 55);  textStyle(NORMAL);
+  // Volume percentage — only the number changes, acts as a display label
+  let volLabel = masterVolume < 0.02 ? "0%" : int(masterVolume * 100) + "%";
+  fill(0, 255, 200);  textStyle(NORMAL);  textSize(32);
+  text(volLabel, sliderCX, sliderY + 55);
 
-  // MUTE button only
-  let muteBtnX = GAME_W/2, muteBtnY = sliderY + 100, muteBtnW = 140, muteBtnH = 44;
-  let muteActive = masterVolume < 0.02;
-  let muteHov = getInputX()>muteBtnX-muteBtnW/2 && getInputX()<muteBtnX+muteBtnW/2 &&
-                getInputY()>muteBtnY-muteBtnH/2 && getInputY()<muteBtnY+muteBtnH/2;
-  fill(muteActive ? color(0,150,120) : muteHov ? color(0,100,100) : color(20,40,50), 220);
-  stroke(muteActive ? color(0,255,200) : color(80,100,120));  strokeWeight(muteActive?3:1);
-  rect(muteBtnX, muteBtnY, muteBtnW, muteBtnH, 8);
-  fill(255);  textStyle(muteActive?BOLD:NORMAL);  textSize(16);  textAlign(CENTER,CENTER);
-  text("MUTE", muteBtnX, muteBtnY-2);  textStyle(NORMAL);
+  // 5 clickable step circles: 0%, 25%, 50%, 75%, 100%
+  let steps = [0, 0.25, 0.5, 0.75, 1.0];
+  let stepLabels = ["0%", "25%", "50%", "75%", "100%"];
+  let stepSpacing = sliderLen / (steps.length - 1);
+  for (let i = 0; i < steps.length; i++) {
+    let sx2 = sliderStart + i * stepSpacing;
+    let sy2 = sliderY + 95;
+    let isActive = abs(masterVolume - steps[i]) < 0.01;
+    let isHov = dist(getInputX(), getInputY(), sx2, sy2) < 22;
+    fill(isActive ? color(0,200,160) : isHov ? color(0,130,120) : color(15,35,55));
+    stroke(isActive ? color(0,255,200) : color(60,100,120));
+    strokeWeight(isActive ? 3 : 1.5);
+    ellipse(sx2, sy2, 38, 38);
+    fill(isActive ? 255 : color(180,200,220));
+    textStyle(NORMAL);  textSize(12);  textAlign(CENTER, CENTER);
+    text(stepLabels[i], sx2, sy2);
+  }
 
   // Back button
   let backX = GAME_W/2, backY = GAME_H - 80, backW = 200, backH = 50;
@@ -2754,8 +2770,8 @@ function drawInfoScreen() {
   for (let p of protocolParticles) { p.update();  p.display(); }
 
   // Title
-  fill(0, 255, 200);  textStyle(BOLD);  textAlign(CENTER);  textSize(52);
-  text("MORE INFO", GAME_W/2, 80);
+  fill(0, 255, 200);  textStyle(NORMAL);  textAlign(CENTER);  textSize(38);
+  text("More Info", GAME_W/2, 70);
   stroke(0, 255, 200, 100);  strokeWeight(2);
   line(GAME_W/2-200, 108, GAME_W/2+200, 108);
 
