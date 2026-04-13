@@ -278,9 +278,9 @@ let cardContent = [
   ["Touch and drag nutrients to the correct", "zones. Press hormone buttons to balance",
    "acid levels. Use the NEXT button to move", "forward when each phase is complete.",
    "Pay attention to timing!"],
-  ["After completing each phase, you will face", "a Knowledge Check — 5 questions about",
-   "the biology you just experienced.", "Score 5/5 on your first try for full marks.",
-   "Wrong answers are shown after the quiz."],
+  ["After completing each phase, you will face", "a Knowledge Check. You can choose how",
+   "many questions to answer each time.", "Get a perfect score on your first try",
+   "to earn full marks. Wrong answers are shown."],
   ["Try different things and explore!", "There is no single perfect answer.",
    "Replay phases to improve your score", "and discover new reactions.",
    "Learn from each attempt."]
@@ -1784,7 +1784,8 @@ function phase2() {
   updateAndDrawPhaseParticles(2);
   drawPhaseTitle("PHASE 2 — HORMONE SECRETION IN THE SMALL INTESTINE", 50);
 
-  let yOffset = 40, phLabelY = 75, phBarY = 95, warningY = 130;
+  // yOffset reduced: image moves up to fill the space freed by removing the countdown bar
+  let yOffset = 10, phLabelY = 75, phBarY = 95, warningY = 130;
 
   if (intestineImg != null) {
     push();  translate(GAME_W / 2, GAME_H / 2 + 30 + yOffset);  scale(organPulse);
@@ -1803,8 +1804,6 @@ function phase2() {
   rect(GAME_W / 2 - 150 + (secretinLevel / 200.0 * 150), phBarY,
        secretinLevel / 200.0 * 300, 15, 5);
 
-  let thresholdMet = (secretinLevel >= 150 && cckLevel >= 150);
-
   textAlign(CENTER);
   if (homeostasisReached) {
     fill(0, 255, 150);  textStyle(BOLD);  textSize(22);
@@ -1812,15 +1811,9 @@ function phase2() {
     if (!phase2ProceedSoundPlayed) { playSoundOnce(successSfx);  phase2ProceedSoundPlayed = true; }
     drawProceedButton(GAME_W / 2, warningY + 45);
   } else if (greenZoneTimer > 0) {
-    // Actively counting — show progress bar
-    let pct = greenZoneTimer / GREEN_ZONE_REQUIRED;
+    // Counting — show text only, no progress bar
     fill(0, 255, 150, 150 + sin(millis() * 0.004) * 105);  textStyle(BOLD);  textSize(22);
     text("HORMONES BALANCED — HOLD FOR " + nf((GREEN_ZONE_REQUIRED - greenZoneTimer) / 60, 0, 0) + "s MORE...", GAME_W / 2, warningY);  textStyle(NORMAL);
-    // Progress bar
-    fill(30, 40, 60);  stroke(255, 80);  strokeWeight(1);
-    rect(GAME_W / 2, warningY + 40, 400, 18, 5);
-    fill(0, 255, 150);  noStroke();
-    rect(GAME_W / 2 - 200 + pct * 200, warningY + 40, pct * 400, 18, 5);
   } else {
     let p2T = (secretinLevel <= 150 && cckLevel <= 150) ? "TOO MUCH ACID AND FAT! SPRAY BOTH HORMONES!" :
               (secretinLevel <= 150)                    ? "TOO MUCH ACID — SPRAY SECRETIN TO NEUTRALIZE IT!" :
@@ -1831,13 +1824,11 @@ function phase2() {
   drawHormoneButton(GAME_W * 0.15, GAME_H / 2 + 50 + yOffset, "SECRETIN", color(0, 150, 255), sprayType === 1, hormone1Img);
   drawHormoneButton(GAME_W * 0.85, GAME_H / 2 + 50 + yOffset, "CCK",      color(255, 180, 0), sprayType === 2, hormone2Img);
 
-  // FIX: secretinLevel/cckLevel range is 0–200; divide by 2 to show 0–100%
   fill(0, 180, 255);  textSize(14);  textAlign(CENTER);
   text("Secretin: " + int(secretinLevel / 2) + "% (need 75%)", GAME_W * 0.15, GAME_H / 2 + 50 + yOffset + 100);
   fill(255, 200, 0);
   text("CCK: " + int(cckLevel / 2) + "% (need 75%)", GAME_W * 0.85, GAME_H / 2 + 50 + yOffset + 100);
 
-  // Mist already updated in logic tick; draw it here
   for (let m of hormoneMist) m.display();
 
   drawMeter(GAME_W / 2 - 250, GAME_H - 110 + yOffset, secretinLevel, "Secretin (Acid Reducer)", color(0, 180, 255));
@@ -2019,24 +2010,24 @@ function drawFinalReport() {
   let content = reportContent[currentReportSlide];
   let cx = GAME_W / 2;
   let bodyLines = content.slice(2);
-  let titleSize = 40, bodySize = 38;
-  // Phase 4 has one extra line — use tighter spacing so it fits
-  let lineGap = (currentReportSlide === 4) ? 38 : 45;
+  let titleSize = 32;   // slightly smaller so title fits on one line at all sizes
+  // Phase 4 has 8 lines — use tighter gap; all others 7 lines — use comfortable gap
+  let bodySize = 32, lineGap = (currentReportSlide === 4) ? 37 : 42;
 
-  // Anchor to box top edge (matches desktop .pde layout)
+  // Anchor title to box top edge
   fill(220, 255, 240);  textAlign(LEFT, TOP);
   textStyle(BOLD);  textSize(titleSize);
-  text(content[0], cx - boxW/2 + 40, boxY - boxH/2 + 20);
+  text(content[0], cx - boxW/2 + 40, boxY - boxH/2 + 18);
 
-  // Divider line
-  let divY = boxY - boxH/2 + 72;
+  // Divider line — just below title
+  let divY = boxY - boxH/2 + 62;
   stroke(0, 255, 150, 120);  strokeWeight(1);
   line(cx - boxW/2 + 30, divY, cx + boxW/2 - 30, divY);
 
-  // Body lines — left-aligned, anchored from top of box
+  // Body lines — left-aligned, tightly packed from divider
   textStyle(NORMAL);  textSize(bodySize);  fill(210, 245, 230);
   textAlign(LEFT, TOP);
-  let textY = divY + 18;
+  let textY = divY + 14;
   for (let i = 0; i < bodyLines.length; i++) {
     text(bodyLines[i], cx - boxW/2 + 40, textY);
     textY += lineGap;
@@ -2128,13 +2119,12 @@ function handleInputStart() {
   if (mode === MODE_SETTINGS) {
     // Volume slider drag
     if (dist(ix, iy, _settingsKnobX, _settingsSliderY) < 30) isDraggingVolumeSlider = true;
-    // Preset buttons
-    let presets = [0, 0.25, 0.5, 0.75, 1.0];
-    for (let i = 0; i < presets.length; i++) {
-      let bx2 = GAME_W/2 - 250 + i*125, by2 = _settingsSliderY + 110, bw2 = 100, bh2 = 40;
-      if (ix > bx2-bw2/2 && ix < bx2+bw2/2 && iy > by2-bh2/2 && iy < by2+bh2/2) {
-        masterVolume = presets[i];  playSoundOnce(clickSfx);
-      }
+    // MUTE button only
+    let muteBtnX2 = GAME_W/2, muteBtnY2 = _settingsSliderY + 100, muteBtnW2 = 140, muteBtnH2 = 44;
+    if (ix > muteBtnX2-muteBtnW2/2 && ix < muteBtnX2+muteBtnW2/2 &&
+        iy > muteBtnY2-muteBtnH2/2 && iy < muteBtnY2+muteBtnH2/2) {
+      masterVolume = masterVolume < 0.02 ? 0.8 : 0;  // toggle mute/80%
+      playSoundOnce(clickSfx);
     }
     // Back button
     let backX = GAME_W/2, backY = GAME_H-80, backW = 200, backH = 50;
@@ -2730,18 +2720,16 @@ function drawSettingsScreen() {
   fill(0, 255, 200);  textStyle(BOLD);  textSize(28);
   text(volLabel, sliderCX, sliderY + 55);  textStyle(NORMAL);
 
-  // Preset buttons
-  let presets = [{l:"MUTE",v:0},{l:"25%",v:0.25},{l:"50%",v:0.5},{l:"75%",v:0.75},{l:"MAX",v:1.0}];
-  for (let i = 0; i < presets.length; i++) {
-    let bx = GAME_W/2 - 250 + i*125, by = sliderY + 110, bw = 100, bh = 40;
-    let active = abs(masterVolume - presets[i].v) < 0.01;
-    let hov = getInputX()>bx-bw/2 && getInputX()<bx+bw/2 && getInputY()>by-bh/2 && getInputY()<by+bh/2;
-    fill(active ? color(0,150,120) : hov ? color(0,100,100) : color(20,40,50), 220);
-    stroke(active ? color(0,255,200) : color(80,100,120));  strokeWeight(active?3:1);
-    rect(bx, by, bw, bh, 8);
-    fill(255);  textStyle(active?BOLD:NORMAL);  textSize(16);  textAlign(CENTER,CENTER);
-    text(presets[i].l, bx, by-2);  textStyle(NORMAL);
-  }
+  // MUTE button only
+  let muteBtnX = GAME_W/2, muteBtnY = sliderY + 100, muteBtnW = 140, muteBtnH = 44;
+  let muteActive = masterVolume < 0.02;
+  let muteHov = getInputX()>muteBtnX-muteBtnW/2 && getInputX()<muteBtnX+muteBtnW/2 &&
+                getInputY()>muteBtnY-muteBtnH/2 && getInputY()<muteBtnY+muteBtnH/2;
+  fill(muteActive ? color(0,150,120) : muteHov ? color(0,100,100) : color(20,40,50), 220);
+  stroke(muteActive ? color(0,255,200) : color(80,100,120));  strokeWeight(muteActive?3:1);
+  rect(muteBtnX, muteBtnY, muteBtnW, muteBtnH, 8);
+  fill(255);  textStyle(muteActive?BOLD:NORMAL);  textSize(16);  textAlign(CENTER,CENTER);
+  text("MUTE", muteBtnX, muteBtnY-2);  textStyle(NORMAL);
 
   // Back button
   let backX = GAME_W/2, backY = GAME_H - 80, backW = 200, backH = 50;
