@@ -13,11 +13,11 @@ let _nhe3LastFired = 0;  // nhe3Sfx gets its own 600ms gate (4 absorptions in ph
 
 function playSoundOnce(sound) {
   if (!sound || !sound.isLoaded()) return;
+  if (!sfxEnabled && sound !== clickSfx) return;  // SFX muted (allow click for UI feedback)
   let now = millis();
-  if (now - (_sfxLastFired.get(sound) || 0) < 80) return;  // 80ms cooldown per sound
+  if (now - (_sfxLastFired.get(sound) || 0) < 80) return;
   _sfxLastFired.set(sound, now);
   if (!sound.isPlaying()) { sound.setVolume(masterVolume); sound.play(); }
-  // If already playing: skip — do NOT stop+restart (avoids node stacking on mobile)
 }
 
 function playNhe3Sfx() {
@@ -138,6 +138,8 @@ const MODE_EXIT_CONFIRM  = 12;
 
 // ── SETTINGS ───────────────────────────────────────────────
 let masterVolume = 0.8;
+let musicEnabled = true;   // controls bgLoop (background music)
+let sfxEnabled   = true;   // controls all sound effects
 let settingsReturnMode = MODE_TITLE;
 let infoReturnMode     = MODE_TITLE;
 let exitReturnMode     = MODE_TITLE;  // remembers which screen to go back to if exit cancelled
@@ -383,7 +385,7 @@ function preload() {
   ];
 
   reportContent = [
-    ["PHASE 0 — The Brain Starts Digestion", "",
+    ["The Brain Starts Digestion", "",
      "Before you even take a bite, your brain",
      "gets your body ready! Seeing or smelling",
      "food sends nerve signals that trigger",
@@ -391,7 +393,7 @@ function preload() {
      "cephalic phase — a type of secretion",
      "where your digestive system prepares",
      "for the food that is coming."],
-    ["PHASE 1 — Mechanical and Chemical Digestion", "",
+    ["Mechanical and Chemical Digestion", "",
      "Inside the stomach, food is broken down",
      "in two ways. Churning muscles mash food",
      "into smaller pieces (mechanical digestion).",
@@ -399,7 +401,7 @@ function preload() {
      "proteins so the enzyme pepsin can split",
      "them apart (chemical digestion). Mucus",
      "protects the stomach wall from the acid."],
-    ["PHASE 2 — Hormones Balance the Small Intestine", "",
+    ["Hormones Balance the Small Intestine", "",
      "When food enters the small intestine,",
      "hormones are secreted to balance the",
      "conditions. Secretin signals the release",
@@ -407,7 +409,7 @@ function preload() {
      "release of bile and enzymes to break down",
      "fats and proteins — this is digestion",
      "coordinated by the body's systems."],
-    ["PHASE 3 — Absorption Through the Villi", "",
+    ["Absorption Through the Villi", "",
      "The small intestine absorbs nutrients",
      "through tiny finger-like folds called",
      "villi. Glucose and minerals enter the",
@@ -415,7 +417,7 @@ function preload() {
      "Fats are packed into vessels called",
      "lacteals. This absorption step connects",
      "digestion to the circulatory system."],
-    ["PHASE 4 — Water Recovery and Elimination", "",
+    ["Water Recovery and Elimination", "",
      "In the large intestine, water is absorbed",
      "back into the body from leftover waste.",
      "Muscle contractions called peristalsis",
@@ -1615,7 +1617,7 @@ function phase1() {
   // Bubbles updated in logic tick; just display here
   for (let ab of acidBubbles) ab.display();
 
-  drawPepsinPanelBig(GAME_W * 0.135, GAME_H / 2, currentPH, inPHWindow, enzymeActive);
+  drawPepsinPanelBig(140, GAME_H / 2, currentPH, inPHWindow, enzymeActive);
 
   let phC = lerpColor(color(0, 150, 255), color(255, 0, 0), map(currentPH, 7, 1, 0, 1));
   stroke(255, 150);  strokeWeight(4);
@@ -2017,22 +2019,22 @@ function drawFinalReport() {
   // Phase 4 has 8 lines — use tighter gap; all others 7 lines — use comfortable gap
   let bodySize = 32, lineGap = (currentReportSlide === 4) ? 37 : 42;
 
-  // Anchor title to box top edge
-  fill(220, 255, 240);  textAlign(LEFT, TOP);
-  textStyle(BOLD);  textSize(titleSize);
-  text(content[0], cx - boxW/2 + 40, boxY - boxH/2 + 18);
+  // Title — centred in box
+  fill(220, 255, 240);  textAlign(CENTER, TOP);
+  textStyle(NORMAL);  textSize(titleSize);
+  text(content[0], cx, boxY - boxH/2 + 18);
 
-  // Divider line — just below title
+  // Divider line
   let divY = boxY - boxH/2 + 62;
   stroke(0, 255, 150, 120);  strokeWeight(1);
-  line(cx - boxW/2 + 30, divY, cx + boxW/2 - 30, divY);
+  line(cx - boxW/2 + 40, divY, cx + boxW/2 - 40, divY);
 
-  // Body lines — left-aligned, tightly packed from divider
+  // Body lines — centred
   textStyle(NORMAL);  textSize(bodySize);  fill(210, 245, 230);
-  textAlign(LEFT, TOP);
+  textAlign(CENTER, TOP);
   let textY = divY + 14;
   for (let i = 0; i < bodyLines.length; i++) {
-    text(bodyLines[i], cx - boxW/2 + 40, textY);
+    text(bodyLines[i], cx, textY);
     textY += lineGap;
   }
 
@@ -2104,8 +2106,8 @@ function handleInputStart() {
     if (ix > cx - bw/2 && ix < cx + bw/2 && iy > GAME_H/2+40  && iy < GAME_H/2+130) { playSoundOnce(clickSfx);  mode = MODE_JOURNEY;   transitionAlpha = 0; }
     if (ix > cx - bw/2 && ix < cx + bw/2 && iy > GAME_H/2+150 && iy < GAME_H/2+240) { playSoundOnce(clickSfx);  mode = MODE_MECHANICS; currentCard = 0; transitionAlpha = 0; }
     // Settings button (top-right)
-    let sbx = GAME_W-80, sby = 35, sbw = 120, sbh = 40;
-    if (ix > sbx-sbw/2 && ix < sbx+sbw/2 && iy > sby-sbh/2 && iy < sby+sbh/2) {
+    let sbx = GAME_W-50, sby = 38;
+    if (dist(ix, iy, sbx, sby) < 28) {
       playSoundOnce(clickSfx);  settingsReturnMode = MODE_TITLE;  mode = MODE_SETTINGS;  transitionAlpha = 0;
     }
     // More Info button (top-left)
@@ -2116,21 +2118,23 @@ function handleInputStart() {
   }
 
   if (mode === MODE_SETTINGS) {
-    // Volume slider drag
-    if (dist(ix, iy, _settingsKnobX, _settingsSliderY) < 30) isDraggingVolumeSlider = true;
-    // 5 step circles: 0%, 25%, 50%, 75%, 100%
-    let steps2 = [0, 0.25, 0.5, 0.75, 1.0];
-    let stepSpacing2 = 500 / (steps2.length - 1);
-    let sStart2 = GAME_W/2 - 250;
-    for (let i = 0; i < steps2.length; i++) {
-      let sx3 = sStart2 + i * stepSpacing2;
-      let sy3 = _settingsSliderY + 95;
-      if (dist(ix, iy, sx3, sy3) < 22) {
-        masterVolume = steps2[i];  playSoundOnce(clickSfx);
-      }
+    // Music toggle
+    let rowY1 = GAME_H/2 - 60;
+    let tx1 = GAME_W/2 + 180, tw = 80, th = 36;
+    if (ix > tx1-tw/2 && ix < tx1+tw/2 && iy > rowY1-th/2 && iy < rowY1+th/2) {
+      musicEnabled = !musicEnabled;
+      masterVolume = musicEnabled ? 0.8 : 0;
+      playSoundOnce(clickSfx);
+    }
+    // SFX toggle
+    let rowY2 = GAME_H/2 + 40;
+    let tx2 = GAME_W/2 + 180;
+    if (ix > tx2-tw/2 && ix < tx2+tw/2 && iy > rowY2-th/2 && iy < rowY2+th/2) {
+      sfxEnabled = !sfxEnabled;
+      playSoundOnce(clickSfx);
     }
     // Back button
-    let backX = GAME_W/2, backY = GAME_H-80, backW = 200, backH = 50;
+    let backX = GAME_W/2, backY = GAME_H-80, backW = 180, backH = 48;
     if (ix > backX-backW/2 && ix < backX+backW/2 && iy > backY-backH/2 && iy < backY+backH/2) {
       playSoundOnce(clickSfx);  mode = settingsReturnMode;  transitionAlpha = 0;
     }
@@ -2186,7 +2190,7 @@ function handleInputStart() {
   if (mode === MODE_JOURNEY) {
     // VIEW REPORT button
     let done2 = phaseCompleted.filter(Boolean).length;
-    let rBtnXi = GAME_W-160, rBtnYi = GAME_H-110, rBtnWi = 260, rBtnHi = 60;
+    let rBtnXi = GAME_W-160, rBtnYi = GAME_H/2+150, rBtnWi = 260, rBtnHi = 60;
     if (ix > rBtnXi-rBtnWi/2 && ix < rBtnXi+rBtnWi/2 && iy > rBtnYi-rBtnHi/2 && iy < rBtnYi+rBtnHi/2) {  // DEBUG: always accessible
       playSoundOnce(clickSfx);  currentReportSlide = 0;  reportSfxPlayed=false;  mode = MODE_FINISH;  transitionAlpha = 0;  return;
     }
@@ -2400,14 +2404,13 @@ function drawTitleScreen() {
   drawTitleButton(cx, GAME_H/2+85,  bw, bh, "START JOURNEY", "Play through all 5 digestive phases", h1);
   drawTitleButton(cx, GAME_H/2+195, bw, bh, "HOW TO PLAY",   "Read the instructions before playing", h2);
 
-  // Settings button top-right
-  let sbx = GAME_W - 80, sby = 35, sbw = 120, sbh = 40;
-  let hset = getInputX()>sbx-sbw/2 && getInputX()<sbx+sbw/2 && getInputY()>sby-sbh/2 && getInputY()<sby+sbh/2;
-  fill(hset ? color(0,100,100) : color(0,60,80), 220);
-  stroke(0,255,200, hset?255:150);  strokeWeight(2);
-  rect(sbx, sby, sbw, sbh, 8);
-  fill(255);  textStyle(BOLD);  textSize(16);  textAlign(CENTER,CENTER);
-  text("SETTINGS", sbx, sby-2);  textStyle(NORMAL);
+  // Settings button top-right — gear icon
+  let sbx = GAME_W - 50, sby = 38;
+  let hset = dist(getInputX(), getInputY(), sbx, sby) < 28;
+  fill(hset ? color(0,80,70) : color(0,40,50), 200);
+  stroke(hset ? color(0,255,200) : color(0,180,140));  strokeWeight(hset?2:1.5);
+  ellipse(sbx, sby, 52, 52);
+  drawGearIcon(sbx, sby, 16);
 
   // More Info button top-left (opposite of settings)
   let ibx = 80, iby = 35, ibw = 120, ibh = 40;
@@ -2437,25 +2440,21 @@ function drawTitleButton(x, y, w, h, main, sub, hov) {
 function drawControlProtocol() {
   for (let p of protocolParticles) { p.update();  p.display(); }
 
-  fill(0,255,200);  textStyle(BOLD);  textAlign(CENTER);  textSize(56);
-  text("HOW TO PLAY", GAME_W/2, 80);
-  fill(150,200,255,200);  textStyle(NORMAL);  textSize(18);
-  text("BioBalance — Digestive Control Guide", GAME_W/2, 115);
-  stroke(0,255,200,100);  strokeWeight(1);
-  line(GAME_W/2-250,135, GAME_W/2+250,135);
+  // Title matches Journey Map / Report style
+  fill(0,255,200);  textStyle(NORMAL);  textAlign(CENTER);  textSize(38);
+  text("How to Play", GAME_W/2, 65);
+  stroke(0,255,200,80);  strokeWeight(1);
+  line(GAME_W/2-200, 85, GAME_W/2+200, 85);
 
   let sf = min(1, GAME_W/1280);
-  let cw = 580*sf, ch = 220*sf, sx2 = 40*sf, sy = 40*sf;
-  let sx3 = GAME_W/2-cw/2-sx2/2, sy3 = 170;
+  let cw = 550*sf, ch = 200*sf, sx2 = 30*sf, sy = 30*sf;
+  let sx3 = GAME_W/2-cw/2-sx2/2, sy3 = 110;
 
   drawProtocolCard(sx3,          sy3+ch/2,            cw, ch, 0, currentCard===0);
   drawProtocolCard(sx3+cw+sx2,   sy3+ch/2,            cw, ch, 1, currentCard===1);
   drawProtocolCard(sx3,          sy3+ch+sy+ch/2,      cw, ch, 2, currentCard===2);
   drawProtocolCard(sx3+cw+sx2,   sy3+ch+sy+ch/2,      cw, ch, 3, currentCard===3);
-
-  let pw = 600*sf, pv = (currentCard+1)/totalCards, barY = sy3+ch*2+sy+50;
-  fill(30,50,70);  rect(GAME_W/2,barY,pw,8,4);
-  fill(0,255,200);  rect(GAME_W/2-pw/2+(pw*pv)/2, barY, pw*pv, 8, 4);
+  // No progress bar below cards
 
   let bx4=GAME_W-80, by4=GAME_H-80, br=60;
   let hov = dist(getInputX(),getInputY(),bx4,by4)<br;
@@ -2481,11 +2480,11 @@ function drawProtocolCard(x, y, w, h, idx, isActive) {
   fill(isActive ? color(0,255,200) : color(130,150,170));
   textStyle(BOLD);  textSize(26);  textAlign(CENTER);
   text(cardTitles[idx], 0, -h/2+45);  textStyle(NORMAL);
-  // Body content — always same size and colour, NO hover effect
-  fill(220, 235, 255);
-  textSize(20);  textAlign(LEFT);
-  let ly = -h/2+90;
-  for (let line of cardContent[idx]) { text(line, -w/2+30, ly);  ly += 28; }
+  // Body content — centred, no hover effect
+  fill(210, 225, 248);
+  textSize(18);  textAlign(CENTER);
+  let ly = -h/2+85;
+  for (let line of cardContent[idx]) { text(line, 0, ly);  ly += 26; }
   pop();
 }
 
@@ -2495,7 +2494,6 @@ function drawProtocolCard(x, y, w, h, idx, isActive) {
 function drawJourneyMap() {
   for (let p of protocolParticles) { p.update();  p.display(); }
 
-  // Smaller, non-bold title
   fill(0,255,200);  textStyle(NORMAL);  textAlign(CENTER);  textSize(38);
   text("YOUR DIGESTIVE JOURNEY", GAME_W/2, 65);
 
@@ -2506,20 +2504,19 @@ function drawJourneyMap() {
   fill(150,200,255);  textStyle(NORMAL);  textSize(16);
   text("Overall Score: " + nf(sysInt,0,1) + "%  |  Phases Completed: " + done + " / 5", GAME_W/2, 95);
 
-  // DIGESTION COMPLETE — between score line and nodes
+  // DIGESTION COMPLETE — bigger, below score line, breathing glow only
   if (done === 5) {
-    fill(0,255,200, 100+(sin(millis()*0.002)+1)/2.0*155);
-    textStyle(NORMAL);  textSize(22);  textAlign(CENTER);
-    text("Digestion Complete!", GAME_W/2, 125);
+    let pulse = (sin(millis()*0.002)+1)/2.0;
+    fill(0, 255, 200, 160 + pulse*95);
+    textStyle(NORMAL);  textSize(28);  textAlign(CENTER);
+    text("Digestion Complete!", GAME_W/2, 148);
   }
 
-  // Connection lines — nodes shifted up slightly to leave room below
-  let nodeY = GAME_H/2 - 60;
+  let nodeY = GAME_H/2 - 50;
   strokeWeight(4);
   for (let i = 0; i < 4; i++) {
     let x1 = GAME_W/2-440+(i*220), x2 = x1+220;
-    stroke(phaseCompleted[i] ? color(0,255,200, 100+connectionGlow*155)
-           : (i===0||phaseCompleted[i-1]) ? color(0,255,200,50) : color(50,60,80,100));
+    stroke(phaseCompleted[i] ? color(0,255,200,160) : color(50,60,80,100));
     line(x1, nodeY, x2, nodeY);
     if (phaseCompleted[i]) {
       fill(0,255,200,200);  noStroke();
@@ -2531,25 +2528,15 @@ function drawJourneyMap() {
 
   if (selectedPhase >= 0) {
     let sx = GAME_W/2-440+selectedPhase*220;
-    noFill();  stroke(255,255,0, 150+sin(millis()*0.002)*105);  strokeWeight(3);
+    noFill();  stroke(0,255,200,120);  strokeWeight(3);
     ellipse(sx, nodeY, 120, 120);
   }
 
-  fill(200,220,255);  textStyle(NORMAL);  textSize(16);  textAlign(CENTER);
-  text("Select a phase node to begin or replay", GAME_W/2, GAME_H - 42);
+  fill(180,200,220);  textStyle(NORMAL);  textSize(14);  textAlign(CENTER);
+  text("Select a phase to begin or replay", GAME_W/2, GAME_H - 42);
 
-  // PROGRESS table — bottom left, same level as VIEW REPORT button
-  let progY = GAME_H - 110;
-  fill(0,30,50,200);  stroke(0,255,200,60);  strokeWeight(1);
-  rect(120, progY, 200, 70, 8);
-  fill(0,255,200);  textStyle(NORMAL);  textSize(14);  textAlign(LEFT);
-  text("Progress", 35, progY - 22);
-  fill(190,210,240);  textSize(13);
-  text("Status: " + (done===5?"Complete":done>=2?"In Progress":"Just Starting"), 35, progY - 2);
-  text("Score:  " + nf(sysInt,0,1)+"%", 35, progY + 18);
-
-  // VIEW REPORT button — bottom right, same vertical level as progress table
-  let rBtnX2 = GAME_W - 160, rBtnY2 = progY, rBtnW2 = 260, rBtnH2 = 60;
+  // VIEW REPORT button — right side at original position
+  let rBtnX2 = GAME_W - 160, rBtnY2 = GAME_H/2 + 150, rBtnW2 = 260, rBtnH2 = 60;
   let allDone2 = (done === 5);
   let hRep2 = allDone2 && getInputX()>rBtnX2-rBtnW2/2 && getInputX()<rBtnX2+rBtnW2/2 &&
               getInputY()>rBtnY2-rBtnH2/2 && getInputY()<rBtnY2+rBtnH2/2;
@@ -2558,7 +2545,15 @@ function drawJourneyMap() {
   rect(rBtnX2, rBtnY2, rBtnW2, rBtnH2, 12);
   fill(allDone2 ? 255 : color(80,90,100));
   textStyle(NORMAL);  textSize(16);  textAlign(CENTER,CENTER);
-  text(allDone2 ? "View Full Report" : "Report (Complete all phases)", rBtnX2, rBtnY2 - 2);
+  text(allDone2 ? "View Full Report" : "Complete all phases first", rBtnX2, rBtnY2 - 2);
+
+  // PROGRESS table — below VIEW REPORT button, same x
+  let progY = rBtnY2 + 85;
+  fill(0,25,45,200);  stroke(0,200,160,50);  strokeWeight(1);
+  rect(rBtnX2, progY, rBtnW2, 70, 8);
+  fill(190,210,240);  textStyle(NORMAL);  textSize(13);  textAlign(CENTER);
+  text("Status: " + (done===5?"Complete":done>=2?"In Progress":"Just Starting"), rBtnX2, progY - 16);
+  text("Score: " + nf(sysInt,0,1)+"%", rBtnX2, progY + 4);
 }
 
 // FIX: replaced broken ternary fill() crash in original
@@ -2602,7 +2597,7 @@ function drawPhaseNode(x, y, phaseIndex) {
   textAlign(CENTER, CENTER);
   if (isCompleted) {
     if (phaseEfficiency[phaseIndex] === 100) {
-      noFill();  stroke(255,215,0, 150+sin(millis()*0.002)*105);  strokeWeight(4);
+      noFill();  stroke(255,215,0, 180);  strokeWeight(4);
       ellipse(x,y,baseSize+35,baseSize+35);  fill(255,215,0);
     } else { fill(phaseEfficiency[phaseIndex]===90 ? color(220,220,255) : color(phaseColors[phaseIndex][0],phaseColors[phaseIndex][1],phaseColors[phaseIndex][2])); }
     textStyle(BOLD);  textSize(24);  text(nf(phaseEfficiency[phaseIndex],0,0)+"%", x, y);
@@ -2615,25 +2610,20 @@ function drawPhaseNode(x, y, phaseIndex) {
   }
   textStyle(NORMAL);
 
-  // Phase label above — FIX: proper if/else instead of broken ternary inside fill()
-  if (isCompleted)       fill(phaseColors[phaseIndex][0],phaseColors[phaseIndex][1],phaseColors[phaseIndex][2]);
-  else if (isAvailable)  fill(isSelected?color(255,200,0):color(0,255,200));
-  else                   fill(120,130,140);
-  textSize(14);  textAlign(CENTER,CENTER);  text("PHASE "+phaseIndex, x, y-65);
+  // Phase label above node — static, no breathing
+  fill(isCompleted ? color(200,220,240) : isAvailable ? color(0,255,200) : color(100,110,120));
+  textStyle(NORMAL);  textSize(13);  textAlign(CENTER,CENTER);  text("PHASE "+phaseIndex, x, y-65);
 
-  fill(255);  textStyle(NORMAL);  textSize(14);  text(phaseNames[phaseIndex], x, y+65);
-  fill(180,190,200);  textSize(11);  text(phaseSubtitles[phaseIndex], x, y+82);
+  // Phase name below node — clean white, no effects
+  fill(230,240,255);  textStyle(NORMAL);  textSize(13);  text(phaseNames[phaseIndex], x, y+65);
+  fill(160,175,190);  textSize(11);  text(phaseSubtitles[phaseIndex], x, y+82);
 
-  let statusLabel, statusColor;
-  if (isCompleted)      { statusLabel = "COMPLETED"; statusColor = color(0,255,150); }
-  else if (isAvailable) { statusLabel = phaseIndex===0?"START HERE":(isSelected?"SELECTED":"AVAILABLE"); statusColor = isSelected?color(255,200,0):color(0,255,200); }
-  else                  { statusLabel = "LOCKED";    statusColor = color(255,80,80); }
-  fill(statusColor);  textSize(13);  text(statusLabel, x, y+105);
-
-  if (dist(getInputX(),getInputY(),x,y) < baseSize/2 && isAvailable) {
-    noFill();  stroke(255,200);  strokeWeight(2);  ellipse(x,y,baseSize+40,baseSize+40);
-    fill(255,255,0);  textSize(14);  text(isCompleted?"REPLAY":"START", x, y+130);
-  }
+  // Status label — static color only
+  let statusLabel;
+  if (isCompleted)      { statusLabel = "COMPLETED"; fill(0,220,140); }
+  else if (isAvailable) { statusLabel = phaseIndex===0?"START HERE":"AVAILABLE"; fill(0,200,160); }
+  else                  { statusLabel = "LOCKED";    fill(160,80,80); }
+  textSize(12);  text(statusLabel, x, y+100);
 }
 
 // =========================================================
@@ -2702,65 +2692,75 @@ function drawLicenseScreen() {
 function drawSettingsScreen() {
   for (let p of protocolParticles) { p.update();  p.display(); }
 
-  fill(0, 255, 200);  textStyle(BOLD);  textAlign(CENTER);  textSize(56);
-  text("SETTINGS", GAME_W/2, 80);
-  stroke(0, 255, 200, 100);  strokeWeight(2);
-  line(GAME_W/2-200, 105, GAME_W/2+200, 105);
+  // Gear icon + title
+  drawGearIcon(GAME_W/2, 55, 28);
+  fill(0, 255, 200);  textStyle(NORMAL);  textAlign(CENTER);  textSize(30);
+  text("Settings", GAME_W/2, 105);
+  stroke(0, 255, 200, 80);  strokeWeight(1);
+  line(GAME_W/2-160, 122, GAME_W/2+160, 122);
 
-  // Volume slider
-  let sliderCX = GAME_W/2, sliderY = GAME_H/2 - 60;
-  let sliderLen = 500, sliderStart = sliderCX - sliderLen/2, sliderEnd = sliderCX + sliderLen/2;
-  let knobX = map(masterVolume, 0, 1, sliderStart, sliderEnd);
+  // MUSIC toggle row
+  let rowY1 = GAME_H/2 - 60;
+  drawSettingsToggle(GAME_W/2, rowY1, "Music", "Background music", musicEnabled);
 
-  fill(150, 200, 255);  textStyle(NORMAL);  textSize(22);  textAlign(CENTER);
-  text("MASTER VOLUME", sliderCX, sliderY - 50);
-
-  stroke(60, 80, 100);  strokeWeight(8);  line(sliderStart, sliderY, sliderEnd, sliderY);
-  stroke(0, 255, 200);  strokeWeight(8);  line(sliderStart, sliderY, knobX, sliderY);
-  fill(0, 255, 200);  noStroke();  ellipse(knobX, sliderY, 36, 36);
-
-  fill(200);  textSize(14);
-  textAlign(RIGHT);  text("0%", sliderStart - 15, sliderY + 6);
-  textAlign(LEFT);   text("100%", sliderEnd + 15, sliderY + 6);
-  textAlign(CENTER);
-
-  // Volume percentage — only the number changes, acts as a display label
-  let volLabel = masterVolume < 0.02 ? "0%" : int(masterVolume * 100) + "%";
-  fill(0, 255, 200);  textStyle(NORMAL);  textSize(32);
-  text(volLabel, sliderCX, sliderY + 55);
-
-  // 5 clickable step circles: 0%, 25%, 50%, 75%, 100%
-  let steps = [0, 0.25, 0.5, 0.75, 1.0];
-  let stepLabels = ["0%", "25%", "50%", "75%", "100%"];
-  let stepSpacing = sliderLen / (steps.length - 1);
-  for (let i = 0; i < steps.length; i++) {
-    let sx2 = sliderStart + i * stepSpacing;
-    let sy2 = sliderY + 95;
-    let isActive = abs(masterVolume - steps[i]) < 0.01;
-    let isHov = dist(getInputX(), getInputY(), sx2, sy2) < 22;
-    fill(isActive ? color(0,200,160) : isHov ? color(0,130,120) : color(15,35,55));
-    stroke(isActive ? color(0,255,200) : color(60,100,120));
-    strokeWeight(isActive ? 3 : 1.5);
-    ellipse(sx2, sy2, 38, 38);
-    fill(isActive ? 255 : color(180,200,220));
-    textStyle(NORMAL);  textSize(12);  textAlign(CENTER, CENTER);
-    text(stepLabels[i], sx2, sy2);
-  }
+  // SOUND EFFECTS toggle row
+  let rowY2 = GAME_H/2 + 40;
+  drawSettingsToggle(GAME_W/2, rowY2, "Sound Effects", "Game sounds and feedback", sfxEnabled);
 
   // Back button
-  let backX = GAME_W/2, backY = GAME_H - 80, backW = 200, backH = 50;
+  let backX = GAME_W/2, backY = GAME_H - 80, backW = 180, backH = 48;
   let hBack = getInputX()>backX-backW/2 && getInputX()<backX+backW/2 &&
               getInputY()>backY-backH/2 && getInputY()<backY+backH/2;
   fill(hBack ? color(0,100,100) : color(0,60,80), 220);
   stroke(0,255,200);  strokeWeight(2);  rect(backX, backY, backW, backH, 10);
-  fill(255);  textStyle(BOLD);  textSize(18);  textAlign(CENTER,CENTER);
-  text("BACK", backX, backY-2);  textStyle(NORMAL);
+  fill(255);  textStyle(NORMAL);  textSize(16);  textAlign(CENTER,CENTER);
+  text("Back", backX, backY - 2);
+}
 
-  // Cache slider coords for drag/click detection
-  _settingsKnobX = knobX;
-  _settingsSliderStart = sliderStart;
-  _settingsSliderEnd   = sliderEnd;
-  _settingsSliderY     = sliderY;
+function drawGearIcon(cx, cy, r) {
+  // Gear drawn entirely with p5 shapes — consistent with game vibe
+  let teeth = 8, innerR = r*0.55, outerR = r, toothW = 0.22;
+  fill(0, 255, 200, 200);  noStroke();
+  beginShape();
+  for (let i = 0; i < teeth; i++) {
+    let a1 = (i / teeth) * TWO_PI - PI/teeth;
+    let a2 = a1 + toothW;
+    let a3 = a1 + PI/teeth - toothW;
+    let a4 = a1 + PI/teeth;
+    vertex(cx + cos(a1)*innerR, cy + sin(a1)*innerR);
+    vertex(cx + cos(a2)*outerR, cy + sin(a2)*outerR);
+    vertex(cx + cos(a3)*outerR, cy + sin(a3)*outerR);
+    vertex(cx + cos(a4)*innerR, cy + sin(a4)*innerR);
+  }
+  endShape(CLOSE);
+  fill(10, 20, 35);  noStroke();
+  ellipse(cx, cy, innerR*1.1, innerR*1.1);
+}
+
+function drawSettingsToggle(cx, y, label, sublabel, isOn) {
+  // Row background
+  fill(10, 25, 45, 180);  stroke(0, 200, 160, 50);  strokeWeight(1);
+  rect(cx, y, 520, 72, 12);
+
+  // Label
+  fill(210, 230, 250);  textStyle(NORMAL);  textSize(18);  textAlign(LEFT, CENTER);
+  text(label, cx - 230, y - 10);
+  fill(130, 150, 170);  textSize(13);
+  text(sublabel, cx - 230, y + 12);
+
+  // Toggle pill
+  let tx = cx + 180, tw = 80, th = 36;
+  let pillColor = isOn ? color(0, 200, 150) : color(50, 65, 80);
+  fill(pillColor);  noStroke();  rect(tx, y, tw, th, th/2);
+
+  // Knob
+  let knobX2 = isOn ? tx + tw/2 - th/2 - 2 : tx - tw/2 + th/2 + 2;
+  fill(255);  ellipse(knobX2, y, th-6, th-6);
+
+  // ON/OFF text
+  fill(isOn ? color(0,255,200) : color(120,140,160));
+  textStyle(NORMAL);  textSize(13);  textAlign(CENTER, CENTER);
+  text(isOn ? "ON" : "OFF", tx, y);
 }
 
 // =========================================================
@@ -2781,8 +2781,8 @@ function drawInfoScreen() {
   text("Progressive Web App (PWA) you can open on any phone or tablet.", GAME_W/2, 182);
 
   // Section label
-  fill(0, 255, 200);  textStyle(BOLD);  textSize(22);
-  text("OFFICIAL WEBSITE", GAME_W/2, 240);  textStyle(NORMAL);
+  fill(0, 255, 200);  textStyle(NORMAL);  textSize(20);
+  text("Official Website", GAME_W/2, 240);
 
   fill(150, 170, 200);  textSize(17);
   text("Visit the site to download the Windows version or access the mobile app.", GAME_W/2, 270);
@@ -2796,8 +2796,8 @@ function drawInfoScreen() {
   rect(lbx, lby, lbw, lbh, 14);
 
   // URL text — big, clear, no glow
-  fill(0, 255, 200);  textStyle(BOLD);  textSize(30);  textAlign(CENTER, CENTER);
-  text("theos13-nw.github.io/BioBalance-SITE", lbx, lby - 2);  textStyle(NORMAL);
+  fill(0, 255, 200);  textStyle(NORMAL);  textSize(28);  textAlign(CENTER, CENTER);
+  text("theos13-nw.github.io/BioBalance-SITE", lbx, lby - 2);
 
   // Small hint below box
   fill(120, 140, 160);  textSize(15);  textAlign(CENTER);
