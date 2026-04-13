@@ -2019,10 +2019,15 @@ function drawFinalReport() {
   // Phase 4 has 8 lines — use tighter gap; all others 7 lines — use comfortable gap
   let bodySize = 32, lineGap = (currentReportSlide === 4) ? 37 : 42;
 
-  // Title — centred in box
+  // Strip "PHASE X — " prefix from title (phase shown in buttons below)
+  let rawTitle = content[0];
+  let dashIdx = rawTitle.indexOf(" — ");
+  let displayTitle = dashIdx >= 0 ? rawTitle.substring(dashIdx + 3) : rawTitle;
+
+  // Title centred at top of box
   fill(220, 255, 240);  textAlign(CENTER, TOP);
   textStyle(NORMAL);  textSize(titleSize);
-  text(content[0], cx, boxY - boxH/2 + 18);
+  text(displayTitle, cx, boxY - boxH/2 + 18);
 
   // Divider line
   let divY = boxY - boxH/2 + 62;
@@ -2195,7 +2200,7 @@ function handleInputStart() {
       playSoundOnce(clickSfx);  currentReportSlide = 0;  reportSfxPlayed=false;  mode = MODE_FINISH;  transitionAlpha = 0;  return;
     }
     for (let i = 0; i < 5; i++) {
-      let nx = GAME_W / 2 - 440 + i * 220, ny = GAME_H / 2 - 50;
+      let nx = GAME_W / 2 - 440 + i * 220, ny = GAME_H/2 - 50;
       // DEBUG: all phases always accessible for fast testing
       if (dist(ix, iy, nx, ny) < 50) {
         playSoundOnce(clickSfx);
@@ -2440,9 +2445,8 @@ function drawTitleButton(x, y, w, h, main, sub, hov) {
 function drawControlProtocol() {
   for (let p of protocolParticles) { p.update();  p.display(); }
 
-  // Title matches Journey Map / Report style
   fill(0,255,200);  textStyle(NORMAL);  textAlign(CENTER);  textSize(38);
-  text("How to Play", GAME_W/2, 65);
+  text("HOW TO PLAY", GAME_W/2, 65);
   stroke(0,255,200,80);  strokeWeight(1);
   line(GAME_W/2-200, 85, GAME_W/2+200, 85);
 
@@ -2478,13 +2482,13 @@ function drawProtocolCard(x, y, w, h, idx, isActive) {
   if (isActive) { noFill();  stroke(0,255,200,40);  strokeWeight(12);  rect(0,0,w-20,h-20,12); }
   // Card title hover only — active is cyan, inactive is grey
   fill(isActive ? color(0,255,200) : color(130,150,170));
-  textStyle(BOLD);  textSize(26);  textAlign(CENTER);
-  text(cardTitles[idx], 0, -h/2+45);  textStyle(NORMAL);
+  textStyle(NORMAL);  textSize(22);  textAlign(CENTER);
+  text(cardTitles[idx], 0, -h/2+42);
   // Body content — centred, no hover effect
-  fill(210, 225, 248);
-  textSize(18);  textAlign(CENTER);
-  let ly = -h/2+85;
-  for (let line of cardContent[idx]) { text(line, 0, ly);  ly += 26; }
+  fill(200, 218, 240);
+  textSize(16);  textAlign(CENTER);
+  let ly = -h/2+80;
+  for (let line of cardContent[idx]) { text(line, 0, ly);  ly += 24; }
   pop();
 }
 
@@ -2504,56 +2508,58 @@ function drawJourneyMap() {
   fill(150,200,255);  textStyle(NORMAL);  textSize(16);
   text("Overall Score: " + nf(sysInt,0,1) + "%  |  Phases Completed: " + done + " / 5", GAME_W/2, 95);
 
-  // DIGESTION COMPLETE — bigger, below score line, breathing glow only
+  // DIGESTION COMPLETE — breathing glow only, bigger, lower
   if (done === 5) {
     let pulse = (sin(millis()*0.002)+1)/2.0;
-    fill(0, 255, 200, 160 + pulse*95);
-    textStyle(NORMAL);  textSize(28);  textAlign(CENTER);
-    text("Digestion Complete!", GAME_W/2, 148);
+    fill(0, 255, 200, 150 + pulse*105);
+    textStyle(NORMAL);  textSize(34);  textAlign(CENTER);
+    text("Digestion Complete!", GAME_W/2, 160);
   }
 
+  // Phase nodes — use GAME_H/2-50 same as click handler
   let nodeY = GAME_H/2 - 50;
-  strokeWeight(4);
+  noStroke();
+  // Connection lines — simple static lines, no animated dot
+  strokeWeight(3);
   for (let i = 0; i < 4; i++) {
     let x1 = GAME_W/2-440+(i*220), x2 = x1+220;
-    stroke(phaseCompleted[i] ? color(0,255,200,160) : color(50,60,80,100));
+    stroke(phaseCompleted[i] ? color(0,200,160,140) : color(50,60,80,80));
     line(x1, nodeY, x2, nodeY);
-    if (phaseCompleted[i]) {
-      fill(0,255,200,200);  noStroke();
-      ellipse(x1 + (millis()/8.333)%220, nodeY, 8, 8);
-    }
   }
 
   for (let i = 0; i < 5; i++) drawPhaseNode(GAME_W/2-440+i*220, nodeY, i);
 
   if (selectedPhase >= 0) {
     let sx = GAME_W/2-440+selectedPhase*220;
-    noFill();  stroke(0,255,200,120);  strokeWeight(3);
-    ellipse(sx, nodeY, 120, 120);
+    noFill();  stroke(0,200,160,100);  strokeWeight(2);
+    ellipse(sx, nodeY, 118, 118);
   }
 
-  fill(180,200,220);  textStyle(NORMAL);  textSize(14);  textAlign(CENTER);
+  fill(160,180,200);  textStyle(NORMAL);  textSize(14);  textAlign(CENTER);
   text("Select a phase to begin or replay", GAME_W/2, GAME_H - 42);
 
-  // VIEW REPORT button — right side at original position
-  let rBtnX2 = GAME_W - 160, rBtnY2 = GAME_H/2 + 150, rBtnW2 = 260, rBtnH2 = 60;
+  // PROGRESS table — left side, same vertical level as VIEW REPORT
+  let rBtnY2 = GAME_H/2 + 150, rBtnH2 = 60;
+  let prgX = 165, prgW = 260;
+  fill(0,20,40,200);  stroke(0,180,140,60);  strokeWeight(1);
+  rect(prgX, rBtnY2, prgW, 70, 8);
+  fill(0,255,200);  textStyle(NORMAL);  textSize(13);  textAlign(CENTER,CENTER);
+  text("Progress", prgX, rBtnY2 - 22);
+  fill(180,200,225);  textSize(12);
+  text("Status: " + (done===5?"Complete":done>=2?"In Progress":"Just Starting"), prgX, rBtnY2 - 4);
+  text("Score:  " + nf(sysInt,0,1)+"%", prgX, rBtnY2 + 16);
+
+  // VIEW REPORT button — right side, same level as progress table
+  let rBtnX2 = GAME_W - 160, rBtnW2 = 260;
   let allDone2 = (done === 5);
   let hRep2 = allDone2 && getInputX()>rBtnX2-rBtnW2/2 && getInputX()<rBtnX2+rBtnW2/2 &&
               getInputY()>rBtnY2-rBtnH2/2 && getInputY()<rBtnY2+rBtnH2/2;
   fill(allDone2 ? (hRep2 ? color(0,150,120) : color(0,100,80)) : color(30,40,50), 220);
-  stroke(allDone2 ? color(0,255,200) : color(60,70,80));  strokeWeight(allDone2 ? 3 : 1);
+  stroke(allDone2 ? color(0,255,200) : color(60,70,80));  strokeWeight(allDone2 ? 2 : 1);
   rect(rBtnX2, rBtnY2, rBtnW2, rBtnH2, 12);
   fill(allDone2 ? 255 : color(80,90,100));
   textStyle(NORMAL);  textSize(16);  textAlign(CENTER,CENTER);
   text(allDone2 ? "View Full Report" : "Complete all phases first", rBtnX2, rBtnY2 - 2);
-
-  // PROGRESS table — below VIEW REPORT button, same x
-  let progY = rBtnY2 + 85;
-  fill(0,25,45,200);  stroke(0,200,160,50);  strokeWeight(1);
-  rect(rBtnX2, progY, rBtnW2, 70, 8);
-  fill(190,210,240);  textStyle(NORMAL);  textSize(13);  textAlign(CENTER);
-  text("Status: " + (done===5?"Complete":done>=2?"In Progress":"Just Starting"), rBtnX2, progY - 16);
-  text("Score: " + nf(sysInt,0,1)+"%", rBtnX2, progY + 4);
 }
 
 // FIX: replaced broken ternary fill() crash in original
@@ -2575,12 +2581,12 @@ function drawPhaseNode(x, y, phaseIndex) {
 
   if (isCompleted) {
     noFill();
-    stroke(phaseColors[phaseIndex][0],phaseColors[phaseIndex][1],phaseColors[phaseIndex][2], 100+connectionGlow*100);
-    strokeWeight(3);  ellipse(x,y,baseSize+30,baseSize+30);
+    stroke(phaseColors[phaseIndex][0],phaseColors[phaseIndex][1],phaseColors[phaseIndex][2], 130);
+    strokeWeight(2);  ellipse(x,y,baseSize+26,baseSize+26);
   } else if (isAvailable) {
     noFill();
-    stroke(0,255,200, 50+(phaseIndex===0?0.5:nodePulse[phaseIndex])*100);
-    strokeWeight(2);  ellipse(x,y,baseSize+20+pulseSize,baseSize+20+pulseSize);
+    stroke(0,200,160, 80);
+    strokeWeight(1.5);  ellipse(x,y,baseSize+16,baseSize+16);
   }
 
   if (isCompleted) {
@@ -2781,8 +2787,8 @@ function drawInfoScreen() {
   text("Progressive Web App (PWA) you can open on any phone or tablet.", GAME_W/2, 182);
 
   // Section label
-  fill(0, 255, 200);  textStyle(NORMAL);  textSize(20);
-  text("Official Website", GAME_W/2, 240);
+  fill(0, 255, 200);  textStyle(NORMAL);  textSize(18);
+  text("Official Website", GAME_W/2, 238);
 
   fill(150, 170, 200);  textSize(17);
   text("Visit the site to download the Windows version or access the mobile app.", GAME_W/2, 270);
@@ -2809,8 +2815,8 @@ function drawInfoScreen() {
                getInputY()>bi2y-bi2h/2 && getInputY()<bi2y+bi2h/2;
   fill(hBack2 ? color(0,100,100) : color(0,60,80), 220);
   stroke(0,255,200);  strokeWeight(2);  rect(bi2x, bi2y, bi2w, bi2h, 10);
-  fill(255);  textStyle(BOLD);  textSize(18);  textAlign(CENTER,CENTER);
-  text("BACK", bi2x, bi2y-2);  textStyle(NORMAL);
+  fill(255);  textStyle(NORMAL);  textSize(16);  textAlign(CENTER,CENTER);
+  text("Back", bi2x, bi2y-2);
 }
 
 // =========================================================
