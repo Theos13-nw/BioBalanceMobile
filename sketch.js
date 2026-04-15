@@ -189,7 +189,7 @@ let homeostasisDisplayTimer = 0;
 const HOMEOSTASIS_DISPLAY_FRAMES = 65;
 let homeostasisLocked = false;
 let greenZoneTimer = 0;                   // counts dt-ticks both hormones are in green zone
-const GREEN_ZONE_REQUIRED = 4 * 60;      // 4 seconds × 60 ticks = 240 ticks
+const GREEN_ZONE_REQUIRED = 10 * 60;     // 10 seconds × 60 ticks = 600 ticks
 let phase1Complete    = false;
 let hormoneMist = [];
 let pepsinTimer = 0;
@@ -857,20 +857,13 @@ function updateAndDrawPhaseParticles(phaseIdx) {
 // Throttled to ~4× per second to prevent Web Audio API overload on mobile.
 // =========================================================
 function soundTick() {
-  // ── BG loop: screen-aware volume manager (runs every frame) ─
+  // ── BG loop: direct volume control, no getVolume() (unreliable in p5.sound 1.9) ─
   if (bgLoop != null && bgLoopStarted) {
     let bgAllowed = (mode === MODE_TITLE || mode === MODE_JOURNEY ||
                      mode === MODE_MECHANICS || mode === MODE_SETTINGS || mode === MODE_INFO || quizState === 1);
-    let bgTarget  = (bgAllowed && musicEnabled) ? (quizState === 1 ? 0.04 * masterVolume : 0.08 * masterVolume) : 0;
-
-    // Smooth fade toward target
-    let bgCurrent = bgLoop.getVolume ? bgLoop.getVolume() : 0;
-    let bgNext    = bgCurrent + (bgTarget - bgCurrent) * 0.04;
-
-    // Volume-only control — NEVER pause/play after startup.
-    // pause()/play() both create new Web Audio nodes in p5.sound 1.9.x.
-    // setVolume(0) = silent; setVolume(x) = audible. One node, forever.
-    bgLoop.setVolume(bgNext < 0.003 ? 0 : bgNext);
+    // Direct: set volume to target immediately — no lerp, no getVolume()
+    let bgVol = (bgAllowed && musicEnabled) ? (quizState === 1 ? 0.04 * masterVolume : 0.08 * masterVolume) : 0;
+    bgLoop.setVolume(bgVol);
   }
 
   soundTickTimer++;
@@ -1048,7 +1041,7 @@ function updatePhase0Logic() {
   delayedSmell = lerp(delayedSmell, inputSmell, 1 - pow(1 - 0.005, dt));
 
   if (foodType === 1) {
-    salivaLevel  = lerp(salivaLevel, map(inputSmell, 0, 100, 40, 170), 0.06);
+    salivaLevel  = lerp(salivaLevel, map(inputSmell, 0, 100, 40, 170), 0.025);
     if (salivaLevel > 168 && inputSmell >= 99) salivaLevel = 170;
     cephalicAcid = lerp(cephalicAcid, map(delayedSmell, 0, 100, 0, 150), 1 - pow(1 - 0.005, dt));
   } else if (foodType === 2) {
@@ -1090,7 +1083,7 @@ function updatePhase1Logic() {
   updatePepsinDenaturation(currentPH, inPHWindow);
 
   if (proteinImg != null && enzymeActive)
-    proteinScale = max(0.0, proteinScale - 0.003);
+    proteinScale = max(0.0, proteinScale - 0.0015);
   else if (proteinScale < 1.0 && pepsinState !== PepsinState.ACTIVE)
     proteinScale = min(1.0, proteinScale + 0.002);
 
@@ -1127,11 +1120,11 @@ function updatePhase2Logic() {
     sfx_wantSpray = true;
     let yOffset = 40;
     if (sprayType === 1) {
-      secretinLevel = min(secretinLevel + 2.5, 200);
+      secretinLevel = min(secretinLevel + 1.5, 200);
       for (let i = 0; i < 3; i++)
         hormoneMist.push(new Mist(GAME_W*0.15+80, GAME_H/2+50+yOffset, random(5,10), random(-2,2), [0,150,255]));
     } else {
-      cckLevel = min(cckLevel + 2.5, 200);
+      cckLevel = min(cckLevel + 1.5, 200);
       for (let i = 0; i < 3; i++)
         hormoneMist.push(new Mist(GAME_W*0.85-80, GAME_H/2+50+yOffset, random(-10,-5), random(-2,2), [255,180,0]));
     }
@@ -1170,7 +1163,7 @@ function updatePhase4Logic() {
   let waterGood = (actualWaterAbsorbed >= 40 && actualWaterAbsorbed <= 72);
   if (peristalsisActive && !peristalsissComplete) {
     // ~30 seconds of held-button time: 100 / (30s × 60fps) = 100/1800 per tick
-    peristalsisProgress = min(100, peristalsisProgress + (100 / 720) * dt);
+    peristalsisProgress = min(100, peristalsisProgress + (100 / 1200) * dt);
     if (peristalsisProgress >= 100) peristalsissComplete = true;
   }
   // phase4Ready: stool at end AND water in optimal zone
@@ -1517,8 +1510,8 @@ function phase0() {
 function updateCephalicMetabolismFast() {
   if (foodType === 1) {
     let cal = map(delayedSmell, 0, 100, 0, 500);
-    insulinLevel            = lerp(insulinLevel, cal * 0.08, 1 - pow(1 - 0.04, dt));
-    hepaticGlucoseOutput    = lerp(hepaticGlucoseOutput, max(20, 100 - insulinLevel * 1.5), 1 - pow(1 - 0.04, dt));
+    insulinLevel            = lerp(insulinLevel, cal * 0.08, 1 - pow(1 - 0.018, dt));
+    hepaticGlucoseOutput    = lerp(hepaticGlucoseOutput, max(20, 100 - insulinLevel * 1.5), 1 - pow(1 - 0.018, dt));
     peripheralGlucoseUptake = map(insulinLevel, 0, 40, 0, 100);
   } else if (foodType === 2) {
     insulinLevel            = lerp(insulinLevel, 0, 1 - pow(1 - 0.1, dt));
@@ -1710,7 +1703,7 @@ function updatePepsinDenaturation(currentPH, inPHWindow) {
     // Denatured: reserve stays where it is — only restored by player pressing RESTORE PEPSIN
   } else {
     if (inPHWindow && pepsinState === PepsinState.INACTIVE) {
-      pepsinConcentration = min(100, pepsinConcentration + 0.35*dt);   // ~5s to reach 100%
+      pepsinConcentration = min(100, pepsinConcentration + 0.14*dt);   // ~12s to reach 100%
       // Pepsinogen consumed 1:1 as it converts to pepsin (stoichiometrically accurate)
       pepsinogenReserve   = max(0, 100 - pepsinConcentration);  // mirror: as pepsin rises, reserve falls to 0
       if (pepsinConcentration >= 100) {
@@ -1918,7 +1911,7 @@ function handleNutrientPhysicsStrict(zoneX, zoneW, zoneH, capY, nheY, lacY) {
   // --- Glucose → capillary ---
   if (!draggingGlucose && !glucoseSorted) {
     if (pointInZone(glucoseX, glucoseY, zoneX, capY, zoneW, zoneH)) {
-      gTimer += 1.0 / 180.0;    // ~3 seconds at 60 ticks/s
+      gTimer += 1.0 / 360.0;    // ~6 seconds at 60 ticks/s
       if (gTimer >= 1.0) { glucoseSorted = true; capillaryPulse = 30; triggerBurst(glucoseX, glucoseY, [0,255,0]); playNhe3Sfx(); }
     } else if (pointInZone(glucoseX, glucoseY, zoneX, nheY, zoneW, zoneH) ||
                pointInZone(glucoseX, glucoseY, zoneX, lacY, zoneW, zoneH)) {
@@ -1931,7 +1924,7 @@ function handleNutrientPhysicsStrict(zoneX, zoneW, zoneH, capY, nheY, lacY) {
   if (!draggingSodiumSGLT && !sodiumSGLTSorted) {
     if (pointInZone(sodiumSGLTX, sodiumSGLTY, zoneX, capY, zoneW, zoneH)) {
       let speedMult = dist(sodiumSGLTX, sodiumSGLTY, glucoseX, glucoseY) < 80 ? 2.0 : 1.0;
-      sGLTTimer += (1.0 / 180.0) * speedMult;    // ~3 seconds
+      sGLTTimer += (1.0 / 360.0) * speedMult;    // ~6 seconds
       if (sGLTTimer >= 1.0) { sodiumSGLTSorted = true; capillaryPulse = 30; triggerBurst(sodiumSGLTX, sodiumSGLTY, [0,200,150]); playNhe3Sfx(); }
     } else if (pointInZone(sodiumSGLTX, sodiumSGLTY, zoneX, nheY, zoneW, zoneH) ||
                pointInZone(sodiumSGLTX, sodiumSGLTY, zoneX, lacY, zoneW, zoneH)) {
@@ -1943,7 +1936,7 @@ function handleNutrientPhysicsStrict(zoneX, zoneW, zoneH, capY, nheY, lacY) {
   // --- Sodium NHE3 → exchanger ---
   if (!draggingSodiumNHE3 && !sodiumNHE3Sorted) {
     if (pointInZone(sodiumNH3X, sodiumNH3Y, zoneX, nheY, zoneW, zoneH)) {
-      nhe3Timer += 1.0 / 180.0;    // ~3 seconds
+      nhe3Timer += 1.0 / 360.0;    // ~6 seconds
       if (nhe3Timer >= 1.0) { sodiumNHE3Sorted = true; nhe3Pulse = 30; triggerBurst(sodiumNH3X, sodiumNH3Y, [0,100,200]); playNhe3Sfx(); }
     } else if (pointInZone(sodiumNH3X, sodiumNH3Y, zoneX, capY, zoneW, zoneH) ||
                pointInZone(sodiumNH3X, sodiumNH3Y, zoneX, lacY, zoneW, zoneH)) {
@@ -1955,7 +1948,7 @@ function handleNutrientPhysicsStrict(zoneX, zoneW, zoneH, capY, nheY, lacY) {
   // --- Lipid → lacteal ---
   if (!draggingLipid && !lipidSorted) {
     if (pointInZone(lipidX, lipidY, zoneX, lacY, zoneW, zoneH)) {
-      lTimer += 1.0 / 180.0;    // ~3 seconds
+      lTimer += 1.0 / 360.0;    // ~6 seconds
       if (lTimer >= 1.0) { lipidSorted = true; lactealPulse = 30; triggerBurst(lipidX, lipidY, [255,255,180]); playNhe3Sfx(); }
     } else if (pointInZone(lipidX, lipidY, zoneX, capY, zoneW, zoneH) ||
                pointInZone(lipidX, lipidY, zoneX, nheY, zoneW, zoneH)) {
@@ -3081,43 +3074,43 @@ function initShortQuizBank() {
   // 2-question banks: Q1 = structure, Q2 = function
   // MATATAG Grade 8: "Structure and function of the human digestive system"
   let banks = [
-    // Phase 0 — Mouth / Brain signalling
+    // Phase 0 — Mouth
     [
-      new Question("Which part of the digestive system is the first to receive food and begin mechanical digestion?",
-        ["The mouth — teeth crush food and saliva is secreted to begin digestion","The stomach — where food is churned and broken down by acid","The small intestine — where most chemical digestion takes place"],0),
-      new Question("What is the main function of the cephalic phase before food is even swallowed?",
-        ["To prepare the digestive system by secreting saliva and signalling the stomach","To absorb any liquid nutrients that enter the mouth with food","To eliminate waste from the previous meal before new food arrives"],0),
+      new Question("Which structure in the mouth mainly breaks food into smaller pieces?",
+        ["Teeth grind food into smaller pieces during chewing","Tongue pushes food toward the throat for swallowing","Saliva moistens food to make swallowing easier"],0),
+      new Question("What important function does saliva perform in the mouth?",
+        ["Saliva moistens food and begins starch digestion","Saliva pushes food directly toward the stomach","Saliva absorbs nutrients into nearby blood vessels"],0),
     ],
     // Phase 1 — Stomach
     [
-      new Question("What is the main structural feature of the stomach that allows it to perform mechanical digestion?",
-        ["Thick muscular walls that churn and mix food with digestive juices","A smooth inner lining covered with villi to absorb broken-down proteins","A network of blood vessels that carry enzymes directly into the stomach"],0),
-      new Question("What is the function of stomach acid (hydrochloric acid) during chemical digestion?",
-        ["It unfolds proteins and activates the enzyme pepsin to break them down","It neutralises food so that nutrients can be absorbed through the stomach wall","It moves food quickly into the small intestine once mechanical digestion is done"],0),
+      new Question("What is the main function of the stomach during digestion?",
+        ["Stomach acid and enzymes break down proteins","Small intestine absorbs nutrients into blood vessels","Large intestine removes water from food waste"],0),
+      new Question("Which structure helps the stomach mix food with digestive juices?",
+        ["Strong stomach muscles churn food with acid","Thin intestinal walls absorb nutrients quickly","Large intestine stores waste before elimination"],0),
     ],
-    // Phase 2 — Small intestine
+    // Phase 2 — Small Intestine (Digestion Stage)
     [
-      new Question("What structures in the wall of the small intestine secrete hormones that control digestion?",
-        ["Enteroendocrine cells — specialised cells that detect acid and fat and release hormones","Mucus glands — cells that release thick mucus to protect the intestine wall","Lacteals — tiny lymph vessels that carry fat-soluble nutrients away from the intestine"],0),
-      new Question("What is the function of bile in the small intestine during fat digestion?",
-        ["Bile breaks fat into tiny droplets so that enzymes can digest it more easily","Bile neutralises stomach acid so that intestinal enzymes can work properly","Bile absorbs fat directly through the intestine wall into the bloodstream"],0),
+      new Question("What is the main role of the small intestine in digestion?",
+        ["Digestive enzymes break food into nutrients","Stomach acid breaks proteins into smaller parts","Large intestine removes water from food waste"],0),
+      new Question("Why is the small intestine important after stomach digestion?",
+        ["Food nutrients are prepared for absorption","Food is returned to the stomach for mixing","Food waste is removed from the body"],0),
     ],
-    // Phase 3 — Small intestine villi
+    // Phase 3 — Small Intestine (Villi & Nutrient Zones)
     [
-      new Question("What is the main structural feature of the small intestine that makes it very good at absorption?",
-        ["Millions of finger-like villi that greatly increase the surface area for absorption","A very long and wide tube that gives food more time to be digested","A thick muscular wall that squeezes nutrients directly into the bloodstream"],0),
-      new Question("What is the function of the lacteal found inside each villus?",
-        ["It absorbs digested fats and transports them through the lymphatic system","It absorbs glucose and minerals and releases them directly into the blood","It secretes digestive enzymes to finish breaking down fats in the intestine"],0),
+      new Question("What is the main function of the villi in the small intestine?",
+        ["Villi absorb nutrients into the bloodstream","Villi grind food into smaller particles","Villi store waste before elimination"],0),
+      new Question("Why do villi have many tiny folds and projections?",
+        ["They increase surface area for nutrient absorption","They push food back toward the stomach","They store nutrients for later digestion"],0),
     ],
-    // Phase 4 — Large intestine
+    // Phase 4 — Large Intestine (Elimination)
     [
-      new Question("What is the main structural difference between the large intestine and the small intestine?",
-        ["The large intestine is wider but shorter, with no villi — it absorbs water not nutrients","The large intestine is narrower and longer, with more villi for nutrient absorption","The large intestine has the most digestive enzymes and is the longest organ in the gut"],0),
-      new Question("What is the main function of the large intestine in the digestive system?",
-        ["To reabsorb water from waste and form solid material to be eliminated from the body","To absorb proteins and carbohydrates that were missed by the small intestine","To produce digestive enzymes that finish breaking down any remaining food"],0),
+      new Question("What is the main function of the large intestine?",
+        ["Water is absorbed from remaining food waste","Proteins are broken down into amino acids","Starch is digested into simple sugars"],0),
+      new Question("Why is water absorption important in the large intestine?",
+        ["It helps form solid waste for elimination","It begins the digestion of starch molecules","It sends nutrients into the bloodstream"],0),
     ],
   ];
-  shortQuizBank = banks[phaseIdx] || [];
+    shortQuizBank = banks[phaseIdx] || [];
 }
 
 function startReflectionGate() {
