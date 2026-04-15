@@ -30,10 +30,8 @@ function playNhe3Sfx() {
 
 function loopSound(sound, vol) {
   if (!sound || !sound.isLoaded()) return;
-  if (!sound.isPlaying()) {
-    // Only call loop() when genuinely stopped — not just paused
-    sound.loop();
-  }
+  if (!sfxEnabled) { if (sound.isPlaying()) sound.stop(); return; }
+  if (!sound.isPlaying()) sound.loop();
   sound.setVolume((vol !== undefined ? vol : 0.5) * masterVolume);
 }
 
@@ -68,7 +66,7 @@ let reportSfxPlayed       = false;  // one-time trigger: fires only when report 
 let phase2ButtonSuccessPlayed = false;
 let phase0ProceedSoundPlayed  = false;
 let swallowProceedDelay       = 0;
-const SWALLOW_PROCEED_FRAMES  = 40;   // ~0.67 seconds at 60fps
+const SWALLOW_PROCEED_FRAMES  = 120;  // 2 seconds at 60fps
 let phase1ProceedSoundPlayed  = false;
 let phase2ProceedSoundPlayed  = false;
 let phase3ProceedSoundPlayed  = false;
@@ -189,7 +187,7 @@ let homeostasisDisplayTimer = 0;
 const HOMEOSTASIS_DISPLAY_FRAMES = 65;
 let homeostasisLocked = false;
 let greenZoneTimer = 0;                   // counts dt-ticks both hormones are in green zone
-const GREEN_ZONE_REQUIRED = 10 * 60;     // 10 seconds × 60 ticks = 600 ticks
+const GREEN_ZONE_REQUIRED = 25 * 60;     // 25 seconds × 60 ticks = 1500 ticks
 let phase1Complete    = false;
 let hormoneMist = [];
 let pepsinTimer = 0;
@@ -231,7 +229,7 @@ let sodiumNH3VX  = 0, sodiumNH3VY  = 0;
 let lipidVX    = 0, lipidVY    = 0;
 
 let phase3ProceedDelay = 0;
-const PHASE3_PROCEED_DELAY_FRAMES = 30;
+const PHASE3_PROCEED_DELAY_FRAMES = 90;
 let dragOffsetX = 0, dragOffsetY = 0;
 
 // ── PHASE 4 VARIABLES ─────────────────────────────────────
@@ -244,7 +242,7 @@ let peristalsisActive    = false;
 let peristalsissComplete = false;
 let phase4Ready          = false;
 let phase4ProceedDelay   = 0;
-const PHASE4_PROCEED_DELAY_FRAMES = 60;   // 1 second at 60fps — hold optimal then proceed
+const PHASE4_PROCEED_DELAY_FRAMES = 180;  // 3 seconds at 60fps — hold optimal then proceed
 const WP_X = [
   -153.3,-163.0,-183.0,-193.0,-206.0,-217.0,-223.0,-186.0,-154.0,-129.0,
   -101.0,-79.0,-46.0,-23.0,19.0,56.0,97.0,142.0,180.0,209.0,
@@ -578,7 +576,7 @@ function setup() {
         text("X", -9999, -9999);
     }
     
-    textStyle(BOLD);  
+    textStyle(NORMAL);  
     textSize(13);  
     textAlign(CENTER);
     for (let s of ["SALIVA", "pH: 2.0"]) { 
@@ -857,13 +855,21 @@ function updateAndDrawPhaseParticles(phaseIdx) {
 // Throttled to ~4× per second to prevent Web Audio API overload on mobile.
 // =========================================================
 function soundTick() {
-  // ── BG loop: direct volume control, no getVolume() (unreliable in p5.sound 1.9) ─
+  // ── BG loop: screen-aware volume manager (runs every frame) ─
   if (bgLoop != null && bgLoopStarted) {
     let bgAllowed = (mode === MODE_TITLE || mode === MODE_JOURNEY ||
                      mode === MODE_MECHANICS || mode === MODE_SETTINGS || mode === MODE_INFO || quizState === 1);
-    // Direct: set volume to target immediately — no lerp, no getVolume()
-    let bgVol = (bgAllowed && musicEnabled) ? (quizState === 1 ? 0.04 * masterVolume : 0.08 * masterVolume) : 0;
-    bgLoop.setVolume(bgVol);
+    let bgVol = musicEnabled ? masterVolume : 0;
+    let bgTarget  = bgAllowed ? (quizState === 1 ? 0.04 * bgVol : 0.08 * bgVol) : 0;
+
+    // Smooth fade toward target
+    let bgCurrent = bgLoop.getVolume ? bgLoop.getVolume() : 0;
+    let bgNext    = bgCurrent + (bgTarget - bgCurrent) * 0.04;
+
+    // Volume-only control — NEVER pause/play after startup.
+    // pause()/play() both create new Web Audio nodes in p5.sound 1.9.x.
+    // setVolume(0) = silent; setVolume(x) = audible. One node, forever.
+    bgLoop.setVolume(bgNext < 0.003 ? 0 : bgNext);
   }
 
   soundTickTimer++;
@@ -1041,7 +1047,7 @@ function updatePhase0Logic() {
   delayedSmell = lerp(delayedSmell, inputSmell, 1 - pow(1 - 0.005, dt));
 
   if (foodType === 1) {
-    salivaLevel  = lerp(salivaLevel, map(inputSmell, 0, 100, 40, 170), 0.025);
+    salivaLevel  = lerp(salivaLevel, map(inputSmell, 0, 100, 40, 170), 0.004);
     if (salivaLevel > 168 && inputSmell >= 99) salivaLevel = 170;
     cephalicAcid = lerp(cephalicAcid, map(delayedSmell, 0, 100, 0, 150), 1 - pow(1 - 0.005, dt));
   } else if (foodType === 2) {
@@ -1083,7 +1089,7 @@ function updatePhase1Logic() {
   updatePepsinDenaturation(currentPH, inPHWindow);
 
   if (proteinImg != null && enzymeActive)
-    proteinScale = max(0.0, proteinScale - 0.0015);
+    proteinScale = max(0.0, proteinScale - 0.00035);
   else if (proteinScale < 1.0 && pepsinState !== PepsinState.ACTIVE)
     proteinScale = min(1.0, proteinScale + 0.002);
 
@@ -1120,11 +1126,11 @@ function updatePhase2Logic() {
     sfx_wantSpray = true;
     let yOffset = 40;
     if (sprayType === 1) {
-      secretinLevel = min(secretinLevel + 1.5, 200);
+      secretinLevel = min(secretinLevel + 1.0, 200);
       for (let i = 0; i < 3; i++)
         hormoneMist.push(new Mist(GAME_W*0.15+80, GAME_H/2+50+yOffset, random(5,10), random(-2,2), [0,150,255]));
     } else {
-      cckLevel = min(cckLevel + 1.5, 200);
+      cckLevel = min(cckLevel + 1.0, 200);
       for (let i = 0; i < 3; i++)
         hormoneMist.push(new Mist(GAME_W*0.85-80, GAME_H/2+50+yOffset, random(-10,-5), random(-2,2), [255,180,0]));
     }
@@ -1133,8 +1139,8 @@ function updatePhase2Logic() {
   }
 
   if (!homeostasisLocked) {
-    secretinLevel = max(secretinLevel - decayRate * 0.15, 0);
-    cckLevel      = max(cckLevel      - decayRate * 0.15, 0);
+    secretinLevel = max(secretinLevel - decayRate * 0.4, 0);
+    cckLevel      = max(cckLevel      - decayRate * 0.4, 0);
   }
 }
 
@@ -1158,12 +1164,12 @@ function updatePhase4Logic() {
   waterSliderX = constrain(waterSliderX, sliderStart, sliderEnd);
   waterAbsorbed = map(waterSliderX, sliderStart, sliderEnd, 0, 100);
   // Moderate lerp — responsive but not instant (~3.5s to fully settle)
-  actualWaterAbsorbed = lerp(actualWaterAbsorbed, waterAbsorbed, 1 - pow(1 - 0.06, dt));
+  actualWaterAbsorbed = lerp(actualWaterAbsorbed, waterAbsorbed, 1 - pow(1 - 0.012, dt));
   stoolConsistency    = lerp(stoolConsistency, map(actualWaterAbsorbed, 0, 100, 0, 100), 1 - pow(1 - 0.010, dt));
   let waterGood = (actualWaterAbsorbed >= 40 && actualWaterAbsorbed <= 72);
   if (peristalsisActive && !peristalsissComplete) {
     // ~30 seconds of held-button time: 100 / (30s × 60fps) = 100/1800 per tick
-    peristalsisProgress = min(100, peristalsisProgress + (100 / 1200) * dt);
+    peristalsisProgress = min(100, peristalsisProgress + (100 / 1800) * dt);
     if (peristalsisProgress >= 100) peristalsissComplete = true;
   }
   // phase4Ready: stool at end AND water in optimal zone
@@ -1256,7 +1262,7 @@ function phase4() {
   textAlign(CENTER);
 
   // Guide text + buttons — invisible 3s countdown happens in logic, not shown here
-  noStroke();  textStyle(BOLD);  textSize(min(20, GAME_W*0.016));  textAlign(CENTER);
+  textStyle(NORMAL);  textSize(min(20, GAME_W*0.016));  textAlign(CENTER);
   if (phase4Ready && phase4ProceedDelay >= PHASE4_PROCEED_DELAY_FRAMES) {
     // 3s elapsed — show completion text and PROCEED
     fill(0,255,150);
@@ -1289,15 +1295,15 @@ function drawPeristalsisButton(x, y) {
   let hov = getInputX()>x-110 && getInputX()<x+110 && getInputY()>y-27 && getInputY()<y+27;
   fill(hov ? color(0,100,100) : color(0,60,80), 230);
   stroke(0,255,200);  strokeWeight(2);  rect(x, y, 220, 50, 12);
-  fill(255);  textStyle(BOLD);  textSize(19);  textAlign(CENTER,CENTER);
-  text(peristalsisActive ? "CONTRACTING..." : "PERISTALSIS", x, y-2);
+  noStroke();  fill(220, 245, 240);  textStyle(NORMAL);  textSize(17);  textAlign(CENTER,CENTER);
+  text(peristalsisActive ? "Contracting..." : "PERISTALSIS", x, y-2);
   textStyle(NORMAL);
 }
 
 function drawPhase4Panel(x, y, waterGood) {
   push();
   fill(20,30,50,220);  stroke(255,150);  strokeWeight(2);  rect(x, y, 275, 260, 15);
-  noStroke();  noStroke();  fill(0,255,200);  textStyle(BOLD);  textSize(16);  textAlign(CENTER);
+  fill(0,255,200);  textStyle(NORMAL);  textSize(16);  textAlign(CENTER);
   text("LARGE INTESTINE STATUS", x, y-95);  textStyle(NORMAL);
   let r1Y = y-40;
   let wCol = waterGood ? color(0,255,150) : (actualWaterAbsorbed<40 ? color(100,180,255) : color(255,140,60));
@@ -1307,7 +1313,7 @@ function drawPhase4Panel(x, y, waterGood) {
     stroke(0,255,150, 100+sin(millis()*0.00032)*155);  strokeWeight(3);
     noFill();  rect(x, r1Y, 240, 40, 5);
   }
-  fill(wCol);  textStyle(BOLD);  textSize(12);  textAlign(CENTER);
+  fill(wCol);  textStyle(NORMAL);  textSize(12);  textAlign(CENTER);
   text("WATER ABSORBED", x, r1Y-26);  textStyle(NORMAL);
   let r2Y = y+22;
   let sLabel = stoolConsistency<35 ? "LIQUID" : stoolConsistency>80 ? "HARD/IMPACTED" : "WELL-FORMED";
@@ -1328,7 +1334,7 @@ function drawPhase4Panel(x, y, waterGood) {
   }
   fill(255);  textSize(11);  textAlign(CENTER);
   text("PERISTALSIS: "+pLabel, x, r3Y-14);
-  noStroke();  textStyle(BOLD);  textSize(13);
+  noStroke();  textStyle(NORMAL);  textSize(13);
   if (phase4Ready)                         { fill(0,255,150);   text("READY!",                   x, r3Y+52); }
   else if (waterGood&&!peristalsissComplete){ fill(180,120,255); text("PRESS PERISTALSIS TO MOVE WASTE", x, r3Y+52); }
   else if (!waterGood)                     { fill(255,200,0);   text("ADJUST WATER ABSORPTION",  x, r3Y+52); }
@@ -1486,7 +1492,7 @@ function phase0() {
   }
 
   textStyle(NORMAL);  textSize(20);  textAlign(CENTER);
-  noStroke();  noStroke();  fill(p0Color);  text(p0Text, GAME_W / 2, guideY);
+  fill(p0Color);  text(p0Text, GAME_W / 2, guideY);
 
   if (!hasSwallowed && cephalicReady && !isChewing)
     drawNextButton(GAME_W / 2, buttonY, "CHEW FOOD");
@@ -1510,8 +1516,8 @@ function phase0() {
 function updateCephalicMetabolismFast() {
   if (foodType === 1) {
     let cal = map(delayedSmell, 0, 100, 0, 500);
-    insulinLevel            = lerp(insulinLevel, cal * 0.08, 1 - pow(1 - 0.018, dt));
-    hepaticGlucoseOutput    = lerp(hepaticGlucoseOutput, max(20, 100 - insulinLevel * 1.5), 1 - pow(1 - 0.018, dt));
+    insulinLevel            = lerp(insulinLevel, cal * 0.08, 1 - pow(1 - 0.0025, dt));
+    hepaticGlucoseOutput    = lerp(hepaticGlucoseOutput, max(20, 100 - insulinLevel * 1.5), 1 - pow(1 - 0.005, dt));
     peripheralGlucoseUptake = map(insulinLevel, 0, 40, 0, 100);
   } else if (foodType === 2) {
     insulinLevel            = lerp(insulinLevel, 0, 1 - pow(1 - 0.1, dt));
@@ -1529,7 +1535,7 @@ function drawMetabolicPanelWithSaliva(x, y) {
   fill(20, 30, 50, 220);  stroke(255, 150);  strokeWeight(2);
   rect(x, y, 280, 280, 15);
 
-  noStroke();  noStroke();  fill(0, 255, 200);  textStyle(BOLD);  textSize(16);  textAlign(CENTER);
+  fill(0, 255, 200);  textStyle(NORMAL);  textSize(16);  textAlign(CENTER);
   text("BODY PREP STATUS", x, y - 118);
   textStyle(NORMAL);  textSize(12);
 
@@ -1538,25 +1544,25 @@ function drawMetabolicPanelWithSaliva(x, y) {
   let sw = map(salivaLevel, 0, 170, 0, 240);
   fill(0, 200, 255);  rect(x - 120 + sw / 2, y - 60, sw, 40, 5);
   noStroke();  // no glow effects on saliva bar
-  noStroke();  fill(255);  textStyle(NORMAL);  textSize(13);  textAlign(CENTER);  text("SALIVA", x, y - 93);
+  fill(255);  textStyle(NORMAL);  textSize(13);  textAlign(CENTER);  text("SALIVA", x, y - 93);
 
   // Insulin bar
   fill(30, 40, 60);  rect(x, y - 10, 240, 20, 5);
   fill(255, 100, 150);  rect(x - 120 + map(insulinLevel, 0, 50, 0, 240) / 2, y - 10, map(insulinLevel, 0, 50, 0, 240), 20, 5);
-  noStroke();  noStroke();  noStroke();  fill(255);  textStyle(NORMAL);  textSize(11);  textAlign(CENTER);  text("INSULIN LEVEL: " + nf(insulinLevel, 0, 1), x, y - 25);
+  fill(255);  textStyle(NORMAL);  textSize(11);  textAlign(CENTER);  text("INSULIN LEVEL: " + nf(insulinLevel, 0, 1), x, y - 25);
 
   // Liver glucose bar — high output = full bar (biologically correct)
   fill(30, 40, 60);  rect(x, y + 35, 240, 20, 5);
   let hw = map(hepaticGlucoseOutput, 0, 150, 0, 240);
   fill(hepaticGlucoseOutput < 60 ? color(0, 255, 150) : hepaticGlucoseOutput < 100 ? color(255, 255, 0) : color(255, 100, 100));
   rect(x - 120 + hw / 2, y + 35, hw, 20, 5);
-  noStroke();  noStroke();  noStroke();  fill(255);  textStyle(NORMAL);  textSize(11);  textAlign(CENTER);  text("LIVER GLUCOSE: " + nf(hepaticGlucoseOutput, 0, 1) + "%", x, y + 20);
+  fill(255);  textStyle(NORMAL);  textSize(11);  textAlign(CENTER);  text("LIVER GLUCOSE: " + nf(hepaticGlucoseOutput, 0, 1) + "%", x, y + 20);
 
   // Uptake bar
   fill(30, 40, 60);  rect(x, y + 80, 240, 20, 5);
   let pu = map(peripheralGlucoseUptake, 0, 100, 0, 240);
   fill(100, 255, 200);  rect(x - 120 + pu / 2, y + 80, pu, 20, 5);
-  noStroke();  noStroke();  noStroke();  fill(255);  textStyle(NORMAL);  textSize(11);  textAlign(CENTER);  text("BODY CELLS ABSORBING: " + nf(peripheralGlucoseUptake, 0, 1) + "%", x, y + 65);
+  fill(255);  textStyle(NORMAL);  textSize(11);  textAlign(CENTER);  text("BODY CELLS ABSORBING: " + nf(peripheralGlucoseUptake, 0, 1) + "%", x, y + 65);
 
   let ready = (insulinLevel > 20 && hepaticGlucoseOutput < 60);
   textStyle(NORMAL);  textSize(13);  textAlign(CENTER);
@@ -1625,14 +1631,14 @@ function phase1() {
   textAlign(CENTER);
 
   if (ulcerRisk > 100) {
-    noStroke();  noStroke();  fill(255, 0, 0);  textStyle(NORMAL);  textSize(20);
+    fill(255, 0, 0);  textStyle(NORMAL);  textSize(20);
     text("STOMACH LINING IN DANGER — TOO MUCH ACID!", GAME_W / 2, statusY);
     sfx_wantWarning = true;
   } else {
     sfx_wantWarning = false;
 
     if (pepsinState === PepsinState.DENATURED) {
-      noStroke();  fill(255, 50, 50);  textStyle(NORMAL);  textSize(20);
+      fill(255, 50, 50);  textStyle(NORMAL);  textSize(20);
       text("ENZYME DENATURED — PEPSIN STOPPED WORKING!", GAME_W / 2, statusY);
       drawRestorePepsinButton(GAME_W / 2, statusY + spacing);
     } else if (pepsinConcentration > 0 && currentPH > 4.5 && currentPH <= 5.0) {
@@ -1667,7 +1673,7 @@ function phase1() {
 }
 
 function drawRestorePepsinButton(x, y) {
-  textStyle(BOLD);  textSize(20);
+  textStyle(NORMAL);  textSize(20);
   let bw = textWidth("RESTORE PEPSIN") + 60, bh = 54;
   let hover = (getInputX() > x - bw / 2 && getInputX() < x + bw / 2 &&
                getInputY() > y - bh / 2 && getInputY() < y + bh / 2);
@@ -1703,7 +1709,7 @@ function updatePepsinDenaturation(currentPH, inPHWindow) {
     // Denatured: reserve stays where it is — only restored by player pressing RESTORE PEPSIN
   } else {
     if (inPHWindow && pepsinState === PepsinState.INACTIVE) {
-      pepsinConcentration = min(100, pepsinConcentration + 0.14*dt);   // ~12s to reach 100%
+      pepsinConcentration = min(100, pepsinConcentration + 0.056*dt);  // ~30s to reach 100%
       // Pepsinogen consumed 1:1 as it converts to pepsin (stoichiometrically accurate)
       pepsinogenReserve   = max(0, 100 - pepsinConcentration);  // mirror: as pepsin rises, reserve falls to 0
       if (pepsinConcentration >= 100) {
@@ -1733,7 +1739,7 @@ function drawPepsinPanelBig(x, y, currentPH, inPHWindow, enzymeActive) {
   fill(20, 30, 50, 220);  stroke(255, 150);  strokeWeight(2);
   rect(x, y, 275, 260, 15);
 
-  noStroke();  noStroke();  fill(0, 255, 200);  textStyle(BOLD);  textSize(16);  textAlign(CENTER);
+  fill(0, 255, 200);  textStyle(NORMAL);  textSize(16);  textAlign(CENTER);
   text("ENZYME STATUS", x, y - 95);  textStyle(NORMAL);
 
   let phC = lerpColor(color(0, 150, 255), color(255, 0, 0), map(currentPH, 7, 1, 0, 1));
@@ -1741,13 +1747,13 @@ function drawPepsinPanelBig(x, y, currentPH, inPHWindow, enzymeActive) {
   let phW = map(currentPH, 7, 1, 0, 240);
   fill(phC);  rect(x - 120 + phW / 2, y - 40, phW, 40, 5);
   noStroke();  // no glow effects on pH bar
-  noStroke();  noStroke();  fill(255);  textStyle(NORMAL);  textSize(13);  textAlign(CENTER);
+  fill(255);  textStyle(NORMAL);  textSize(13);  textAlign(CENTER);
   text("pH: " + nf(currentPH, 1, 1), x, y - 72);
 
   fill(30, 40, 60);  rect(x, y + 10, 240, 20, 5);
   let pgW = map(pepsinogenReserve, 0, 100, 0, 240);
   fill(100, 150, 200);  rect(x - 120 + pgW / 2, y + 10, pgW, 20, 5);
-  noStroke();  noStroke();  fill(255);  textStyle(NORMAL);  textSize(11);  textAlign(CENTER);
+  fill(255);  textStyle(NORMAL);  textSize(11);  textAlign(CENTER);
   text("INACTIVE ENZYME (Pepsinogen): " + nf(pepsinogenReserve, 0, 0) + "%", x, y - 5);
 
   fill(30, 40, 60);  rect(x, y + 55, 240, 20, 5);
@@ -1758,9 +1764,9 @@ function drawPepsinPanelBig(x, y, currentPH, inPHWindow, enzymeActive) {
   fill(pepColor);
   rect(x - 120 + map(pepsinConcentration, 0, 100, 0, 240) / 2, y + 55,
        map(pepsinConcentration, 0, 100, 0, 240), 20, 5);
-  noStroke();  noStroke();  fill(255);  textStyle(NORMAL);  textSize(11);  textAlign(CENTER);  text("ACTIVE ENZYME (Pepsin): " + nf(pepsinConcentration, 0, 0) + "%", x, y + 40);
+  fill(255);  textStyle(NORMAL);  textSize(11);  textAlign(CENTER);  text("ACTIVE ENZYME (Pepsin): " + nf(pepsinConcentration, 0, 0) + "%", x, y + 40);
 
-  noStroke();  noStroke();  textStyle(NORMAL);  textSize(13);
+  textStyle(NORMAL);  textSize(13);
   if      (pepsinState === PepsinState.DENATURED)     { fill(255, 50, 50);   text("BROKEN — SHAPE DESTROYED",   x, y + 100); }
   else if (enzymeActive)                              { fill(0, 255, 150);   text("DIGESTING PROTEIN NOW!",      x, y + 100); }
   else if (inPHWindow && pepsinConcentration > 0)     { fill(255, 255, 0);   text("ENZYME ACTIVATING: " + nf(pepsinConcentration,0,0) + "%",  x, y + 100); }
@@ -1799,21 +1805,21 @@ function phase2() {
   rect(GAME_W / 2 - 150 + (secretinLevel / 200.0 * 150), phBarY,
        secretinLevel / 200.0 * 300, 15, 5);
 
-  textAlign(CENTER);
+  noStroke();  textAlign(CENTER);
   if (homeostasisReached) {
-    noStroke();  fill(0, 255, 150);  textStyle(BOLD);  textSize(22);
-    text("ACID NEUTRALIZED — READY FOR DIGESTION!", GAME_W / 2, warningY);  textStyle(NORMAL);
+    fill(0, 200, 140);  textStyle(NORMAL);  textSize(20);
+    text("Acid neutralized — ready for digestion!", GAME_W / 2, warningY);
     if (!phase2ProceedSoundPlayed) { playSoundOnce(successSfx);  phase2ProceedSoundPlayed = true; }
     drawProceedButton(GAME_W / 2, warningY + 45);
   } else if (greenZoneTimer > 0) {
     // Counting — show text only, no progress bar
-    fill(0, 255, 150, 150 + sin(millis() * 0.004) * 105);  textStyle(BOLD);  textSize(22);
-    text("HORMONES BALANCED — HOLD FOR " + nf((GREEN_ZONE_REQUIRED - greenZoneTimer) / 60, 0, 0) + "s MORE...", GAME_W / 2, warningY);  textStyle(NORMAL);
+    fill(0, 200, 140, 180 + sin(millis()*0.004)*75);  textStyle(NORMAL);  textSize(20);
+    text("Hormones balanced — hold for " + nf((GREEN_ZONE_REQUIRED - greenZoneTimer)/60,0,0) + "s more...", GAME_W/2, warningY);
   } else {
     let p2T = (secretinLevel <= 150 && cckLevel <= 150) ? "TOO MUCH ACID AND FAT! SPRAY BOTH HORMONES!" :
               (secretinLevel <= 150)                    ? "TOO MUCH ACID — SPRAY SECRETIN TO NEUTRALIZE IT!" :
                                                           "FATS DETECTED — SPRAY CCK TO RELEASE ENZYMES!";
-    noStroke();  noStroke();  fill(255);  textStyle(BOLD);  textSize(22);  text(p2T, GAME_W / 2, warningY);  textStyle(NORMAL);
+    fill(200, 210, 230);  textStyle(NORMAL);  textSize(20);  text(p2T, GAME_W / 2, warningY);
   }
 
   drawHormoneButton(GAME_W * 0.15, GAME_H / 2 + 50 + yOffset, "SECRETIN", color(0, 150, 255), sprayType === 1, hormone1Img);
@@ -1848,8 +1854,8 @@ function phase3() {
   renderZoneStrict(zoneX, nheY, "SODIUM EXCHANGER", color(100, 150, 255), zoneW, zoneH, nhe3Pulse,      sodiumNHE3Sorted);
   renderZoneStrict(zoneX, lacY, "LACTEAL",          color(100, 150, 255), zoneW, zoneH, lactealPulse,   lipidSorted);
 
-  noStroke();  fill(200);  textSize(16);  textAlign(CENTER);
-  text("DRAG EACH NUTRIENT TO WHERE IT IS ABSORBED IN THE VILLI!", GAME_W / 2, 75);
+  noStroke();  fill(180, 200, 225);  textStyle(NORMAL);  textSize(15);  textAlign(CENTER);
+  text("Drag each nutrient to where it is absorbed in the villi", GAME_W / 2, 75);
 
   // Physics+mist already ticked in updateGameLogic(); draw nutrients
   for (let m of hormoneMist) m.display();
@@ -1862,11 +1868,11 @@ function phase3() {
   if (allAbsorbed) {
     if (phase3ProceedDelay < PHASE3_PROCEED_DELAY_FRAMES) {
       fill(0, 255, 150, 150 + sin(millis() * 0.004) * 105);
-      textStyle(BOLD);  textSize(22);  textAlign(CENTER);
+      textStyle(NORMAL);  textSize(22);  textAlign(CENTER);
       text("ABSORPTION COMPLETE — PROCESSING...", GAME_W / 2, 105);  textStyle(NORMAL);
     } else {
       fill(0, 0, 0, 180);  rect(GAME_W / 2, GAME_H / 2, GAME_W, GAME_H);
-      fill(0, 255, 200);  textStyle(BOLD);  textSize(26);  textAlign(CENTER);
+      fill(0, 255, 200);  textStyle(NORMAL);  textSize(26);  textAlign(CENTER);
       text("ALL NUTRIENTS SUCCESSFULLY ABSORBED!", GAME_W / 2, GAME_H / 2 - 60);  textStyle(NORMAL);
       if (!phase3ProceedSoundPlayed) { playSoundOnce(successSfx);  phase3ProceedSoundPlayed = true; }
       drawProceedButton(GAME_W / 2, GAME_H / 2 + 22);
@@ -1911,7 +1917,7 @@ function handleNutrientPhysicsStrict(zoneX, zoneW, zoneH, capY, nheY, lacY) {
   // --- Glucose → capillary ---
   if (!draggingGlucose && !glucoseSorted) {
     if (pointInZone(glucoseX, glucoseY, zoneX, capY, zoneW, zoneH)) {
-      gTimer += 1.0 / 360.0;    // ~6 seconds at 60 ticks/s
+      gTimer += 1.0 / 1800.0;   // ~30 seconds at 60 ticks/s
       if (gTimer >= 1.0) { glucoseSorted = true; capillaryPulse = 30; triggerBurst(glucoseX, glucoseY, [0,255,0]); playNhe3Sfx(); }
     } else if (pointInZone(glucoseX, glucoseY, zoneX, nheY, zoneW, zoneH) ||
                pointInZone(glucoseX, glucoseY, zoneX, lacY, zoneW, zoneH)) {
@@ -1924,7 +1930,7 @@ function handleNutrientPhysicsStrict(zoneX, zoneW, zoneH, capY, nheY, lacY) {
   if (!draggingSodiumSGLT && !sodiumSGLTSorted) {
     if (pointInZone(sodiumSGLTX, sodiumSGLTY, zoneX, capY, zoneW, zoneH)) {
       let speedMult = dist(sodiumSGLTX, sodiumSGLTY, glucoseX, glucoseY) < 80 ? 2.0 : 1.0;
-      sGLTTimer += (1.0 / 360.0) * speedMult;    // ~6 seconds
+      sGLTTimer += (1.0 / 1800.0) * speedMult;   // ~30 seconds
       if (sGLTTimer >= 1.0) { sodiumSGLTSorted = true; capillaryPulse = 30; triggerBurst(sodiumSGLTX, sodiumSGLTY, [0,200,150]); playNhe3Sfx(); }
     } else if (pointInZone(sodiumSGLTX, sodiumSGLTY, zoneX, nheY, zoneW, zoneH) ||
                pointInZone(sodiumSGLTX, sodiumSGLTY, zoneX, lacY, zoneW, zoneH)) {
@@ -1936,7 +1942,7 @@ function handleNutrientPhysicsStrict(zoneX, zoneW, zoneH, capY, nheY, lacY) {
   // --- Sodium NHE3 → exchanger ---
   if (!draggingSodiumNHE3 && !sodiumNHE3Sorted) {
     if (pointInZone(sodiumNH3X, sodiumNH3Y, zoneX, nheY, zoneW, zoneH)) {
-      nhe3Timer += 1.0 / 360.0;    // ~6 seconds
+      nhe3Timer += 1.0 / 1800.0;   // ~30 seconds
       if (nhe3Timer >= 1.0) { sodiumNHE3Sorted = true; nhe3Pulse = 30; triggerBurst(sodiumNH3X, sodiumNH3Y, [0,100,200]); playNhe3Sfx(); }
     } else if (pointInZone(sodiumNH3X, sodiumNH3Y, zoneX, capY, zoneW, zoneH) ||
                pointInZone(sodiumNH3X, sodiumNH3Y, zoneX, lacY, zoneW, zoneH)) {
@@ -1948,7 +1954,7 @@ function handleNutrientPhysicsStrict(zoneX, zoneW, zoneH, capY, nheY, lacY) {
   // --- Lipid → lacteal ---
   if (!draggingLipid && !lipidSorted) {
     if (pointInZone(lipidX, lipidY, zoneX, lacY, zoneW, zoneH)) {
-      lTimer += 1.0 / 360.0;    // ~6 seconds
+      lTimer += 1.0 / 1800.0;   // ~30 seconds
       if (lTimer >= 1.0) { lipidSorted = true; lactealPulse = 30; triggerBurst(lipidX, lipidY, [255,255,180]); playNhe3Sfx(); }
     } else if (pointInZone(lipidX, lipidY, zoneX, capY, zoneW, zoneH) ||
                pointInZone(lipidX, lipidY, zoneX, nheY, zoneW, zoneH)) {
@@ -1993,8 +1999,9 @@ function drawFinalReport() {
   // Background: same protocolParticles as title screen
   for (let p of protocolParticles) { p.update();  p.display(); }
 
-  noStroke();  fill(0, 255, 200);  textStyle(NORMAL);  textAlign(CENTER);  textSize(36);
-  text("YOUR DIGESTIVE REPORT", GAME_W / 2, 60);
+  noStroke();
+  fill(0, 220, 180);  textStyle(NORMAL);  textAlign(CENTER);  textSize(34);
+  text("Your Digestive Report", GAME_W / 2, 60);
   stroke(112, 240, 240, 150);  strokeWeight(2);
   line(GAME_W / 2 - 180, 80, GAME_W / 2 + 180, 80);
 
@@ -2074,7 +2081,7 @@ function handleInputStart() {
   let ix = getInputX(), iy = getInputY();
 
   if (showLicenseScreen) {
-    textStyle(BOLD);  textSize(22);
+    textStyle(NORMAL);  textSize(22);
     let btnY = GAME_H / 2 + 230, btnH = 50, spacing = 40;
     let aw = textWidth("AGREE") + 50, dw = textWidth("DISAGREE") + 50;
     let ax = GAME_W / 2 - dw / 2 - spacing / 2 - aw / 2;
@@ -2121,6 +2128,13 @@ function handleInputStart() {
     let tx1 = GAME_W/2 + 180, tw = 80, th = 36;
     if (ix > tx1-tw/2 && ix < tx1+tw/2 && iy > rowY1-th/2 && iy < rowY1+th/2) {
       musicEnabled = !musicEnabled;
+      playSoundOnce(clickSfx);
+    }
+    // SFX toggle
+    let rowY2 = GAME_H/2 + 40;
+    let tx2 = GAME_W/2 + 180;
+    if (ix > tx2-tw/2 && ix < tx2+tw/2 && iy > rowY2-th/2 && iy < rowY2+th/2) {
+      sfxEnabled = !sfxEnabled;
       playSoundOnce(clickSfx);
     }
     // Back button
@@ -2180,16 +2194,14 @@ function handleInputStart() {
   if (mode === MODE_JOURNEY) {
     // VIEW REPORT button
     let done2 = phaseCompleted.filter(Boolean).length;
-    let rBtnXi = GAME_W/2, rBtnYi = GAME_H/2+160, rBtnWi = 280, rBtnHi = 60;
-    if (ix > rBtnXi-rBtnWi/2 && ix < rBtnXi+rBtnWi/2 && iy > rBtnYi-rBtnHi/2 && iy < rBtnYi+rBtnHi/2) {
-      if (phaseCompleted.filter(Boolean).length === 5) {
-        playSoundOnce(clickSfx);  currentReportSlide = 0;  reportSfxPlayed=false;  mode = MODE_FINISH;  transitionAlpha = 0;  return;
-      }
+    let rBtnXi = GAME_W-160, rBtnYi = GAME_H/2+150, rBtnWi = 260, rBtnHi = 60;
+    if (ix > rBtnXi-rBtnWi/2 && ix < rBtnXi+rBtnWi/2 && iy > rBtnYi-rBtnHi/2 && iy < rBtnYi+rBtnHi/2) {  // DEBUG: always accessible
+      playSoundOnce(clickSfx);  currentReportSlide = 0;  reportSfxPlayed=false;  mode = MODE_FINISH;  transitionAlpha = 0;  return;
     }
     for (let i = 0; i < 5; i++) {
       let nx = GAME_W / 2 - 440 + i * 220, ny = GAME_H/2 - 50;
-      let isAvail = (i === 0) || phaseCompleted[i-1];
-      if (dist(ix, iy, nx, ny) < 50 && isAvail) {
+      // DEBUG: all phases always accessible for fast testing
+      if (dist(ix, iy, nx, ny) < 50) {
         playSoundOnce(clickSfx);
         selectedPhase = i;
         gateAttemptsCount[i] = 0;
@@ -2230,7 +2242,7 @@ function handleInputStart() {
 
   if (mode === MODE_PHASE1) {
     if (pepsinState === PepsinState.DENATURED) {
-      textStyle(BOLD);  textSize(20);
+      textStyle(NORMAL);  textSize(20);
       let bw2 = textWidth("RESTORE PEPSIN") + 60, bh2 = 54, bx2 = GAME_W/2, by2 = 90+35;
       if (ix > bx2-bw2/2 && ix < bx2+bw2/2 && iy > by2-bh2/2 && iy < by2+bh2/2) { playSoundOnce(clickSfx);  resetPepsin(); }
     }
@@ -2380,11 +2392,12 @@ function resetAll() {
 function drawTitleScreen() {
   for (let p of protocolParticles) { p.update();  p.display(); }
 
-  noStroke();  noStroke();  fill(0, 255, 200);  textStyle(BOLD);  textAlign(CENTER);  textSize(72);
+  noStroke();
+  fill(0, 255, 200);  textStyle(NORMAL);  textAlign(CENTER);  textSize(72);
   text("BioBalance", GAME_W/2, GAME_H/2-180);
-  textSize(36);  text("DIGESTIVE CONTROL", GAME_W/2, GAME_H/2-130);
+  textSize(30);  text("Digestive Control", GAME_W/2, GAME_H/2-125);
 
-  noStroke();  noStroke();  fill(150, 200, 255);  textStyle(NORMAL);  textSize(20);
+  fill(150, 200, 255);  textStyle(NORMAL);  textSize(20);
   text("Explore, control, and understand how your body digests food.", GAME_W/2, GAME_H/2-90);
 
   stroke(0, 255, 200, 100);  strokeWeight(2);
@@ -2410,7 +2423,7 @@ function drawTitleScreen() {
   fill(hinfo ? color(0,100,100) : color(0,60,80), 220);
   stroke(0,255,200, hinfo?255:150);  strokeWeight(2);
   rect(ibx, iby, ibw, ibh, 8);
-  fill(255);  textStyle(BOLD);  textSize(16);  textAlign(CENTER,CENTER);
+  fill(255);  textStyle(NORMAL);  textSize(16);  textAlign(CENTER,CENTER);
   text("MORE INFO", ibx, iby-2);  textStyle(NORMAL);
 
   // Footer text handled by drawFooter() — no duplicate here
@@ -2421,8 +2434,9 @@ function drawTitleButton(x, y, w, h, main, sub, hov) {
   if (hov) { noFill();  stroke(0,255,200,100);  strokeWeight(8);  rect(0,0,w+10,h+10,15); }
   fill(hov ? color(0,100,100) : color(0,80,80), 220);
   stroke(0,255,200, hov?255:180);  strokeWeight(hov?3:2);  rect(0,0,w,h,12);
-  fill(255);  textStyle(BOLD);  textSize(28);  text(main, 0, -12);  textStyle(NORMAL);
-  fill(200,255,255);  textSize(15);  text(sub, 0, 22);
+  noStroke();
+  fill(240, 250, 255);  textStyle(NORMAL);  textSize(24);  text(main, 0, -12);
+  fill(180,220,225);  textSize(14);  text(sub, 0, 20);
   pop();
 }
 
@@ -2432,8 +2446,9 @@ function drawTitleButton(x, y, w, h, main, sub, hov) {
 function drawControlProtocol() {
   for (let p of protocolParticles) { p.update();  p.display(); }
 
-  fill(0,255,200);  textStyle(NORMAL);  textAlign(CENTER);  textSize(38);
-  text("HOW TO PLAY", GAME_W/2, 65);
+  noStroke();
+  fill(0,220,180);  textStyle(NORMAL);  textAlign(CENTER);  textSize(36);
+  text("How to Play", GAME_W/2, 65);
   stroke(0,255,200,80);  strokeWeight(1);
   line(GAME_W/2-200, 85, GAME_W/2+200, 85);
 
@@ -2454,7 +2469,7 @@ function drawControlProtocol() {
   ellipse(bx4,by4,br*2+20,br*2+20);
   fill(hov?color(0,200,160):color(0,100,100),240);
   stroke(0,255,200);  strokeWeight(hov?4:2);  ellipse(bx4,by4,br*2,br*2);
-  fill(255);  textStyle(BOLD);  textSize(36);  textAlign(CENTER,CENTER);  text("→",bx4+2,by4-2);  textStyle(NORMAL);
+  fill(255);  textStyle(NORMAL);  textSize(36);  textAlign(CENTER,CENTER);  text("→",bx4+2,by4-2);  textStyle(NORMAL);
 
   let rh=getInputX()>30&&getInputX()<180&&getInputY()>20&&getInputY()<60;
   fill(rh?60:30,200);  stroke(0,255,200,rh?255:150);  strokeWeight(1);
@@ -2467,15 +2482,16 @@ function drawProtocolCard(x, y, w, h, idx, isActive) {
   fill(15,30,50, 220);
   stroke(0,255,200, isActive?255:100);  strokeWeight(isActive?4:2);  rect(0,0,w,h,15);
   if (isActive) { noFill();  stroke(0,255,200,40);  strokeWeight(12);  rect(0,0,w-20,h-20,12); }
-  // Card title hover only — active is cyan, inactive is grey
-  fill(isActive ? color(0,255,200) : color(130,150,170));
-  textStyle(NORMAL);  textSize(22);  textAlign(CENTER);
-  text(cardTitles[idx], 0, -h/2+42);
-  // Body content — centred, no hover effect
-  fill(200, 218, 240);
-  textSize(16);  textAlign(CENTER);
-  let ly = -h/2+80;
-  for (let line of cardContent[idx]) { text(line, 0, ly);  ly += 24; }
+  // Card title
+  noStroke();
+  fill(isActive ? color(0,210,170) : color(110,130,150));
+  textStyle(NORMAL);  textSize(18);  textAlign(CENTER);
+  text(cardTitles[idx], 0, -h/2+40);
+  // Body content — centred
+  noStroke();  fill(195, 215, 238);
+  textStyle(NORMAL);  textSize(15);  textAlign(CENTER);
+  let ly = -h/2+75;
+  for (let line of cardContent[idx]) { text(line, 0, ly);  ly += 23; }
   pop();
 }
 
@@ -2485,20 +2501,21 @@ function drawProtocolCard(x, y, w, h, idx, isActive) {
 function drawJourneyMap() {
   for (let p of protocolParticles) { p.update();  p.display(); }
 
-  noStroke();  noStroke();  fill(0,255,200);  textStyle(NORMAL);  textAlign(CENTER);  textSize(38);
-  text("YOUR DIGESTIVE JOURNEY", GAME_W/2, 65);
+  noStroke();
+  fill(0,220,180);  textStyle(NORMAL);  textAlign(CENTER);  textSize(36);
+  text("Your Digestive Journey", GAME_W/2, 65);
 
   let done = 0, tot = 0;
   for (let i = 0; i < 5; i++) { if (phaseCompleted[i]) { done++;  tot += phaseEfficiency[i]; } }
   let sysInt = done === 0 ? 0 : tot / done;
 
-  noStroke();  noStroke();  fill(150,200,255);  textStyle(NORMAL);  textSize(16);
+  fill(150,200,255);  textStyle(NORMAL);  textSize(16);
   text("Overall Score: " + nf(sysInt,0,1) + "%  |  Phases Completed: " + done + " / 5", GAME_W/2, 95);
 
   // DIGESTION COMPLETE — breathing glow only, bigger, lower
   if (done === 5) {
     let pulse = (sin(millis()*0.002)+1)/2.0;
-    noStroke();  fill(0, 255, 200);
+    fill(0, 255, 200, 150 + pulse*105);
     textStyle(NORMAL);  textSize(34);  textAlign(CENTER);
     text("Digestion Complete!", GAME_W/2, 160);
   }
@@ -2522,22 +2539,31 @@ function drawJourneyMap() {
     ellipse(sx, nodeY, 118, 118);
   }
 
-  noStroke();  noStroke();  fill(160,180,200);  textStyle(NORMAL);  textSize(14);  textAlign(CENTER);
+  fill(160,180,200);  textStyle(NORMAL);  textSize(14);  textAlign(CENTER);
   text("Select a phase to begin or replay", GAME_W/2, GAME_H - 42);
 
-  // VIEW REPORT button — centred, only shows when all done
-  let rBtnY2 = GAME_H/2 + 160, rBtnH2 = 60, rBtnW2 = 280, rBtnX2 = GAME_W/2;
+  // PROGRESS table — left side, same vertical level as VIEW REPORT
+  let rBtnY2 = GAME_H/2 + 150, rBtnH2 = 60;
+  let prgX = 165, prgW = 260;
+  fill(0,20,40,200);  stroke(0,180,140,60);  strokeWeight(1);
+  rect(prgX, rBtnY2, prgW, 70, 8);
+  fill(0,255,200);  textStyle(NORMAL);  textSize(13);  textAlign(CENTER,CENTER);
+  text("Progress", prgX, rBtnY2 - 22);
+  fill(180,200,225);  textSize(12);
+  text("Status: " + (done===5?"Complete":done>=2?"In Progress":"Just Starting"), prgX, rBtnY2 - 4);
+  text("Score:  " + nf(sysInt,0,1)+"%", prgX, rBtnY2 + 16);
+
+  // VIEW REPORT button — right side, same level as progress table
+  let rBtnX2 = GAME_W - 160, rBtnW2 = 260;
   let allDone2 = (done === 5);
-  if (allDone2) {
-    let hRep2 = getInputX()>rBtnX2-rBtnW2/2 && getInputX()<rBtnX2+rBtnW2/2 &&
-                getInputY()>rBtnY2-rBtnH2/2 && getInputY()<rBtnY2+rBtnH2/2;
-    fill(hRep2 ? color(0,150,120) : color(0,100,80), 220);
-    stroke(0,255,200);  strokeWeight(2);
-    rect(rBtnX2, rBtnY2, rBtnW2, rBtnH2, 12);
-    noStroke();  fill(255);
-    textStyle(NORMAL);  textSize(16);  textAlign(CENTER,CENTER);
-    text("View Full Report", rBtnX2, rBtnY2 - 2);
-  }
+  let hRep2 = allDone2 && getInputX()>rBtnX2-rBtnW2/2 && getInputX()<rBtnX2+rBtnW2/2 &&
+              getInputY()>rBtnY2-rBtnH2/2 && getInputY()<rBtnY2+rBtnH2/2;
+  fill(allDone2 ? (hRep2 ? color(0,150,120) : color(0,100,80)) : color(30,40,50), 220);
+  stroke(allDone2 ? color(0,255,200) : color(60,70,80));  strokeWeight(allDone2 ? 2 : 1);
+  rect(rBtnX2, rBtnY2, rBtnW2, rBtnH2, 12);
+  fill(allDone2 ? 255 : color(80,90,100));
+  textStyle(NORMAL);  textSize(16);  textAlign(CENTER,CENTER);
+  text(allDone2 ? "View Full Report" : "Complete all phases first", rBtnX2, rBtnY2 - 2);
 }
 
 // FIX: replaced broken ternary fill() crash in original
@@ -2579,29 +2605,30 @@ function drawPhaseNode(x, y, phaseIndex) {
   ellipse(x, y, baseSize, baseSize);
 
   textAlign(CENTER, CENTER);
-  noStroke();
   if (isCompleted) {
     if (phaseEfficiency[phaseIndex] === 100) {
       noFill();  stroke(255,215,0, 180);  strokeWeight(4);
-      ellipse(x,y,baseSize+35,baseSize+35);
-      noStroke();  fill(255,215,0);
-    } else {
-      noStroke();  fill(phaseEfficiency[phaseIndex]===90 ? color(220,220,255) : color(phaseColors[phaseIndex][0],phaseColors[phaseIndex][1],phaseColors[phaseIndex][2]));
-    }
-    noStroke();  textStyle(BOLD);  textSize(24);
-    text(nf(phaseEfficiency[phaseIndex],0,0)+"%", x, y);
+      ellipse(x,y,baseSize+35,baseSize+35);  fill(255,215,0);
+    } else { fill(phaseEfficiency[phaseIndex]===90 ? color(220,220,255) : color(phaseColors[phaseIndex][0],phaseColors[phaseIndex][1],phaseColors[phaseIndex][2])); }
+    textStyle(NORMAL);  textSize(24);  text(nf(phaseEfficiency[phaseIndex],0,0)+"%", x, y);
+    if (phaseEfficiency[phaseIndex]===100) { textSize(12);  fill(255,215,0);  text("★ PERFECT ★",x,y+28); }
   } else if (isLocked) {
-    noStroke();  fill(100,110,120);  textStyle(BOLD);  textSize(18);  text("LOCK",x,y);
+    fill(100,110,120);  textStyle(NORMAL);  textSize(18);  text("LOCK",x,y);
   } else {
-    noStroke();  fill(isSelected?color(255,200,0):color(0,255,200));
-    textStyle(BOLD);  textSize(18);  text(phaseIndex===0?"START":"PLAY",x,y+2);
+    fill(isSelected?color(255,200,0):color(0,255,200));
+    textStyle(NORMAL);  textSize(18);  text(phaseIndex===0?"START":"PLAY",x,y+2);
   }
   textStyle(NORMAL);
-  noStroke();  fill(isCompleted ? color(200,220,240) : isAvailable ? color(0,255,200) : color(100,110,120));
+
+  // Phase label above node — static, no breathing
+  fill(isCompleted ? color(200,220,240) : isAvailable ? color(0,255,200) : color(100,110,120));
   textStyle(NORMAL);  textSize(13);  textAlign(CENTER,CENTER);  text("PHASE "+phaseIndex, x, y-65);
-  noStroke();  fill(230,240,255);  textStyle(NORMAL);  textSize(13);  text(phaseNames[phaseIndex], x, y+65);
-  noStroke();  fill(160,175,190);  textSize(11);  text(phaseSubtitles[phaseIndex], x, y+82);
-  noStroke();
+
+  // Phase name below node — clean white, no effects
+  fill(230,240,255);  textStyle(NORMAL);  textSize(13);  text(phaseNames[phaseIndex], x, y+65);
+  fill(160,175,190);  textSize(11);  text(phaseSubtitles[phaseIndex], x, y+82);
+
+  // Status label — static color only
   let statusLabel;
   if (isCompleted)      { statusLabel = "COMPLETED"; fill(0,220,140); }
   else if (isAvailable) { statusLabel = phaseIndex===0?"START HERE":"AVAILABLE"; fill(0,200,160); }
@@ -2622,8 +2649,9 @@ function drawLicenseScreen() {
 
   for (let p of protocolParticles) { p.update();  p.display(); }
 
-  fill(0,255,200);  textStyle(BOLD);  textAlign(CENTER);  textSize(56);
-  text("SOFTWARE LICENSE AGREEMENT", GAME_W/2, 120);
+  noStroke();
+  fill(0,200,160);  textStyle(NORMAL);  textAlign(CENTER);  textSize(36);
+  text("Software License Agreement", GAME_W/2, 90);
   stroke(0,255,200,100);  strokeWeight(2);  line(GAME_W/2-300,150,GAME_W/2+300,150);
 
   fill(15,30,50,220);  stroke(0,255,200,150);  strokeWeight(2);  rect(GAME_W/2,GAME_H/2-20,700,400,20);
@@ -2654,7 +2682,7 @@ function drawLicenseScreen() {
   fill(100,120,140,50);  textSize(12);  text(creatorID, GAME_W-150, GAME_H-20);
 
   let btnY=GAME_H/2+230, btnH=50, spacing=40;
-  textStyle(BOLD);  textSize(22);
+  textStyle(NORMAL);  textSize(22);
   let aw=textWidth("AGREE")+50, dw=textWidth("DISAGREE")+50;
   let ax=GAME_W/2-dw/2-spacing/2-aw/2, dx=GAME_W/2+aw/2+spacing/2+dw/2;
 
@@ -2675,15 +2703,20 @@ function drawLicenseScreen() {
 function drawSettingsScreen() {
   for (let p of protocolParticles) { p.update();  p.display(); }
 
+  // Settings title — no gear icon inside the screen
   noStroke();
-  fill(0, 255, 200);  textStyle(NORMAL);  textAlign(CENTER);  textSize(34);
-  text("SETTINGS", GAME_W/2, 80);
-  stroke(0, 255, 200, 60);  strokeWeight(1);
-  line(GAME_W/2-160, 100, GAME_W/2+160, 100);  noStroke();
+  fill(0, 220, 180);  textStyle(NORMAL);  textAlign(CENTER);  textSize(32);
+  text("Settings", GAME_W/2, 80);
+  stroke(0, 200, 160, 60);  strokeWeight(1);
+  line(GAME_W/2-160, 98, GAME_W/2+160, 98);
 
-  // MUSIC toggle row only
-  let rowY1 = GAME_H/2 - 10;
+  // MUSIC toggle row
+  let rowY1 = GAME_H/2 - 60;
   drawSettingsToggle(GAME_W/2, rowY1, "Music", "Background music", musicEnabled);
+
+  // SOUND EFFECTS toggle row
+  let rowY2 = GAME_H/2 + 40;
+  drawSettingsToggle(GAME_W/2, rowY2, "Sound Effects", "Game sounds and feedback", sfxEnabled);
 
   // Back button
   let backX = GAME_W/2, backY = GAME_H - 80, backW = 180, backH = 48;
@@ -2691,28 +2724,35 @@ function drawSettingsScreen() {
               getInputY()>backY-backH/2 && getInputY()<backY+backH/2;
   fill(hBack ? color(0,100,100) : color(0,60,80), 220);
   stroke(0,255,200);  strokeWeight(2);  rect(backX, backY, backW, backH, 10);
-  noStroke();  fill(255);  textStyle(NORMAL);  textSize(16);  textAlign(CENTER,CENTER);
+  fill(255);  textStyle(NORMAL);  textSize(16);  textAlign(CENTER,CENTER);
   text("Back", backX, backY - 2);
 }
 
 function drawGearIcon(cx, cy, r) {
-  // Gear drawn entirely with p5 shapes — consistent with game vibe
-  let teeth = 8, innerR = r*0.55, outerR = r, toothW = 0.22;
-  fill(0, 255, 200, 200);  noStroke();
+  // Soft rounded gear — fewer, wider teeth with curved outer profile
+  let teeth = 6, innerR = r*0.60, outerR = r, toothHalf = 0.18;
+  fill(0, 210, 165, 210);  noStroke();
   beginShape();
   for (let i = 0; i < teeth; i++) {
-    let a1 = (i / teeth) * TWO_PI - PI/teeth;
-    let a2 = a1 + toothW;
-    let a3 = a1 + PI/teeth - toothW;
-    let a4 = a1 + PI/teeth;
-    vertex(cx + cos(a1)*innerR, cy + sin(a1)*innerR);
-    vertex(cx + cos(a2)*outerR, cy + sin(a2)*outerR);
-    vertex(cx + cos(a3)*outerR, cy + sin(a3)*outerR);
-    vertex(cx + cos(a4)*innerR, cy + sin(a4)*innerR);
+    let midA  = (i / teeth) * TWO_PI;
+    let a1 = midA - toothHalf;
+    let a2 = midA - toothHalf * 0.3;
+    let a3 = midA + toothHalf * 0.3;
+    let a4 = midA + toothHalf;
+    // Blend inner to outer smoothly
+    vertex(cx + cos(a1)*innerR,          cy + sin(a1)*innerR);
+    vertex(cx + cos(a2)*(outerR*0.90),   cy + sin(a2)*(outerR*0.90));
+    vertex(cx + cos(midA)*outerR,        cy + sin(midA)*outerR);
+    vertex(cx + cos(a3)*(outerR*0.90),   cy + sin(a3)*(outerR*0.90));
+    vertex(cx + cos(a4)*innerR,          cy + sin(a4)*innerR);
   }
   endShape(CLOSE);
+  // Centre hole
   fill(10, 20, 35);  noStroke();
-  ellipse(cx, cy, innerR*1.1, innerR*1.1);
+  ellipse(cx, cy, innerR*1.15, innerR*1.15);
+  // Small centre dot
+  fill(0, 210, 165, 160);  noStroke();
+  ellipse(cx, cy, innerR*0.35, innerR*0.35);
 }
 
 function drawSettingsToggle(cx, y, label, sublabel, isOn) {
@@ -2721,7 +2761,7 @@ function drawSettingsToggle(cx, y, label, sublabel, isOn) {
   rect(cx, y, 520, 72, 12);
 
   // Label
-  noStroke();  fill(210, 230, 250);  textStyle(NORMAL);  textSize(18);  textAlign(LEFT, CENTER);
+  fill(210, 230, 250);  textStyle(NORMAL);  textSize(18);  textAlign(LEFT, CENTER);
   text(label, cx - 230, y - 10);
   fill(130, 150, 170);  textSize(13);
   text(sublabel, cx - 230, y + 12);
@@ -2735,7 +2775,7 @@ function drawSettingsToggle(cx, y, label, sublabel, isOn) {
   let knobX2 = isOn ? tx + tw/2 - th/2 - 2 : tx - tw/2 + th/2 + 2;
   fill(255);  ellipse(knobX2, y, th-6, th-6);
 
-
+  // No text on pill — knob position communicates state
 }
 
 // =========================================================
@@ -2745,7 +2785,8 @@ function drawInfoScreen() {
   for (let p of protocolParticles) { p.update();  p.display(); }
 
   // Title
-  fill(0, 255, 200);  textStyle(NORMAL);  textAlign(CENTER);  textSize(38);
+  noStroke();
+  fill(0, 200, 160);  textStyle(NORMAL);  textAlign(CENTER);  textSize(36);
   text("More Info", GAME_W/2, 70);
   stroke(0, 255, 200, 100);  strokeWeight(2);
   line(GAME_W/2-200, 108, GAME_W/2+200, 108);
@@ -2801,7 +2842,7 @@ function drawExitConfirmScreen() {
   rect(GAME_W/2, GAME_H/2, 560, 320, 20);
 
   // Title
-  fill(255, 255, 255);  textStyle(BOLD);  textAlign(CENTER, CENTER);  textSize(32);
+  fill(255, 255, 255);  textStyle(NORMAL);  textAlign(CENTER, CENTER);  textSize(32);
   text("EXIT BIOBALANCE?", GAME_W/2, GAME_H/2 - 90);  textStyle(NORMAL);
 
   fill(180, 200, 220);  textSize(18);
@@ -2815,7 +2856,7 @@ function drawExitConfirmScreen() {
   fill(hEx ? color(180, 30, 30) : color(120, 20, 20), 240);
   stroke(255, 80, 80);  strokeWeight(hEx ? 4 : 2);
   rect(exBtnX, exBtnY, exBtnW, exBtnH, 12);
-  fill(255);  textStyle(BOLD);  textSize(22);  textAlign(CENTER, CENTER);
+  fill(255);  textStyle(NORMAL);  textSize(22);  textAlign(CENTER, CENTER);
   text("EXIT", exBtnX, exBtnY - 2);  textStyle(NORMAL);
 
   // CANCEL button (cyan)
@@ -2825,7 +2866,7 @@ function drawExitConfirmScreen() {
   fill(hCa ? color(0, 130, 110) : color(0, 80, 70), 240);
   stroke(0, 255, 200);  strokeWeight(hCa ? 4 : 2);
   rect(caBtnX, caBtnY, caBtnW, caBtnH, 12);
-  fill(255);  textStyle(BOLD);  textSize(22);  textAlign(CENTER, CENTER);
+  fill(255);  textStyle(NORMAL);  textSize(22);  textAlign(CENTER, CENTER);
   text("CANCEL", caBtnX, caBtnY - 2);  textStyle(NORMAL);
 }
 
@@ -2845,26 +2886,27 @@ function drawPersistentReturnButton() {
     let hov = getInputX()>15&&getInputX()<135&&getInputY()>10&&getInputY()<50;
     fill(hov?80:40,200);  stroke(0,255,200);  strokeWeight(2);
     rect(75,30,120,40,5);
-    noStroke();  fill(0,255,200);  textAlign(CENTER,CENTER);  textSize(16);  text("RETURN",75,28);
+    fill(0,255,200);  textAlign(CENTER,CENTER);  textSize(16);  text("RETURN",75,28);
   }
 }
 
 function drawPhaseTitle(t, y) {
-  noStroke();  fill(255);  textAlign(CENTER);  textStyle(BOLD);  textSize(24);
-  text(t, GAME_W/2, y);  textStyle(NORMAL);
+  noStroke();
+  fill(220, 235, 250);  textAlign(CENTER);  textStyle(NORMAL);  textSize(22);
+  text(t, GAME_W/2, y);
 }
 
 function drawHormoneButton(x, y, name, c, active, img) {
   fill(active ? c : color(60,80,100,180));  stroke(255, active?255:50);
   rect(x, y, 200, 160, 20);
   if (img != null) image(img, x, y-10, 100, 100);
-  noStroke();  fill(255);  textAlign(CENTER);  textSize(16);  text(name, x, y+60);
+  fill(255);  textAlign(CENTER);  textSize(16);  text(name, x, y+60);
 }
 
 function drawMeter(x, y, val, label, c) {
   fill(30,45,60);  rect(x, y, 300, 25, 8);
   fill(c);  rect(x-(150-val*0.75), y, val*1.5, 25, 8);
-  noStroke();  noStroke();  fill(255);  textAlign(CENTER);  textSize(14);  text(label, x, y-25);
+  fill(255);  textAlign(CENTER);  textSize(14);  text(label, x, y-25);
 }
 
 function drawNutrient(img, x, y, label, c, sorted, dragging, t) {
@@ -2877,7 +2919,7 @@ function drawNutrient(img, x, y, label, c, sorted, dragging, t) {
     noFill();  stroke(0,255,0);  strokeWeight(4);
     arc(0,0,70,70,-HALF_PI,-HALF_PI+map(t,0,1,0,TWO_PI));
   }
-  noStroke();  noStroke();  fill(255);  textAlign(CENTER);  textSize(14);  text(label,0,45);
+  fill(255);  textAlign(CENTER);  textSize(14);  text(label,0,45);
   pop();
 }
 
@@ -2885,16 +2927,16 @@ function drawProceedButton(x, y) {
   let bw=200, bh=50;
   let hov=getInputX()>x-bw/2&&getInputX()<x+bw/2&&getInputY()>y-bh/2&&getInputY()<y+bh/2;
   fill(hov?80:40,200);  stroke(0,255,200, 150+sin(millis()*0.002)*100);  strokeWeight(3);
-  rect(x,y,bw,bh,10);  noStroke();  fill(255);  textStyle(BOLD);  textSize(20);  textAlign(CENTER,CENTER);
-  text("PROCEED",x,y-3);  textStyle(NORMAL);
+  rect(x,y,bw,bh,10);  noStroke();  fill(230,248,245);  textStyle(NORMAL);  textSize(18);  textAlign(CENTER,CENTER);
+  text("PROCEED",x,y-3);
 }
 
 function drawNextButton(x, y, label) {
   let bw=200, bh=50;
   let hov=getInputX()>x-bw/2&&getInputX()<x+bw/2&&getInputY()>y-bh/2&&getInputY()<y+bh/2;
   fill(hov?80:40,200);  stroke(0,255,200, 150+sin(millis()*0.002)*100);  strokeWeight(3);
-  rect(x,y,bw,bh,10);  noStroke();  fill(255);  textStyle(BOLD);  textSize(20);  textAlign(CENTER,CENTER);
-  text(label,x,y-3);  textStyle(NORMAL);
+  rect(x,y,bw,bh,10);  noStroke();  fill(230,248,245);  textStyle(NORMAL);  textSize(18);  textAlign(CENTER,CENTER);
+  text(label,x,y-3);
 }
 
 function resetNutrientPositions() {
@@ -2927,6 +2969,7 @@ function resetNutrientPositions() {
 function getTextWidth(str, font, size) { textSize(size);  return textWidth(str); }
 
 function drawWrappedText(txt, x, y, maxWidth, lineHeight, font, size) {
+  noStroke();
   textSize(size);
   let words = txt.split(' '), lines = [], cur = '';
   for (let w of words) {
@@ -3074,43 +3117,43 @@ function initShortQuizBank() {
   // 2-question banks: Q1 = structure, Q2 = function
   // MATATAG Grade 8: "Structure and function of the human digestive system"
   let banks = [
-    // Phase 0 — Mouth
+    // Phase 0 — Mouth / Brain signalling
     [
-      new Question("Which structure in the mouth mainly breaks food into smaller pieces?",
-        ["Teeth grind food into smaller pieces during chewing","Tongue pushes food toward the throat for swallowing","Saliva moistens food to make swallowing easier"],0),
-      new Question("What important function does saliva perform in the mouth?",
-        ["Saliva moistens food and begins starch digestion","Saliva pushes food directly toward the stomach","Saliva absorbs nutrients into nearby blood vessels"],0),
+      new Question("Which part of the digestive system is the first to receive food and begin mechanical digestion?",
+        ["The mouth — teeth crush food and saliva is secreted to begin digestion","The stomach — where food is churned and broken down by acid","The small intestine — where most chemical digestion takes place"],0),
+      new Question("What is the main function of the cephalic phase before food is even swallowed?",
+        ["To prepare the digestive system by secreting saliva and signalling the stomach","To absorb any liquid nutrients that enter the mouth with food","To eliminate waste from the previous meal before new food arrives"],0),
     ],
     // Phase 1 — Stomach
     [
-      new Question("What is the main function of the stomach during digestion?",
-        ["Stomach acid and enzymes break down proteins","Small intestine absorbs nutrients into blood vessels","Large intestine removes water from food waste"],0),
-      new Question("Which structure helps the stomach mix food with digestive juices?",
-        ["Strong stomach muscles churn food with acid","Thin intestinal walls absorb nutrients quickly","Large intestine stores waste before elimination"],0),
+      new Question("What is the main structural feature of the stomach that allows it to perform mechanical digestion?",
+        ["Thick muscular walls that churn and mix food with digestive juices","A smooth inner lining covered with villi to absorb broken-down proteins","A network of blood vessels that carry enzymes directly into the stomach"],0),
+      new Question("What is the function of stomach acid (hydrochloric acid) during chemical digestion?",
+        ["It unfolds proteins and activates the enzyme pepsin to break them down","It neutralises food so that nutrients can be absorbed through the stomach wall","It moves food quickly into the small intestine once mechanical digestion is done"],0),
     ],
-    // Phase 2 — Small Intestine (Digestion Stage)
+    // Phase 2 — Small intestine
     [
-      new Question("What is the main role of the small intestine in digestion?",
-        ["Digestive enzymes break food into nutrients","Stomach acid breaks proteins into smaller parts","Large intestine removes water from food waste"],0),
-      new Question("Why is the small intestine important after stomach digestion?",
-        ["Food nutrients are prepared for absorption","Food is returned to the stomach for mixing","Food waste is removed from the body"],0),
+      new Question("What structures in the wall of the small intestine secrete hormones that control digestion?",
+        ["Enteroendocrine cells — specialised cells that detect acid and fat and release hormones","Mucus glands — cells that release thick mucus to protect the intestine wall","Lacteals — tiny lymph vessels that carry fat-soluble nutrients away from the intestine"],0),
+      new Question("What is the function of bile in the small intestine during fat digestion?",
+        ["Bile breaks fat into tiny droplets so that enzymes can digest it more easily","Bile neutralises stomach acid so that intestinal enzymes can work properly","Bile absorbs fat directly through the intestine wall into the bloodstream"],0),
     ],
-    // Phase 3 — Small Intestine (Villi & Nutrient Zones)
+    // Phase 3 — Small intestine villi
     [
-      new Question("What is the main function of the villi in the small intestine?",
-        ["Villi absorb nutrients into the bloodstream","Villi grind food into smaller particles","Villi store waste before elimination"],0),
-      new Question("Why do villi have many tiny folds and projections?",
-        ["They increase surface area for nutrient absorption","They push food back toward the stomach","They store nutrients for later digestion"],0),
+      new Question("What is the main structural feature of the small intestine that makes it very good at absorption?",
+        ["Millions of finger-like villi that greatly increase the surface area for absorption","A very long and wide tube that gives food more time to be digested","A thick muscular wall that squeezes nutrients directly into the bloodstream"],0),
+      new Question("What is the function of the lacteal found inside each villus?",
+        ["It absorbs digested fats and transports them through the lymphatic system","It absorbs glucose and minerals and releases them directly into the blood","It secretes digestive enzymes to finish breaking down fats in the intestine"],0),
     ],
-    // Phase 4 — Large Intestine (Elimination)
+    // Phase 4 — Large intestine
     [
-      new Question("What is the main function of the large intestine?",
-        ["Water is absorbed from remaining food waste","Proteins are broken down into amino acids","Starch is digested into simple sugars"],0),
-      new Question("Why is water absorption important in the large intestine?",
-        ["It helps form solid waste for elimination","It begins the digestion of starch molecules","It sends nutrients into the bloodstream"],0),
+      new Question("What is the main structural difference between the large intestine and the small intestine?",
+        ["The large intestine is wider but shorter, with no villi — it absorbs water not nutrients","The large intestine is narrower and longer, with more villi for nutrient absorption","The large intestine has the most digestive enzymes and is the longest organ in the gut"],0),
+      new Question("What is the main function of the large intestine in the digestive system?",
+        ["To reabsorb water from waste and form solid material to be eliminated from the body","To absorb proteins and carbohydrates that were missed by the small intestine","To produce digestive enzymes that finish breaking down any remaining food"],0),
     ],
   ];
-    shortQuizBank = banks[phaseIdx] || [];
+  shortQuizBank = banks[phaseIdx] || [];
 }
 
 function startReflectionGate() {
@@ -3171,10 +3214,11 @@ function drawReflectionGate() {
     stroke(0,255,200, 100+sin(millis()*0.0009)*50);  strokeWeight(3);
     rect(cx, GAME_H/2, GAME_W-40, GAME_H-40, 20);
 
-    fill(0,255,200);  textStyle(BOLD);  textAlign(CENTER);  textSize(48);
+    noStroke();
+    fill(0,255,200);  textStyle(NORMAL);  textAlign(CENTER);  textSize(38);
     text("KNOWLEDGE CHECK", cx, 80);
-    textStyle(NORMAL);  textSize(22);  fill(150,200,255);
-    text(pnameShort, cx, 120);
+    textSize(18);  fill(150,200,255);
+    text(pnameShort, cx, 110);
 
     fill(255);  textSize(19);  textAlign(CENTER);
     text("Choose how many questions you want to answer:", cx, 185);
@@ -3184,7 +3228,7 @@ function drawReflectionGate() {
     let h2 = getInputX()>b2x-b2w/2 && getInputX()<b2x+b2w/2 && getInputY()>b2y-b2h/2 && getInputY()<b2y+b2h/2;
     fill(h2 ? color(0,100,100) : color(0,60,80), 230);
     stroke(0,255,200);  strokeWeight(h2?3:2);  rect(b2x, b2y, b2w, b2h, 15);
-    fill(0,255,200);  textStyle(BOLD);  textSize(32);  textAlign(CENTER,CENTER);
+    fill(0,255,200);  textStyle(NORMAL);  textSize(32);  textAlign(CENTER,CENTER);
     text("2 QUESTIONS", b2x, b2y-18);
     fill(200,255,240);  textStyle(NORMAL);  textSize(15);
     text("Structure & Function — quick check", b2x, b2y+14);
@@ -3194,7 +3238,7 @@ function drawReflectionGate() {
     let h5 = getInputX()>b5x-b5w/2 && getInputX()<b5x+b5w/2 && getInputY()>b5y-b5h/2 && getInputY()<b5y+b5h/2;
     fill(h5 ? color(0,100,100) : color(0,60,80), 230);
     stroke(0,255,200);  strokeWeight(h5?3:2);  rect(b5x, b5y, b5w, b5h, 15);
-    fill(0,255,200);  textStyle(BOLD);  textSize(32);  textAlign(CENTER,CENTER);
+    fill(0,255,200);  textStyle(NORMAL);  textSize(32);  textAlign(CENTER,CENTER);
     text("5 QUESTIONS", b5x, b5y-18);
     fill(200,255,240);  textStyle(NORMAL);  textSize(15);
     text("Full knowledge check — 7-question bank, 5 drawn", b5x, b5y+14);
@@ -3214,10 +3258,11 @@ function drawReflectionGate() {
     stroke(0, 255, 200, 100 + sin(millis() * 0.0009) * 50);
     strokeWeight(3);  rect(cx, GAME_H/2, GAME_W-40, GAME_H-40, 20);
 
-    fill(0, 255, 200);  textStyle(BOLD);  textAlign(CENTER);  textSize(48);
+    noStroke();
+    fill(0, 255, 200);  textStyle(NORMAL);  textAlign(CENTER);  textSize(38);
     text("KNOWLEDGE CHECK", cx, 80);
-    textStyle(NORMAL);  textSize(22);  fill(150, 200, 255);
-    text(pnameShort, cx, 115);
+    textSize(18);  fill(150, 200, 255);
+    text(pnameShort, cx, 110);
 
     textSize(15);  fill(200);
     let att = gateAttemptsCount[phaseIdx];
@@ -3267,7 +3312,7 @@ function drawReflectionGate() {
             successParticles.push(new SuccessParticle(cx, GAME_H-80, [0, 255, 100]));
         }
       } else { fill(255,50,50); }
-      textStyle(BOLD);  textSize(28);  text(feedbackMsg, cx, GAME_H-80);
+      noStroke();  textStyle(NORMAL);  textSize(22);  text(feedbackMsg, cx, GAME_H-80);
       feedbackTimer--;
     }
     for (let i = successParticles.length-1; i >= 0; i--) {
@@ -3279,17 +3324,17 @@ function drawReflectionGate() {
   } else if (quizSubState === 1) {
     fill(0,20,10,220);  noStroke();  rect(cx,GAME_H/2,GAME_W,GAME_H);
     let pulse3=(sin(millis()*0.002)+1)/2.0;
-    fill(0,255,150, 200+pulse3*55);  textStyle(BOLD);  textSize(56);  textAlign(CENTER,CENTER);
-    text("GREAT JOB!", cx, GAME_H/2-80);
+    fill(0,255,150, 200+pulse3*55);  textStyle(NORMAL);  textSize(56);  textAlign(CENTER,CENTER);
+    text("Great Job!", cx, GAME_H/2-80);
 
     let pname2=["PHASE 0 — BRAIN FOOD RESPONSE","PHASE 1 — STOMACH ACID & ENZYMES",
                 "PHASE 2 — HORMONE BALANCE","PHASE 3 — NUTRIENT ABSORPTION",
                 "PHASE 4 — WATER REABSORPTION & ELIMINATION"][phaseIdx]||"";
     let eff = calculateEfficiency(phaseIdx);
-    fill(255,215,0);  textSize(40);  text(nf(eff,0,0)+"% MASTERY ACHIEVED", cx, GAME_H/2-20);
+    noStroke();  fill(210,180,70);  textSize(30);  text(nf(eff,0,0)+"% Mastery Achieved", cx, GAME_H/2-20);
     fill(255);  textStyle(NORMAL);  textSize(24);
     text("You've successfully learned about", cx, GAME_H/2+30);
-    textStyle(BOLD);  text(pname2, cx, GAME_H/2+70);  textStyle(NORMAL);
+    textStyle(NORMAL);  text(pname2, cx, GAME_H/2+70);  textStyle(NORMAL);
 
     if (mode===MODE_PHASE4) {
       textSize(22);  fill(0,255,200);  text("The full digestive process is complete!", cx, GAME_H/2+115);
@@ -3298,7 +3343,7 @@ function drawReflectionGate() {
       text("you have traced how the entire digestive system works.", cx, GAME_H/2+172);
       text("Great work, BioBalancer!", cx, GAME_H/2+196);
     } else {
-      if (eff===100) { textStyle(BOLD);  textSize(28);  fill(255,215,0);  text("★ PERFECT FIRST-TRY MASTERY ★", cx, GAME_H/2+110);  textStyle(NORMAL); }
+      if (eff===100) { textStyle(NORMAL);  textSize(20);  fill(220,185,80);  noStroke();  text("★ Perfect first-try mastery ★", cx, GAME_H/2+110); }
       else if (eff===90) { textSize(20);  fill(220,220,255);  text("First-try on replay (100% only on first attempt)", cx, GAME_H/2+110); }
       else { textSize(20);  fill(200);  text("Multiple attempts needed — replay to improve!", cx, GAME_H/2+110); }
     }
@@ -3322,14 +3367,15 @@ function drawReflectionGate() {
   // ── Sub-state 2: failure ──────────────────────────────
   } else if (quizSubState === 2) {
     fill(20,10,10,220);  noStroke();  rect(cx,GAME_H/2,GAME_W,GAME_H);
-    fill(255,100,100);  textStyle(BOLD);  textSize(48);  textAlign(CENTER,CENTER);
-    text("NOT QUITE — LET'S TRY AGAIN!", cx, GAME_H/2-100);
-    fill(255);  textStyle(NORMAL);  textSize(22);
+    noStroke();
+    fill(220,100,100);  textStyle(NORMAL);  textSize(36);  textAlign(CENTER,CENTER);
+    text("Not quite — let's try again!", cx, GAME_H/2-100);
+    fill(190,205,225);  textStyle(NORMAL);  textSize(19);
     text("You need all " + (quizModeSelected===2?"2":"5") + " correct to move forward.", cx, GAME_H/2-55);
 
     // FIX: wrong answers are now displayed so students can learn
     if (wrongAnswers.length > 0) {
-      fill(255,200,100);  textStyle(BOLD);  textSize(18);
+      fill(255,200,100);  textStyle(NORMAL);  textSize(18);
       text("Questions you missed:", cx, GAME_H/2-10);  textStyle(NORMAL);
       let wy = GAME_H/2+25;
       for (let wa of wrongAnswers) {
@@ -3340,7 +3386,7 @@ function drawReflectionGate() {
       }
     }
 
-    fill(0,255,200);  textStyle(BOLD);  textSize(20);
+    fill(0,255,200);  textStyle(NORMAL);  textSize(20);
     text("Click anywhere to return and replay the phase", cx, GAME_H-80);  textStyle(NORMAL);
   }
 
