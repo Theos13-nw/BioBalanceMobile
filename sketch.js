@@ -2017,7 +2017,7 @@ function drawFinalReport() {
   let bodyLines = content.slice(2);
   let titleSize = 32;   // slightly smaller so title fits on one line at all sizes
   // Phase 4 has 8 lines — use tighter gap; all others 7 lines — use comfortable gap
-  let bodySize = 32, lineGap = (currentReportSlide === 4) ? 37 : 42;
+  let bodySize = 32, lineGap = 42;  // same spacing for all phases
 
   // Strip "PHASE X — " prefix from title (phase shown in buttons below)
   let rawTitle = content[0];
@@ -2116,26 +2116,25 @@ function handleInputStart() {
       playSoundOnce(clickSfx);  settingsReturnMode = MODE_TITLE;  mode = MODE_SETTINGS;  transitionAlpha = 0;
     }
     // More Info button (top-left)
-    let ibx2 = 80, iby2 = 35, ibw2 = 120, ibh2 = 40;
-    if (ix > ibx2-ibw2/2 && ix < ibx2+ibw2/2 && iy > iby2-ibh2/2 && iy < iby2+ibh2/2) {
+    // Info button (top-left ? icon)
+    let ibx2 = 50, iby2 = 38;
+    if (dist(ix, iy, ibx2, iby2) < 28) {
       playSoundOnce(clickSfx);  infoReturnMode = MODE_TITLE;  mode = MODE_INFO;  transitionAlpha = 0;
     }
   }
 
   if (mode === MODE_SETTINGS) {
-    // Music toggle
-    let rowY1 = GAME_H/2 - 60;
-    let tx1 = GAME_W/2 + 180, tw = 80, th = 36;
-    if (ix > tx1-tw/2 && ix < tx1+tw/2 && iy > rowY1-th/2 && iy < rowY1+th/2) {
-      musicEnabled = !musicEnabled;
-      playSoundOnce(clickSfx);
-    }
-    // SFX toggle
-    let rowY2 = GAME_H/2 + 40;
-    let tx2 = GAME_W/2 + 180;
-    if (ix > tx2-tw/2 && ix < tx2+tw/2 && iy > rowY2-th/2 && iy < rowY2+th/2) {
-      sfxEnabled = !sfxEnabled;
-      playSoundOnce(clickSfx);
+    // Slider knob drag
+    if (dist(ix, iy, _settingsKnobX, _settingsSliderY) < 30) isDraggingVolumeSlider = true;
+    // 5 step circles
+    let steps2 = [0, 0.25, 0.5, 0.75, 1.0];
+    let sStart2 = GAME_W/2 - 250, stepSpacing2 = 500 / 4;
+    for (let i = 0; i < steps2.length; i++) {
+      let sx3 = sStart2 + i * stepSpacing2;
+      let sy3 = (_settingsSliderY > 0 ? _settingsSliderY : GAME_H/2-60) + 92;
+      if (dist(ix, iy, sx3, sy3) < 22) {
+        masterVolume = steps2[i];  playSoundOnce(clickSfx);
+      }
     }
     // Back button
     let backX = GAME_W/2, backY = GAME_H-80, backW = 180, backH = 48;
@@ -2194,8 +2193,9 @@ function handleInputStart() {
   if (mode === MODE_JOURNEY) {
     // VIEW REPORT button
     let done2 = phaseCompleted.filter(Boolean).length;
-    let rBtnXi = GAME_W-160, rBtnYi = GAME_H/2+150, rBtnWi = 260, rBtnHi = 60;
-    if (ix > rBtnXi-rBtnWi/2 && ix < rBtnXi+rBtnWi/2 && iy > rBtnYi-rBtnHi/2 && iy < rBtnYi+rBtnHi/2) {  // DEBUG: always accessible
+    // VIEW REPORT — centred, matches v4 draw position
+    let rBtnXi = GAME_W/2, rBtnYi = GAME_H/2+150, rBtnWi = 280, rBtnHi = 60;
+    if (done2 === 5 && ix > rBtnXi-rBtnWi/2 && ix < rBtnXi+rBtnWi/2 && iy > rBtnYi-rBtnHi/2 && iy < rBtnYi+rBtnHi/2) {
       playSoundOnce(clickSfx);  currentReportSlide = 0;  reportSfxPlayed=false;  mode = MODE_FINISH;  transitionAlpha = 0;  return;
     }
     for (let i = 0; i < 5; i++) {
@@ -2417,14 +2417,13 @@ function drawTitleScreen() {
   ellipse(sbx, sby, 52, 52);
   drawGearIcon(sbx, sby, 16);
 
-  // More Info button top-left (opposite of settings)
-  let ibx = 80, iby = 35, ibw = 120, ibh = 40;
-  let hinfo = getInputX()>ibx-ibw/2 && getInputX()<ibx+ibw/2 && getInputY()>iby-ibh/2 && getInputY()<iby+ibh/2;
-  fill(hinfo ? color(0,100,100) : color(0,60,80), 220);
-  stroke(0,255,200, hinfo?255:150);  strokeWeight(2);
-  rect(ibx, iby, ibw, ibh, 8);
-  fill(255);  textStyle(NORMAL);  textSize(16);  textAlign(CENTER,CENTER);
-  text("MORE INFO", ibx, iby-2);  textStyle(NORMAL);
+  // More Info button top-left — question mark icon, mirrors gear button style
+  let ibx = 50, iby = 38;
+  let hinfo = dist(getInputX(), getInputY(), ibx, iby) < 28;
+  fill(hinfo ? color(0,80,70) : color(0,40,50), 200);
+  stroke(hinfo ? color(0,200,160) : color(0,160,130));  strokeWeight(hinfo?2:1.5);
+  ellipse(ibx, iby, 52, 52);
+  drawQuestionMarkIcon(ibx, iby, 14);
 
   // Footer text handled by drawFooter() — no duplicate here
 }
@@ -2501,29 +2500,27 @@ function drawProtocolCard(x, y, w, h, idx, isActive) {
 function drawJourneyMap() {
   for (let p of protocolParticles) { p.update();  p.display(); }
 
-  noStroke();
-  fill(0,220,180);  textStyle(NORMAL);  textAlign(CENTER);  textSize(36);
-  text("Your Digestive Journey", GAME_W/2, 65);
+  // Title — v4 style: uppercase, cyan, size 38
+  noStroke();  fill(0,255,200);  textStyle(NORMAL);  textAlign(CENTER);  textSize(38);
+  text("YOUR DIGESTIVE JOURNEY", GAME_W/2, 65);
 
   let done = 0, tot = 0;
   for (let i = 0; i < 5; i++) { if (phaseCompleted[i]) { done++;  tot += phaseEfficiency[i]; } }
   let sysInt = done === 0 ? 0 : tot / done;
 
-  fill(150,200,255);  textStyle(NORMAL);  textSize(16);
+  noStroke();  fill(150,200,255);  textStyle(NORMAL);  textSize(16);
   text("Overall Score: " + nf(sysInt,0,1) + "%  |  Phases Completed: " + done + " / 5", GAME_W/2, 95);
 
-  // DIGESTION COMPLETE — breathing glow only, bigger, lower
+  // DIGESTION COMPLETE — v4 style: static fill, size 34
   if (done === 5) {
-    let pulse = (sin(millis()*0.002)+1)/2.0;
-    fill(0, 255, 200, 150 + pulse*105);
+    noStroke();  fill(0, 255, 200);
     textStyle(NORMAL);  textSize(34);  textAlign(CENTER);
     text("Digestion Complete!", GAME_W/2, 160);
   }
 
-  // Phase nodes — use GAME_H/2-50 same as click handler
+  // Phase nodes — nodeY matches click handler
   let nodeY = GAME_H/2 - 50;
   noStroke();
-  // Connection lines — simple static lines, no animated dot
   strokeWeight(3);
   for (let i = 0; i < 4; i++) {
     let x1 = GAME_W/2-440+(i*220), x2 = x1+220;
@@ -2539,31 +2536,33 @@ function drawJourneyMap() {
     ellipse(sx, nodeY, 118, 118);
   }
 
-  fill(160,180,200);  textStyle(NORMAL);  textSize(14);  textAlign(CENTER);
+  noStroke();  fill(160,180,200);  textStyle(NORMAL);  textSize(14);  textAlign(CENTER);
   text("Select a phase to begin or replay", GAME_W/2, GAME_H - 42);
 
-  // PROGRESS table — left side, same vertical level as VIEW REPORT
+  // PROGRESS table — kept from last file (left side)
   let rBtnY2 = GAME_H/2 + 150, rBtnH2 = 60;
   let prgX = 165, prgW = 260;
   fill(0,20,40,200);  stroke(0,180,140,60);  strokeWeight(1);
   rect(prgX, rBtnY2, prgW, 70, 8);
-  fill(0,255,200);  textStyle(NORMAL);  textSize(13);  textAlign(CENTER,CENTER);
+  noStroke();  fill(0,255,200);  textStyle(NORMAL);  textSize(13);  textAlign(CENTER,CENTER);
   text("Progress", prgX, rBtnY2 - 22);
   fill(180,200,225);  textSize(12);
   text("Status: " + (done===5?"Complete":done>=2?"In Progress":"Just Starting"), prgX, rBtnY2 - 4);
   text("Score:  " + nf(sysInt,0,1)+"%", prgX, rBtnY2 + 16);
 
-  // VIEW REPORT button — right side, same level as progress table
-  let rBtnX2 = GAME_W - 160, rBtnW2 = 260;
+  // VIEW REPORT button — v4 style: centred, only visible when all done
+  let rBtnX2 = GAME_W/2, rBtnW2 = 280;
   let allDone2 = (done === 5);
-  let hRep2 = allDone2 && getInputX()>rBtnX2-rBtnW2/2 && getInputX()<rBtnX2+rBtnW2/2 &&
-              getInputY()>rBtnY2-rBtnH2/2 && getInputY()<rBtnY2+rBtnH2/2;
-  fill(allDone2 ? (hRep2 ? color(0,150,120) : color(0,100,80)) : color(30,40,50), 220);
-  stroke(allDone2 ? color(0,255,200) : color(60,70,80));  strokeWeight(allDone2 ? 2 : 1);
-  rect(rBtnX2, rBtnY2, rBtnW2, rBtnH2, 12);
-  fill(allDone2 ? 255 : color(80,90,100));
-  textStyle(NORMAL);  textSize(16);  textAlign(CENTER,CENTER);
-  text(allDone2 ? "View Full Report" : "Complete all phases first", rBtnX2, rBtnY2 - 2);
+  if (allDone2) {
+    let hRep2 = getInputX()>rBtnX2-rBtnW2/2 && getInputX()<rBtnX2+rBtnW2/2 &&
+                getInputY()>rBtnY2-rBtnH2/2 && getInputY()<rBtnY2+rBtnH2/2;
+    fill(hRep2 ? color(0,150,120) : color(0,100,80), 220);
+    stroke(0,255,200);  strokeWeight(2);
+    rect(rBtnX2, rBtnY2, rBtnW2, rBtnH2, 12);
+    noStroke();  fill(255);
+    textStyle(NORMAL);  textSize(16);  textAlign(CENTER,CENTER);
+    text("View Full Report", rBtnX2, rBtnY2 - 2);
+  }
 }
 
 // FIX: replaced broken ternary fill() crash in original
@@ -2703,29 +2702,66 @@ function drawLicenseScreen() {
 function drawSettingsScreen() {
   for (let p of protocolParticles) { p.update();  p.display(); }
 
-  // Settings title — no gear icon inside the screen
   noStroke();
-  fill(0, 220, 180);  textStyle(NORMAL);  textAlign(CENTER);  textSize(32);
+  fill(0, 200, 160);  textStyle(NORMAL);  textAlign(CENTER);  textSize(32);
   text("Settings", GAME_W/2, 80);
   stroke(0, 200, 160, 60);  strokeWeight(1);
   line(GAME_W/2-160, 98, GAME_W/2+160, 98);
 
-  // MUSIC toggle row
-  let rowY1 = GAME_H/2 - 60;
-  drawSettingsToggle(GAME_W/2, rowY1, "Music", "Background music", musicEnabled);
+  // Master volume slider
+  let sliderCX = GAME_W/2, sliderY = GAME_H/2 - 60;
+  let sliderLen = 500, sliderStart = sliderCX - sliderLen/2, sliderEnd = sliderCX + sliderLen/2;
+  let knobX = map(masterVolume, 0, 1, sliderStart, sliderEnd);
 
-  // SOUND EFFECTS toggle row
-  let rowY2 = GAME_H/2 + 40;
-  drawSettingsToggle(GAME_W/2, rowY2, "Sound Effects", "Game sounds and feedback", sfxEnabled);
+  noStroke();  fill(160, 190, 220);  textStyle(NORMAL);  textSize(20);  textAlign(CENTER);
+  text("Master Volume", sliderCX, sliderY - 50);
+
+  stroke(60, 80, 100);  strokeWeight(8);  line(sliderStart, sliderY, sliderEnd, sliderY);
+  stroke(0, 200, 160);  strokeWeight(8);  line(sliderStart, sliderY, knobX, sliderY);
+  fill(0, 200, 160);  noStroke();  ellipse(knobX, sliderY, 36, 36);
+
+  noStroke();  fill(180, 200, 220);  textSize(13);
+  textAlign(RIGHT);  text("0%", sliderStart - 12, sliderY + 6);
+  textAlign(LEFT);   text("100%", sliderEnd + 12, sliderY + 6);
+  textAlign(CENTER);
+
+  let volLabel = masterVolume < 0.02 ? "0%" : int(masterVolume * 100) + "%";
+  noStroke();  fill(0, 200, 160);  textStyle(NORMAL);  textSize(30);
+  text(volLabel, sliderCX, sliderY + 52);
+
+  // 5 step circles: 0%, 25%, 50%, 75%, 100%
+  let steps = [0, 0.25, 0.5, 0.75, 1.0];
+  let stepLabels = ["0%", "25%", "50%", "75%", "100%"];
+  let stepSpacing = sliderLen / (steps.length - 1);
+  for (let i = 0; i < steps.length; i++) {
+    let sx2 = sliderStart + i * stepSpacing;
+    let sy2 = sliderY + 92;
+    let isActive = abs(masterVolume - steps[i]) < 0.01;
+    let isHov = dist(getInputX(), getInputY(), sx2, sy2) < 22;
+    fill(isActive ? color(0,180,140) : isHov ? color(0,120,110) : color(15,35,55));
+    stroke(isActive ? color(0,200,160) : color(55,90,110));
+    strokeWeight(isActive ? 2.5 : 1.5);
+    ellipse(sx2, sy2, 38, 38);
+    noStroke();
+    fill(isActive ? 255 : color(170,190,215));
+    textStyle(NORMAL);  textSize(12);  textAlign(CENTER, CENTER);
+    text(stepLabels[i], sx2, sy2);
+  }
 
   // Back button
   let backX = GAME_W/2, backY = GAME_H - 80, backW = 180, backH = 48;
   let hBack = getInputX()>backX-backW/2 && getInputX()<backX+backW/2 &&
               getInputY()>backY-backH/2 && getInputY()<backY+backH/2;
   fill(hBack ? color(0,100,100) : color(0,60,80), 220);
-  stroke(0,255,200);  strokeWeight(2);  rect(backX, backY, backW, backH, 10);
-  fill(255);  textStyle(NORMAL);  textSize(16);  textAlign(CENTER,CENTER);
+  stroke(0,200,160);  strokeWeight(2);  rect(backX, backY, backW, backH, 10);
+  noStroke();  fill(230, 245, 240);  textStyle(NORMAL);  textSize(16);  textAlign(CENTER,CENTER);
   text("Back", backX, backY - 2);
+
+  // Cache slider coords for drag/click detection
+  _settingsKnobX = knobX;
+  _settingsSliderStart = sliderStart;
+  _settingsSliderEnd   = sliderEnd;
+  _settingsSliderY     = sliderY;
 }
 
 function drawGearIcon(cx, cy, r) {
@@ -2753,6 +2789,27 @@ function drawGearIcon(cx, cy, r) {
   // Small centre dot
   fill(0, 210, 165, 160);  noStroke();
   ellipse(cx, cy, innerR*0.35, innerR*0.35);
+}
+
+function drawQuestionMarkIcon(cx, cy, r) {
+  // Question mark drawn with p5 shapes — consistent with gear icon style
+  noStroke();
+  fill(0, 200, 160, 210);
+  // Arc of the ? (upper curve)
+  let steps = 16;
+  beginShape();
+  for (let i = 0; i <= steps; i++) {
+    let a = map(i, 0, steps, -PI*0.1, PI*0.9);
+    vertex(cx + cos(a)*r*0.65, cy - r*0.1 + sin(a)*r*0.65);
+  }
+  // Tail of the ?
+  vertex(cx + r*0.08, cy - r*0.1 + r*0.65);
+  vertex(cx + r*0.08, cy + r*0.05);
+  vertex(cx - r*0.08, cy + r*0.05);
+  vertex(cx - r*0.08, cy - r*0.1 + r*0.65);
+  endShape(CLOSE);
+  // Dot below
+  ellipse(cx, cy + r*0.55, r*0.22, r*0.22);
 }
 
 function drawSettingsToggle(cx, y, label, sublabel, isOn) {
