@@ -187,7 +187,7 @@ let homeostasisDisplayTimer = 0;
 const HOMEOSTASIS_DISPLAY_FRAMES = 65;
 let homeostasisLocked = false;
 let greenZoneTimer = 0;                   // counts dt-ticks both hormones are in green zone
-const GREEN_ZONE_REQUIRED = 25 * 60;     // 25 seconds × 60 ticks = 1500 ticks
+const GREEN_ZONE_REQUIRED = 15 * 60;     // 15 seconds × 60 ticks = 900 ticks
 let phase1Complete    = false;
 let hormoneMist = [];
 let pepsinTimer = 0;
@@ -1047,7 +1047,7 @@ function updatePhase0Logic() {
   delayedSmell = lerp(delayedSmell, inputSmell, 1 - pow(1 - 0.005, dt));
 
   if (foodType === 1) {
-    salivaLevel  = lerp(salivaLevel, map(inputSmell, 0, 100, 40, 170), 0.004);
+    salivaLevel  = lerp(salivaLevel, map(inputSmell, 0, 100, 40, 170), 0.007);
     if (salivaLevel > 168 && inputSmell >= 99) salivaLevel = 170;
     cephalicAcid = lerp(cephalicAcid, map(delayedSmell, 0, 100, 0, 150), 1 - pow(1 - 0.005, dt));
   } else if (foodType === 2) {
@@ -1089,7 +1089,7 @@ function updatePhase1Logic() {
   updatePepsinDenaturation(currentPH, inPHWindow);
 
   if (proteinImg != null && enzymeActive)
-    proteinScale = max(0.0, proteinScale - 0.00035);
+    proteinScale = max(0.0, proteinScale - 0.00055);
   else if (proteinScale < 1.0 && pepsinState !== PepsinState.ACTIVE)
     proteinScale = min(1.0, proteinScale + 0.002);
 
@@ -1126,11 +1126,11 @@ function updatePhase2Logic() {
     sfx_wantSpray = true;
     let yOffset = 40;
     if (sprayType === 1) {
-      secretinLevel = min(secretinLevel + 1.0, 200);
+      secretinLevel = min(secretinLevel + 1.5, 200);
       for (let i = 0; i < 3; i++)
         hormoneMist.push(new Mist(GAME_W*0.15+80, GAME_H/2+50+yOffset, random(5,10), random(-2,2), [0,150,255]));
     } else {
-      cckLevel = min(cckLevel + 1.0, 200);
+      cckLevel = min(cckLevel + 1.5, 200);
       for (let i = 0; i < 3; i++)
         hormoneMist.push(new Mist(GAME_W*0.85-80, GAME_H/2+50+yOffset, random(-10,-5), random(-2,2), [255,180,0]));
     }
@@ -1164,12 +1164,12 @@ function updatePhase4Logic() {
   waterSliderX = constrain(waterSliderX, sliderStart, sliderEnd);
   waterAbsorbed = map(waterSliderX, sliderStart, sliderEnd, 0, 100);
   // Moderate lerp — responsive but not instant (~3.5s to fully settle)
-  actualWaterAbsorbed = lerp(actualWaterAbsorbed, waterAbsorbed, 1 - pow(1 - 0.012, dt));
+  actualWaterAbsorbed = lerp(actualWaterAbsorbed, waterAbsorbed, 1 - pow(1 - 0.020, dt));
   stoolConsistency    = lerp(stoolConsistency, map(actualWaterAbsorbed, 0, 100, 0, 100), 1 - pow(1 - 0.010, dt));
   let waterGood = (actualWaterAbsorbed >= 40 && actualWaterAbsorbed <= 72);
   if (peristalsisActive && !peristalsissComplete) {
     // ~30 seconds of held-button time: 100 / (30s × 60fps) = 100/1800 per tick
-    peristalsisProgress = min(100, peristalsisProgress + (100 / 1800) * dt);
+    peristalsisProgress = min(100, peristalsisProgress + (100 / 1200) * dt);  // ~20s
     if (peristalsisProgress >= 100) peristalsissComplete = true;
   }
   // phase4Ready: stool at end AND water in optimal zone
@@ -1516,8 +1516,8 @@ function phase0() {
 function updateCephalicMetabolismFast() {
   if (foodType === 1) {
     let cal = map(delayedSmell, 0, 100, 0, 500);
-    insulinLevel            = lerp(insulinLevel, cal * 0.08, 1 - pow(1 - 0.0025, dt));
-    hepaticGlucoseOutput    = lerp(hepaticGlucoseOutput, max(20, 100 - insulinLevel * 1.5), 1 - pow(1 - 0.005, dt));
+    insulinLevel            = lerp(insulinLevel, cal * 0.08, 1 - pow(1 - 0.004, dt));
+    hepaticGlucoseOutput    = lerp(hepaticGlucoseOutput, max(20, 100 - insulinLevel * 1.5), 1 - pow(1 - 0.008, dt));
     peripheralGlucoseUptake = map(insulinLevel, 0, 40, 0, 100);
   } else if (foodType === 2) {
     insulinLevel            = lerp(insulinLevel, 0, 1 - pow(1 - 0.1, dt));
@@ -1709,7 +1709,7 @@ function updatePepsinDenaturation(currentPH, inPHWindow) {
     // Denatured: reserve stays where it is — only restored by player pressing RESTORE PEPSIN
   } else {
     if (inPHWindow && pepsinState === PepsinState.INACTIVE) {
-      pepsinConcentration = min(100, pepsinConcentration + 0.056*dt);  // ~30s to reach 100%
+      pepsinConcentration = min(100, pepsinConcentration + 0.083*dt);  // ~20s to reach 100%
       // Pepsinogen consumed 1:1 as it converts to pepsin (stoichiometrically accurate)
       pepsinogenReserve   = max(0, 100 - pepsinConcentration);  // mirror: as pepsin rises, reserve falls to 0
       if (pepsinConcentration >= 100) {
@@ -1917,7 +1917,7 @@ function handleNutrientPhysicsStrict(zoneX, zoneW, zoneH, capY, nheY, lacY) {
   // --- Glucose → capillary ---
   if (!draggingGlucose && !glucoseSorted) {
     if (pointInZone(glucoseX, glucoseY, zoneX, capY, zoneW, zoneH)) {
-      gTimer += 1.0 / 1800.0;   // ~30 seconds at 60 ticks/s
+      gTimer += 1.0 / 1200.0;   // ~20 seconds at 60 ticks/s
       if (gTimer >= 1.0) { glucoseSorted = true; capillaryPulse = 30; triggerBurst(glucoseX, glucoseY, [0,255,0]); playNhe3Sfx(); }
     } else if (pointInZone(glucoseX, glucoseY, zoneX, nheY, zoneW, zoneH) ||
                pointInZone(glucoseX, glucoseY, zoneX, lacY, zoneW, zoneH)) {
@@ -1930,7 +1930,7 @@ function handleNutrientPhysicsStrict(zoneX, zoneW, zoneH, capY, nheY, lacY) {
   if (!draggingSodiumSGLT && !sodiumSGLTSorted) {
     if (pointInZone(sodiumSGLTX, sodiumSGLTY, zoneX, capY, zoneW, zoneH)) {
       let speedMult = dist(sodiumSGLTX, sodiumSGLTY, glucoseX, glucoseY) < 80 ? 2.0 : 1.0;
-      sGLTTimer += (1.0 / 1800.0) * speedMult;   // ~30 seconds
+      sGLTTimer += (1.0 / 1200.0) * speedMult;   // ~20 seconds
       if (sGLTTimer >= 1.0) { sodiumSGLTSorted = true; capillaryPulse = 30; triggerBurst(sodiumSGLTX, sodiumSGLTY, [0,200,150]); playNhe3Sfx(); }
     } else if (pointInZone(sodiumSGLTX, sodiumSGLTY, zoneX, nheY, zoneW, zoneH) ||
                pointInZone(sodiumSGLTX, sodiumSGLTY, zoneX, lacY, zoneW, zoneH)) {
@@ -1942,7 +1942,7 @@ function handleNutrientPhysicsStrict(zoneX, zoneW, zoneH, capY, nheY, lacY) {
   // --- Sodium NHE3 → exchanger ---
   if (!draggingSodiumNHE3 && !sodiumNHE3Sorted) {
     if (pointInZone(sodiumNH3X, sodiumNH3Y, zoneX, nheY, zoneW, zoneH)) {
-      nhe3Timer += 1.0 / 1800.0;   // ~30 seconds
+      nhe3Timer += 1.0 / 1200.0;   // ~20 seconds
       if (nhe3Timer >= 1.0) { sodiumNHE3Sorted = true; nhe3Pulse = 30; triggerBurst(sodiumNH3X, sodiumNH3Y, [0,100,200]); playNhe3Sfx(); }
     } else if (pointInZone(sodiumNH3X, sodiumNH3Y, zoneX, capY, zoneW, zoneH) ||
                pointInZone(sodiumNH3X, sodiumNH3Y, zoneX, lacY, zoneW, zoneH)) {
@@ -1954,7 +1954,7 @@ function handleNutrientPhysicsStrict(zoneX, zoneW, zoneH, capY, nheY, lacY) {
   // --- Lipid → lacteal ---
   if (!draggingLipid && !lipidSorted) {
     if (pointInZone(lipidX, lipidY, zoneX, lacY, zoneW, zoneH)) {
-      lTimer += 1.0 / 1800.0;   // ~30 seconds
+      lTimer += 1.0 / 1200.0;   // ~20 seconds
       if (lTimer >= 1.0) { lipidSorted = true; lactealPulse = 30; triggerBurst(lipidX, lipidY, [255,255,180]); playNhe3Sfx(); }
     } else if (pointInZone(lipidX, lipidY, zoneX, capY, zoneW, zoneH) ||
                pointInZone(lipidX, lipidY, zoneX, nheY, zoneW, zoneH)) {
@@ -2582,14 +2582,15 @@ function drawPhaseNode(x, y, phaseIndex) {
 
   if (isSelected) { noFill();  stroke(255,200,0,150);  strokeWeight(4);  ellipse(x,y,baseSize+40,baseSize+40); }
 
+  // Outer ring — completed uses phase colour with glow, available uses pulse
   if (isCompleted) {
     noFill();
-    stroke(phaseColors[phaseIndex][0],phaseColors[phaseIndex][1],phaseColors[phaseIndex][2], 130);
-    strokeWeight(2);  ellipse(x,y,baseSize+26,baseSize+26);
+    stroke(phaseColors[phaseIndex][0],phaseColors[phaseIndex][1],phaseColors[phaseIndex][2], 100+connectionGlow*100);
+    strokeWeight(3);  ellipse(x,y,baseSize+30,baseSize+30);
   } else if (isAvailable) {
     noFill();
-    stroke(0,200,160, 80);
-    strokeWeight(1.5);  ellipse(x,y,baseSize+16,baseSize+16);
+    stroke(0,255,200, 50+(phaseIndex===0?0.5:nodePulse[phaseIndex])*100);
+    strokeWeight(2);  ellipse(x,y,baseSize+20+pulseSize,baseSize+20+pulseSize);
   }
 
   if (isCompleted) {
@@ -2603,36 +2604,49 @@ function drawPhaseNode(x, y, phaseIndex) {
   }
   ellipse(x, y, baseSize, baseSize);
 
-  textAlign(CENTER, CENTER);
+  noStroke();  textAlign(CENTER, CENTER);
   if (isCompleted) {
+    // Gold ring for 100% — breathing glow from reference
     if (phaseEfficiency[phaseIndex] === 100) {
-      noFill();  stroke(255,215,0, 180);  strokeWeight(4);
-      ellipse(x,y,baseSize+35,baseSize+35);  fill(255,215,0);
-    } else { fill(phaseEfficiency[phaseIndex]===90 ? color(220,220,255) : color(phaseColors[phaseIndex][0],phaseColors[phaseIndex][1],phaseColors[phaseIndex][2])); }
-    textStyle(NORMAL);  textSize(24);  text(nf(phaseEfficiency[phaseIndex],0,0)+"%", x, y);
-    if (phaseEfficiency[phaseIndex]===100) { textSize(12);  fill(255,215,0);  text("★ PERFECT ★",x,y+28); }
+      noFill();  stroke(255,215,0, 150+sin(millis()*0.002)*105);  strokeWeight(4);
+      ellipse(x,y,baseSize+35,baseSize+35);
+      noStroke();  fill(255,215,0);
+    } else {
+      noStroke();  fill(phaseEfficiency[phaseIndex]===90 ? color(220,220,255) : color(phaseColors[phaseIndex][0],phaseColors[phaseIndex][1],phaseColors[phaseIndex][2]));
+    }
+    noStroke();  textStyle(NORMAL);  textSize(24);  text(nf(phaseEfficiency[phaseIndex],0,0)+"%", x, y);
+    if (phaseEfficiency[phaseIndex]===100) { noStroke();  textSize(12);  fill(255,215,0);  text("★ PERFECT ★",x,y+28); }
   } else if (isLocked) {
-    fill(100,110,120);  textStyle(NORMAL);  textSize(18);  text("LOCK",x,y);
+    noStroke();  fill(100,110,120);  textStyle(NORMAL);  textSize(18);  text("LOCK",x,y);
   } else {
-    fill(isSelected?color(255,200,0):color(0,255,200));
+    noStroke();  fill(isSelected?color(255,200,0):color(0,255,200));
     textStyle(NORMAL);  textSize(18);  text(phaseIndex===0?"START":"PLAY",x,y+2);
   }
   textStyle(NORMAL);
 
-  // Phase label above node — static, no breathing
-  fill(isCompleted ? color(200,220,240) : isAvailable ? color(0,255,200) : color(100,110,120));
-  textStyle(NORMAL);  textSize(13);  textAlign(CENTER,CENTER);  text("PHASE "+phaseIndex, x, y-65);
+  // Phase label above — uses phaseColors for completed (from reference)
+  noStroke();
+  if (isCompleted)       fill(phaseColors[phaseIndex][0],phaseColors[phaseIndex][1],phaseColors[phaseIndex][2]);
+  else if (isAvailable)  fill(isSelected?color(255,200,0):color(0,255,200));
+  else                   fill(120,130,140);
+  textSize(14);  textAlign(CENTER,CENTER);  text("PHASE "+phaseIndex, x, y-65);
 
-  // Phase name below node — clean white, no effects
-  fill(230,240,255);  textStyle(NORMAL);  textSize(13);  text(phaseNames[phaseIndex], x, y+65);
-  fill(160,175,190);  textSize(11);  text(phaseSubtitles[phaseIndex], x, y+82);
+  // Phase name — bold white (from reference)
+  noStroke();  fill(255);  textStyle(NORMAL);  textSize(16);  text(phaseNames[phaseIndex], x, y+65);
+  fill(180,190,200);  textSize(12);  text(phaseSubtitles[phaseIndex], x, y+85);
 
-  // Status label — static color only
-  let statusLabel;
-  if (isCompleted)      { statusLabel = "COMPLETED"; fill(0,220,140); }
-  else if (isAvailable) { statusLabel = phaseIndex===0?"START HERE":"AVAILABLE"; fill(0,200,160); }
-  else                  { statusLabel = "LOCKED";    fill(160,80,80); }
-  textSize(12);  text(statusLabel, x, y+100);
+  // Status label with colour variable (from reference)
+  let statusLabel, statusColor;
+  if (isCompleted)      { statusLabel = "COMPLETED"; statusColor = color(0,255,150); }
+  else if (isAvailable) { statusLabel = phaseIndex===0?"START HERE":(isSelected?"SELECTED":"AVAILABLE"); statusColor = isSelected?color(255,200,0):color(0,255,200); }
+  else                  { statusLabel = "LOCKED";    statusColor = color(255,80,80); }
+  noStroke();  fill(statusColor);  textSize(13);  text(statusLabel, x, y+105);
+
+  // Hover ring + REPLAY/START label (from reference)
+  if (dist(getInputX(),getInputY(),x,y) < baseSize/2 && isAvailable) {
+    noFill();  stroke(255,200);  strokeWeight(2);  ellipse(x,y,baseSize+40,baseSize+40);
+    noStroke();  fill(255,255,0);  textSize(14);  text(isCompleted?"REPLAY":"START", x, y+130);
+  }
 }
 
 // =========================================================
@@ -2792,24 +2806,36 @@ function drawGearIcon(cx, cy, r) {
 }
 
 function drawQuestionMarkIcon(cx, cy, r) {
-  // Question mark drawn with p5 shapes — consistent with gear icon style
-  noStroke();
-  fill(0, 200, 160, 210);
-  // Arc of the ? (upper curve)
-  let steps = 16;
+  // Clean question mark: thick arc curve + vertical stem + dot
+  noStroke();  fill(0, 200, 160, 220);
+  let sw = r * 0.28;   // stroke width as filled shape
+
+  // Upper arc — draw as thick ring segment using two arcs (outer and inner)
+  let outerR = r * 0.72, innerR = r * 0.72 - sw;
+  let arcStart = -PI * 0.9, arcEnd = PI * 0.45;
+  let steps = 24;
   beginShape();
+  // Outer arc forward
   for (let i = 0; i <= steps; i++) {
-    let a = map(i, 0, steps, -PI*0.1, PI*0.9);
-    vertex(cx + cos(a)*r*0.65, cy - r*0.1 + sin(a)*r*0.65);
+    let a = map(i, 0, steps, arcStart, arcEnd);
+    vertex(cx + cos(a)*outerR, cy - r*0.08 + sin(a)*outerR);
   }
-  // Tail of the ?
-  vertex(cx + r*0.08, cy - r*0.1 + r*0.65);
-  vertex(cx + r*0.08, cy + r*0.05);
-  vertex(cx - r*0.08, cy + r*0.05);
-  vertex(cx - r*0.08, cy - r*0.1 + r*0.65);
+  // Inner arc backward (forming the thickness)
+  for (let i = steps; i >= 0; i--) {
+    let a = map(i, 0, steps, arcStart, arcEnd);
+    vertex(cx + cos(a)*innerR, cy - r*0.08 + sin(a)*innerR);
+  }
   endShape(CLOSE);
-  // Dot below
-  ellipse(cx, cy + r*0.55, r*0.22, r*0.22);
+
+  // Vertical stem dropping from the arc's end
+  let stemX = cx + cos(arcEnd)*((outerR+innerR)/2);
+  let stemY = cy - r*0.08 + sin(arcEnd)*((outerR+innerR)/2);
+  rectMode(CENTER);
+  rect(cx, stemY + r*0.22, sw, r*0.38, sw*0.4);
+  rectMode(CENTER);  // keep rectMode consistent
+
+  // Dot
+  ellipse(cx, cy + r*0.72, sw*0.9, sw*0.9);
 }
 
 function drawSettingsToggle(cx, y, label, sublabel, isOn) {
