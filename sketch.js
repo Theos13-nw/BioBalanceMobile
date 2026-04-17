@@ -517,12 +517,29 @@ function setup() {
         // Resume audio on user interaction
         document.addEventListener('touchstart', function() {
             let ctx = getAudioContext();
-            if (ctx && ctx.state === 'suspended') ctx.resume();
+            if (ctx && ctx.state === 'suspended') {
+                ctx.resume().then(function() {
+                    // Start bgLoop immediately after context resumes
+                    if (bgLoop != null && !bgLoopStarted) {
+                        try { bgLoop.setVolume(0); bgLoop.rate(1.0); bgLoop.loop(); bgLoopStarted = true; } catch(e) {}
+                    }
+                });
+            } else if (bgLoop != null && !bgLoopStarted) {
+                try { bgLoop.setVolume(0); bgLoop.rate(1.0); bgLoop.loop(); bgLoopStarted = true; } catch(e) {}
+            }
         }, { passive: true });
         
         document.addEventListener('mousedown', function() {
             let ctx = getAudioContext();
-            if (ctx && ctx.state === 'suspended') ctx.resume();
+            if (ctx && ctx.state === 'suspended') {
+                ctx.resume().then(function() {
+                    if (bgLoop != null && !bgLoopStarted) {
+                        try { bgLoop.setVolume(0); bgLoop.rate(1.0); bgLoop.loop(); bgLoopStarted = true; } catch(e) {}
+                    }
+                });
+            } else if (bgLoop != null && !bgLoopStarted) {
+                try { bgLoop.setVolume(0); bgLoop.rate(1.0); bgLoop.loop(); bgLoopStarted = true; } catch(e) {}
+            }
         }, { passive: true });
     }
 
@@ -960,13 +977,14 @@ function updateGameLogic() {
   // Spawn timer accumulates in ms; one tick = 16.666ms
   delta = 16.666;
 
-  // BG loop: start once; rate locked to prevent drift
-  // BG loop: started silently on first tick; screen-aware volume managed in soundTick()
+  // BG loop: start once on first logic tick — audio context must be resumed first
   if (bgLoop != null && !bgLoopStarted) {
-    bgLoop.setVolume(0);
-    bgLoop.rate(1.0);
-    bgLoop.loop();
-    bgLoopStarted = true;
+    try {
+      bgLoop.setVolume(0);
+      bgLoop.rate(1.0);
+      bgLoop.loop();
+      bgLoopStarted = true;
+    } catch(e) { /* retry next tick if audio context not ready */ }
   }
 
   transitionAlpha = lerp(transitionAlpha, 255, 1 - pow(1 - 0.08, dt));
@@ -1505,7 +1523,7 @@ function phase0() {
   if (!hasSwallowed && cephalicReady && !isChewing)
     drawNextButton(GAME_W / 2, buttonY, "CHEW FOOD");
 
-  drawMetabolicPanelWithSaliva(GAME_W * 0.135, GAME_H / 2);
+  drawMetabolicPanelWithSaliva(160, GAME_H / 2);
 
   stroke(0, 255, 200);  strokeWeight(4);
   line(sStart, sliderY, sEnd, sliderY);
@@ -1611,6 +1629,7 @@ function phase1() {
   }
 
   let pX = GAME_W / 2 + 110, pY = GAME_H / 2 + 40;
+  // sfx_wantAcid set in updatePhase1Logic() for immediate response
 
   if (proteinImg != null) {
     let pAlpha = enzymeActive ? map(proteinScale, 1.0, 0.0, 255, 0) : 200;
@@ -1620,9 +1639,10 @@ function phase1() {
     }
   }
 
+  // Bubbles updated in logic tick; just display here
   for (let ab of acidBubbles) ab.display();
 
-  drawPepsinPanelBig(140, GAME_H / 2, currentPH, inPHWindow, enzymeActive);
+  drawPepsinPanelBig(GAME_W * 0.135, GAME_H / 2, currentPH, inPHWindow, enzymeActive);
 
   let phC = lerpColor(color(0, 150, 255), color(255, 0, 0), map(currentPH, 7, 1, 0, 1));
   stroke(255, 150);  strokeWeight(4);
@@ -1662,15 +1682,11 @@ function phase1() {
         ? "ENZYME WEAKENING — KEEP pH BETWEEN 1.5 AND 3.0!"
         : "PEPSINOGEN ACTIVATING INTO PEPSIN — HOLD THE pH!", GAME_W / 2, statusY);
     } else if (enzymeActive) {
-      // Speed update: 1.0 to 0.3 in 7 seconds (approx 0.00238 per tick at 60fps)
-      if (proteinScale > 0.3) {
-        proteinScale -= 0.00238 * dt; 
-      }
-
-      if (proteinScale <= 0.3) {
+      if (proteinScale < 0.3) {
         fill(0, 255, 150);  textStyle(NORMAL);  textSize(20);
         text("CHEMICAL DIGESTION COMPLETE!", GAME_W / 2, statusY);
         phase1Complete = true;
+        if (!phase1ProceedSoundPlayed) { phase1ProceedSoundPlayed = true; }  // sound plays on click, not on pop-up
         drawProceedButton(GAME_W / 2, statusY + spacing);
       } else {
         fill(0, 255, 150);  textStyle(NORMAL);  textSize(20);
@@ -1694,7 +1710,7 @@ function drawRestorePepsinButton(x, y) {
 }
 
 function resetPepsin() {
-  pepsinState         = PepsinState.INACTIVE;
+  pepsinState        = PepsinState.INACTIVE;
   pepsinConcentration = 0;
   pepsinogenReserve   = 100;
   pepsinTimer         = 0;
@@ -1716,16 +1732,18 @@ function updatePepsinDenaturation(currentPH, inPHWindow) {
   }
 
   if (pepsinState === PepsinState.DENATURED) {
-    // Denatured state logic
+    // Denatured: reserve stays where it is — only restored by player pressing RESTORE PEPSIN
   } else {
     if (inPHWindow && pepsinState === PepsinState.INACTIVE) {
-      pepsinConcentration = min(100, pepsinConcentration + 0.167*dt);
-      pepsinogenReserve   = max(0, 100 - pepsinConcentration);
+      pepsinConcentration = min(100, pepsinConcentration + 0.167*dt);  // ~10s to reach 100%
+      // Pepsinogen consumed 1:1 as it converts to pepsin (stoichiometrically accurate)
+      pepsinogenReserve   = max(0, 100 - pepsinConcentration);  // mirror: as pepsin rises, reserve falls to 0
       if (pepsinConcentration >= 100) {
-        pepsinState = PepsinState.ACTIVE;
-        pepsinogenReserve = 0;
+        pepsinState = PepsinState.ACTIVE;  // full activation only at 100%
+        pepsinogenReserve = 0;             // reserve fully depleted at full activation
       }
     } else if (inPHWindow && pepsinState === PepsinState.ACTIVE) {
+      // Fully active — reserve stays at 0 (all converted)
       pepsinogenReserve = 0;
     } else if (!inPHWindow && pepsinState === PepsinState.ACTIVE) {
       if (currentPH > 3.0 && currentPH <= 4.0) {
@@ -1743,18 +1761,18 @@ function updatePepsinDenaturation(currentPH, inPHWindow) {
 }
 
 function drawPepsinPanelBig(x, y, currentPH, inPHWindow, enzymeActive) {
-  push();
+  push();  // isolate ALL style changes in this panel
   fill(20, 30, 50, 220);  stroke(255, 150);  strokeWeight(2);
   rect(x, y, 275, 260, 15);
 
   fill(0, 255, 200);  textStyle(NORMAL);  textSize(16);  textAlign(CENTER);
-  text("ENZYME STATUS", x, y - 95);
+  text("ENZYME STATUS", x, y - 95);  textStyle(NORMAL);
 
   let phC = lerpColor(color(0, 150, 255), color(255, 0, 0), map(currentPH, 7, 1, 0, 1));
   fill(30, 40, 60);  rect(x, y - 40, 240, 40, 5);
   let phW = map(currentPH, 7, 1, 0, 240);
   fill(phC);  rect(x - 120 + phW / 2, y - 40, phW, 40, 5);
-  noStroke();
+  noStroke();  // no glow effects on pH bar
   fill(255);  textStyle(NORMAL);  textSize(13);  textAlign(CENTER);
   text("pH: " + nf(currentPH, 1, 1), x, y - 72);
 
@@ -1775,7 +1793,7 @@ function drawPepsinPanelBig(x, y, currentPH, inPHWindow, enzymeActive) {
   fill(255);  textStyle(NORMAL);  textSize(11);  textAlign(CENTER);  text("ACTIVE ENZYME (Pepsin): " + nf(pepsinConcentration, 0, 0) + "%", x, y + 40);
 
   textStyle(NORMAL);  textSize(13);
-  if      (pepsinState === PepsinState.DENATURED)      { fill(255, 50, 50);   text("BROKEN — SHAPE DESTROYED",   x, y + 100); }
+  if      (pepsinState === PepsinState.DENATURED)     { fill(255, 50, 50);   text("BROKEN — SHAPE DESTROYED",   x, y + 100); }
   else if (enzymeActive)                              { fill(0, 255, 150);   text("DIGESTING PROTEIN NOW!",      x, y + 100); }
   else if (inPHWindow && pepsinConcentration > 0)     { fill(255, 255, 0);   text("ENZYME ACTIVATING: " + nf(pepsinConcentration,0,0) + "%",  x, y + 100); }
   else if (inPHWindow)                                { fill(255, 200, 0);   text("OPTIMAL pH — WAITING",        x, y + 100); }
@@ -1783,7 +1801,7 @@ function drawPepsinPanelBig(x, y, currentPH, inPHWindow, enzymeActive) {
   else if (currentPH > 5.0 && pepsinConcentration > 0){ fill(255, 50, 50);  text("ENZYME BREAKING DOWN!",       x, y + 100); }
   else if (currentPH > 3.0)                          { fill(200);           text("pH NOT IN RANGE YET",          x, y + 100); }
   else                                               { fill(200);           text("WAITING FOR ACID",             x, y + 100); }
-  pop();
+  pop();  // restore all styles — zero bleed to outer draw
 }
 
 // =========================================================
@@ -2239,7 +2257,7 @@ function handleInputStart() {
       foodType = 2;
     }
     if (hasSwallowed && swallowProceedDelay >= SWALLOW_PROCEED_FRAMES) {
-      if (ix > GAME_W/2-100 && ix < GAME_W/2+100 && iy > buttonY-25 && iy < buttonY+25) { playSoundOnce(clickSfx);  startReflectionGate(); }
+      if (ix > GAME_W/2-100 && ix < GAME_W/2+100 && iy > buttonY-25 && iy < buttonY+25) { playSoundOnce(successSfx);  startReflectionGate(); }
     } else if (isChewing) {
       if (ix > GAME_W/2-100 && ix < GAME_W/2+100 && iy > buttonY-25 && iy < buttonY+25) {
         playSoundOnce(clickSfx);  if (swallowSfx) { swallowSfx.stop(); swallowSfx.play(); }  hasSwallowed = true;  swallowProceedDelay = 0;
