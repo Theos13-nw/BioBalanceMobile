@@ -44,8 +44,9 @@ function loopSound(sound, vol) {
 function stopAllLoopingSounds() {
   // Stop every sound — looping, one-shot, or any overlapping node
   // bgLoop excluded — volume-only control, never stopped after startup
+  // successSfx excluded here — it is allowed to finish playing when triggered by proceed
   [acidSfx, warningSfx, spraySfx,
-   dragSfx, bounceSfx, nhe3Sfx, correctSfx, wrongSfx, successSfx,
+   dragSfx, bounceSfx, nhe3Sfx, correctSfx, wrongSfx,
    denatureSfx, reportSfx, clickSfx].forEach(function(s) {
     if (s && s.isPlaying()) s.stop();
   });
@@ -515,30 +516,33 @@ function setup() {
         });
 
         // Resume audio on user interaction
+        function _startBgLoop() {
+            if (bgLoop != null && !bgLoopStarted && bgLoop.isLoaded()) {
+                try {
+                    bgLoop.setVolume(0);
+                    bgLoop.rate(1.0);
+                    bgLoop.loop();
+                    bgLoopStarted = true;
+                } catch(e) {}
+            }
+        }
         document.addEventListener('touchstart', function() {
-            let ctx = getAudioContext();
-            if (ctx && ctx.state === 'suspended') {
-                ctx.resume().then(function() {
-                    // Start bgLoop immediately after context resumes
-                    if (bgLoop != null && !bgLoopStarted) {
-                        try { bgLoop.setVolume(0); bgLoop.rate(1.0); bgLoop.loop(); bgLoopStarted = true; } catch(e) {}
-                    }
-                });
-            } else if (bgLoop != null && !bgLoopStarted) {
-                try { bgLoop.setVolume(0); bgLoop.rate(1.0); bgLoop.loop(); bgLoopStarted = true; } catch(e) {}
+            if (typeof userStartAudio === 'function') {
+                userStartAudio().then(_startBgLoop).catch(function(){});
+            } else {
+                let ctx = getAudioContext ? getAudioContext() : null;
+                if (ctx && ctx.state === 'suspended') ctx.resume().then(_startBgLoop);
+                else _startBgLoop();
             }
         }, { passive: true });
         
         document.addEventListener('mousedown', function() {
-            let ctx = getAudioContext();
-            if (ctx && ctx.state === 'suspended') {
-                ctx.resume().then(function() {
-                    if (bgLoop != null && !bgLoopStarted) {
-                        try { bgLoop.setVolume(0); bgLoop.rate(1.0); bgLoop.loop(); bgLoopStarted = true; } catch(e) {}
-                    }
-                });
-            } else if (bgLoop != null && !bgLoopStarted) {
-                try { bgLoop.setVolume(0); bgLoop.rate(1.0); bgLoop.loop(); bgLoopStarted = true; } catch(e) {}
+            if (typeof userStartAudio === 'function') {
+                userStartAudio().then(_startBgLoop).catch(function(){});
+            } else {
+                let ctx = getAudioContext ? getAudioContext() : null;
+                if (ctx && ctx.state === 'suspended') ctx.resume().then(_startBgLoop);
+                else _startBgLoop();
             }
         }, { passive: true });
     }
@@ -2231,8 +2235,8 @@ function handleInputStart() {
     }
     for (let i = 0; i < 5; i++) {
       let nx = GAME_W / 2 - 440 + i * 220, ny = GAME_H/2 - 50;
-      // DEBUG: all phases always accessible for fast testing
-      if (dist(ix, iy, nx, ny) < 50) {
+      let isAvail = (i === 0) || phaseCompleted[i - 1];
+      if (isAvail && dist(ix, iy, nx, ny) < 50) {
         playSoundOnce(clickSfx);
         selectedPhase = i;
         gateAttemptsCount[i] = 0;
@@ -2553,13 +2557,25 @@ function drawJourneyMap() {
   let nodeY = GAME_H/2 - 50;
   noStroke();
   strokeWeight(3);
+  
+  // Draw connection lines only between phases that aren't locked
   for (let i = 0; i < 4; i++) {
     let x1 = GAME_W/2-440+(i*220), x2 = x1+220;
-    stroke(phaseCompleted[i] ? color(0,200,160,140) : color(50,60,80,80));
-    line(x1, nodeY, x2, nodeY);
+    // Line is visible if the phase at the start of the line is completed
+    if (phaseCompleted[i]) {
+        stroke(0,200,160,140);
+        line(x1, nodeY, x2, nodeY);
+    } else {
+        // Dim dotted-style line for locked paths
+        stroke(50,60,80,40);
+        line(x1, nodeY, x2, nodeY);
+    }
   }
 
-  for (let i = 0; i < 5; i++) drawPhaseNode(GAME_W/2-440+i*220, nodeY, i);
+  // Draw the nodes
+  for (let i = 0; i < 5; i++) {
+    drawPhaseNode(GAME_W/2-440+i*220, nodeY, i);
+  }
 
   if (selectedPhase >= 0) {
     let sx = GAME_W/2-440+selectedPhase*220;
@@ -2570,7 +2586,7 @@ function drawJourneyMap() {
   noStroke();  fill(160,180,200);  textStyle(NORMAL);  textSize(14);  textAlign(CENTER);
   text("Select a phase to begin or replay", GAME_W/2, GAME_H - 42);
 
-  // PROGRESS table — kept from last file (left side)
+  // PROGRESS table
   let rBtnY2 = GAME_H/2 + 150, rBtnH2 = 60;
   let prgX = 165, prgW = 260;
   fill(0,20,40,200);  stroke(0,180,140,60);  strokeWeight(1);
@@ -2581,7 +2597,7 @@ function drawJourneyMap() {
   text("Status: " + (done===5?"Complete":done>=2?"In Progress":"Just Starting"), prgX, rBtnY2 - 4);
   text("Score:  " + nf(sysInt,0,1)+"%", prgX, rBtnY2 + 16);
 
-  // VIEW REPORT button — always drawn; active only when all 5 done
+  // VIEW REPORT button
   let rBtnX2 = GAME_W/2, rBtnW2 = 280;
   let allDone2 = (done === 5);
   let hRep2 = allDone2 && getInputX()>rBtnX2-rBtnW2/2 && getInputX()<rBtnX2+rBtnW2/2 &&
@@ -2594,7 +2610,6 @@ function drawJourneyMap() {
   text(allDone2 ? "View Full Report" : "Complete all phases first", rBtnX2, rBtnY2 - 2);
 }
 
-// FIX: replaced broken ternary fill() crash in original
 function drawPhaseNode(x, y, phaseIndex) {
   let isCompleted = phaseCompleted[phaseIndex];
   let isAvailable = (phaseIndex === 0) || phaseCompleted[phaseIndex - 1];
@@ -2602,6 +2617,28 @@ function drawPhaseNode(x, y, phaseIndex) {
   let isSelected  = (selectedPhase === phaseIndex);
 
   let baseSize = 80, pulseSize = 0;
+
+  // LOCK IMPROVEMENT: If locked, draw a minimal version and return
+  if (isLocked) {
+    fill(20, 25, 35, 180);
+    stroke(60, 70, 80);
+    strokeWeight(2);
+    ellipse(x, y, baseSize * 0.8, baseSize * 0.8);
+    
+    noStroke();
+    fill(80, 90, 100);
+    textSize(14);
+    textAlign(CENTER, CENTER);
+    text("LOCKED", x, y);
+    
+    // Dim labels for locked phases
+    fill(60, 70, 80);
+    textSize(14);
+    text("PHASE " + phaseIndex, x, y - 65);
+    return; // Don't draw the complex UI for locked nodes
+  }
+
+  // Animation logic for Available/Completed nodes
   if (phaseIndex === 0 && !isCompleted) {
     pulseSize = sin(millis() * 0.0048) * 10;
   } else if (!isCompleted && isAvailable) {
@@ -2611,7 +2648,7 @@ function drawPhaseNode(x, y, phaseIndex) {
 
   if (isSelected) { noFill();  stroke(255,200,0,150);  strokeWeight(4);  ellipse(x,y,baseSize+40,baseSize+40); }
 
-  // Outer ring — completed uses phase colour with glow, available uses pulse
+  // Outer ring
   if (isCompleted) {
     noFill();
     stroke(phaseColors[phaseIndex][0],phaseColors[phaseIndex][1],phaseColors[phaseIndex][2], 100+connectionGlow*100);
@@ -2622,59 +2659,51 @@ function drawPhaseNode(x, y, phaseIndex) {
     strokeWeight(2);  ellipse(x,y,baseSize+20+pulseSize,baseSize+20+pulseSize);
   }
 
+  // Main Node Circle
   if (isCompleted) {
     fill(phaseColors[phaseIndex][0],phaseColors[phaseIndex][1],phaseColors[phaseIndex][2],200);
     stroke(255);  strokeWeight(3);
-  } else if (isAvailable) {
+  } else {
     fill(isSelected?color(40,80,80):(phaseIndex===0?color(0,80,80):color(0,60,60)),220);
     stroke(0,255,200);  strokeWeight(isSelected?4:2);
-  } else {
-    fill(30,35,45,220);  stroke(80,90,100);  strokeWeight(2);
   }
   ellipse(x, y, baseSize, baseSize);
 
+  // Inner Text
   noStroke();  textAlign(CENTER, CENTER);
   if (isCompleted) {
-    // Gold ring for 100% — breathing glow from reference
     if (phaseEfficiency[phaseIndex] === 100) {
       noFill();  stroke(255,215,0, 150+sin(millis()*0.002)*105);  strokeWeight(4);
       ellipse(x,y,baseSize+35,baseSize+35);
       noStroke();  fill(255,215,0);
     } else {
-      noStroke();  fill(phaseEfficiency[phaseIndex]===90 ? color(220,220,255) : color(phaseColors[phaseIndex][0],phaseColors[phaseIndex][1],phaseColors[phaseIndex][2]));
+      fill(phaseEfficiency[phaseIndex]===90 ? color(220,220,255) : color(phaseColors[phaseIndex][0],phaseColors[phaseIndex][1],phaseColors[phaseIndex][2]));
     }
-    noStroke();  textStyle(NORMAL);  textSize(24);  text(nf(phaseEfficiency[phaseIndex],0,0)+"%", x, y);
-    if (phaseEfficiency[phaseIndex]===100) { noStroke();  textSize(12);  fill(255,215,0);  text("★ PERFECT ★",x,y+20); }
-  } else if (isLocked) {
-    noStroke();  fill(100,110,120);  textStyle(NORMAL);  textSize(18);  text("LOCK",x,y);
+    textSize(24);  text(nf(phaseEfficiency[phaseIndex],0,0)+"%", x, y);
+    if (phaseEfficiency[phaseIndex]===100) { textSize(12);  fill(255,215,0);  text("★ PERFECT ★",x,y+20); }
   } else {
-    noStroke();  fill(isSelected?color(255,200,0):color(0,255,200));
-    textStyle(NORMAL);  textSize(18);  text(phaseIndex===0?"START":"PLAY",x,y+2);
+    fill(isSelected?color(255,200,0):color(0,255,200));
+    textSize(18);  text(phaseIndex===0?"START":"PLAY",x,y+2);
   }
-  textStyle(NORMAL);
 
-  // Phase label above — uses phaseColors for completed (from reference)
+  // Labels
   noStroke();
-  if (isCompleted)       fill(phaseColors[phaseIndex][0],phaseColors[phaseIndex][1],phaseColors[phaseIndex][2]);
-  else if (isAvailable)  fill(isSelected?color(255,200,0):color(0,255,200));
-  else                   fill(120,130,140);
-  textSize(14);  textAlign(CENTER,CENTER);  text("PHASE "+phaseIndex, x, y-65);
+  if (isCompleted) fill(phaseColors[phaseIndex][0],phaseColors[phaseIndex][1],phaseColors[phaseIndex][2]);
+  else fill(isSelected?color(255,200,0):color(0,255,200));
+  
+  textSize(14);  text("PHASE "+phaseIndex, x, y-65);
+  fill(255);     textSize(16);  text(phaseNames[phaseIndex], x, y+65);
+  fill(180,190,200); textSize(12); text(phaseSubtitles[phaseIndex], x, y+85);
 
-  // Phase name — bold white (from reference)
-  noStroke();  fill(255);  textStyle(NORMAL);  textSize(16);  text(phaseNames[phaseIndex], x, y+65);
-  fill(180,190,200);  textSize(12);  text(phaseSubtitles[phaseIndex], x, y+85);
-
-  // Status label with colour variable (from reference)
   let statusLabel, statusColor;
-  if (isCompleted)      { statusLabel = "COMPLETED"; statusColor = color(0,255,150); }
-  else if (isAvailable) { statusLabel = phaseIndex===0?"START HERE":(isSelected?"SELECTED":"AVAILABLE"); statusColor = isSelected?color(255,200,0):color(0,255,200); }
-  else                  { statusLabel = "LOCKED";    statusColor = color(255,80,80); }
-  noStroke();  fill(statusColor);  textSize(13);  text(statusLabel, x, y+105);
+  if (isCompleted) { statusLabel = "COMPLETED"; statusColor = color(0,255,150); }
+  else { statusLabel = phaseIndex===0?"START HERE":(isSelected?"SELECTED":"AVAILABLE"); statusColor = isSelected?color(255,200,0):color(0,255,200); }
+  
+  fill(statusColor); textSize(13); text(statusLabel, x, y+105);
 
-  // Hover ring + REPLAY/START label (from reference)
-  if (dist(getInputX(),getInputY(),x,y) < baseSize/2 && isAvailable) {
+  if (dist(getInputX(),getInputY(),x,y) < baseSize/2) {
     noFill();  stroke(255,200);  strokeWeight(2);  ellipse(x,y,baseSize+40,baseSize+40);
-    noStroke();  fill(255,255,0);  textSize(14);  text(isCompleted?"REPLAY":"START", x, y+130);
+    noStroke(); fill(255,255,0); textSize(14); text(isCompleted?"REPLAY":"START", x, y+130);
   }
 }
 
@@ -3105,9 +3134,9 @@ function currentPhaseIndex() {
 }
 
 function calculateEfficiency(phaseIdx) {
-  if (!firstTrySuccess[phaseIdx] && gateAttemptsCount[phaseIdx]===1) return 100;
-  if (gateAttemptsCount[phaseIdx]===1) return 90;
-  return 80;
+  // Perfect first try in this session = 100% (allows replaying to reach 100%)
+  if (gateAttemptsCount[phaseIdx]===1) return 100;
+  return 80;  // multiple attempts = 80%
 }
 
 function initQuizBanks() {
@@ -3375,8 +3404,14 @@ function drawReflectionGate() {
     fill(200,255,240);  textStyle(NORMAL);  textSize(15);
     text("Full knowledge check — 7-question bank, 5 drawn", b5x, b5y+14);
 
-    fill(160,180,200);  textSize(13);  textAlign(CENTER);
-    text("Both modes use the same mastery scoring: 100% → 90% → 80%", cx, 545);
+    // Mastery guide — sits clearly below both buttons
+    noStroke();
+    fill(0,200,160, 180);  textSize(13);  textAlign(CENTER);
+    text("Mastery Guide:", cx, 590);
+    fill(160,185,210);  textSize(12);
+    text("✓  Answer correctly on your first try — earn 100%", cx, 612);
+    text("✓  Need more than one attempt — earn 80%", cx, 630);
+    text("✓  Replay completed phases to reach 100% anytime", cx, 648);
     return;
   }
 
@@ -3398,9 +3433,8 @@ function drawReflectionGate() {
 
     textSize(15);  fill(200);
     let att = gateAttemptsCount[phaseIdx];
-    if      (att===1 && !firstTrySuccess[phaseIdx]) text("FIRST ATTEMPT — 100% MASTERY AVAILABLE", cx, 135);
-    else if (firstTrySuccess[phaseIdx])              text("REPLAY ATTEMPT — 90% MAXIMUM", cx, 135);
-    else                                             text("ATTEMPT #"+att+" — 80% MAXIMUM", cx, 135);
+    if (att===1) text("FIRST ATTEMPT — 100% MASTERY AVAILABLE", cx, 135);
+    else         text("ATTEMPT #"+att+" — 80% IF NOT FIRST TRY", cx, 135);
     fill(0, 255, 150);  textSize(15);
     text("Score: " + score + " / " + totalQ + " Correct", cx, 155);
 
@@ -3552,7 +3586,7 @@ function handleQuizClick() {
     stopAllLoopingSounds();
     quizState=0;  quizSubState=0;  quizModeSelected=0;  successParticles=[];
     let eff2=calculateEfficiency(phaseIdx);
-    if (eff2===100 && !phaseCompleted[phaseIdx]) firstTrySuccess[phaseIdx]=true;
+    if (eff2===100) firstTrySuccess[phaseIdx]=true;  // allow 100% on replay
     phaseEfficiency[phaseIdx] = eff2;
     phaseCompleted[phaseIdx]=true;
     saveProgress();
