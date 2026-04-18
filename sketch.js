@@ -50,34 +50,53 @@ function stopAllLoopingSounds() {
    denatureSfx, reportSfx, clickSfx].forEach(function(s) {
     if (s && s.isPlaying()) s.stop();
   });
-  // Reset audio flags so sounds can restart cleanly next time
-  sfx_wantWarning = false;
-  sfx_wantAcid    = false;
-  sfx_wantSpray   = false;
-  warningPlayed         = false;
+
+  // ── RESET AUDIO FLAGS (The "Memory" Clear) ────────────────
+  // This allows success.wav to play again if the user replays a phase.
+  phase0SuccessPlayed = false;
+  phase1SuccessPlayed = false;
+  phase2SuccessPlayed = false;
+  phase3SuccessPlayed = false;
+  phase4SuccessPlayed = false;
+
+  // Clear legacy/specific flags to ensure full compatibility
   cephalicSuccessPlayed = false;
   pepsinSuccessPlayed   = false;
   phase2ButtonSuccessPlayed = false;
-  phase4ProceedSoundPlayed  = false;
-  reportSfxTriggered    = false;
-  reportSfxPlayed       = false;
+  
+  // ── RESET UI/STATE FLAGS ──────────────────────────────────
+  sfx_wantWarning     = false;
+  sfx_wantAcid        = false;
+  sfx_wantSpray       = false;
+  warningPlayed       = false;
+  reportSfxTriggered  = false;
+  reportSfxPlayed     = false;
+
+  // ── RESET PROCEED FLAGS ──────────────────────────────────
+  phase0ProceedSoundPlayed = false;
+  phase1ProceedSoundPlayed = false;
+  phase2ProceedSoundPlayed = false;
+  phase3ProceedSoundPlayed = false;
+  phase4ProceedSoundPlayed = false;
+  
+  // Reset Delays
+  swallowProceedDelay = 0;
 }
 
 // ── AUDIO FLAGS ────────────────────────────────────────────
-let cephalicSuccessPlayed = false;   // FIX: was missing from doc2 globals
-let pepsinSuccessPlayed   = false;   // FIX: was missing from doc2 globals
-let warningPlayed         = false;   // FIX: was missing from doc2 globals
-let reportPlayed          = false;
-let reportSfxTriggered    = false;
-let reportSfxPlayed       = false;  // one-time trigger: fires only when report first opens
-let phase2ButtonSuccessPlayed = false;
-let phase0ProceedSoundPlayed  = false;
-let swallowProceedDelay       = 0;
-const SWALLOW_PROCEED_FRAMES  = 120;  // 2 seconds at 60fps
-let phase1ProceedSoundPlayed  = false;
-let phase2ProceedSoundPlayed  = false;
-let phase3ProceedSoundPlayed  = false;
-let phase4ProceedSoundPlayed  = false;
+let phase0SuccessPlayed = false; // For Cephalic/Phase 0
+let phase1SuccessPlayed = false; // For Stomach/Phase 1
+let phase2SuccessPlayed = false; // For Hormones/Phase 2
+let phase3SuccessPlayed = false; // For Absorption/Phase 3
+let phase4SuccessPlayed = false; // For Final/Phase 4
+
+let warningPlayed         = false;
+let reportSfxPlayed       = false; 
+let phase0ProceedSoundPlayed = false;
+let phase1ProceedSoundPlayed = false;
+let phase2ProceedSoundPlayed = false;
+let phase3ProceedSoundPlayed = false;
+let phase4ProceedSoundPlayed = false;
 
 // ── LICENSE ────────────────────────────────────────────────
 let developer       = "Developed by Altheo Cardillo © 2026";
@@ -1291,14 +1310,23 @@ function phase4() {
   textAlign(LEFT);   text("HIGH (100%)", sliderEnd  +20, sliderY4+7);
   textAlign(CENTER);
 
-  // Guide text + buttons — invisible 3s countdown happens in logic, not shown here
+ // Guide text + buttons — invisible 3s countdown happens in logic, not shown here
   textStyle(NORMAL);  textSize(min(20, GAME_W*0.016));  textAlign(CENTER);
+  
   if (phase4Ready && phase4ProceedDelay >= PHASE4_PROCEED_DELAY_FRAMES) {
     // 3s elapsed — show completion text and PROCEED
     fill(0,255,150);
     text("ELIMINATION COMPLETE — DIGESTIVE CYCLE FINISHED!", GAME_W/2, guideY);
-    if (!phase4ProceedSoundPlayed) { phase4ProceedSoundPlayed = true; }  // sound on click
+    
+    // --- UPDATED LOGIC BLOCK ---
+    // Trigger success sound once immediately when the final button pop ups
+    if (!phase4SuccessPlayed) {
+        playSoundOnce(successSfx);
+        phase4SuccessPlayed = true;
+    }
+    
     drawProceedButton(GAME_W/2, guideY + GAME_H*0.067);
+    
   } else if (phase4Ready && phase4ProceedDelay < PHASE4_PROCEED_DELAY_FRAMES) {
     // Stool at end + water optimal — silent 3s wait, just show guide text
     fill(0,255,150);
@@ -1480,12 +1508,20 @@ function phase0() {
   let guideY = 90, buttonY = 130;
   let p0Text = "", p0Color = color(255);
 
+  // --- UPDATED LOGIC BLOCK ---
   if (hasSwallowed) {
     swallowProceedDelay = min(swallowProceedDelay + 1, SWALLOW_PROCEED_FRAMES + 1);
+    
     if (swallowProceedDelay >= SWALLOW_PROCEED_FRAMES) {
       p0Text  = "FOOD SWALLOWED — MOVING TO THE STOMACH!";
       p0Color = color(0, 255, 150);
-      if (!phase0ProceedSoundPlayed) { playSoundOnce(successSfx);  phase0ProceedSoundPlayed = true; }
+      
+      // TRIGGER: success.wav plays once as soon as the button pops up
+      if (!phase0SuccessPlayed) { 
+        playSoundOnce(successSfx);  
+        phase0SuccessPlayed = true; 
+      }
+      
       drawProceedButton(GAME_W / 2, buttonY);
     } else {
       p0Text  = "SWALLOWING FOOD DOWN THE OESOPHAGUS...";
@@ -1512,8 +1548,8 @@ function phase0() {
     p0Text = "SMELL THE FOOD: MOVE THE SCENT SLIDER TO BEGIN!";  p0Color = color(200);
   } else if (foodType === 2) {
     cephalicReady = false;
-    if      (delayedSmell < 30)              p0Text = "SOMETHING SMELLS OFF...";
-    else if (delayedSmell < 60)              p0Text = "THE FOOD SMELLS SPOILED — BODY IS REJECTING IT!";
+    if      (delayedSmell < 30)               p0Text = "SOMETHING SMELLS OFF...";
+    else if (delayedSmell < 60)               p0Text = "THE FOOD SMELLS SPOILED — BODY IS REJECTING IT!";
     else if (emeticTimer >= EMETIC_THRESHOLD) p0Text = "SPOILED FOOD DETECTED — NAUSEA REFLEX TRIGGERED!";
     else                                      p0Text = "SMELL GETTING WORSE — BODY IS RESPONDING...";
     p0Color = color(255, 50, 50);
@@ -1690,7 +1726,14 @@ function phase1() {
         fill(0, 255, 150);  textStyle(NORMAL);  textSize(20);
         text("CHEMICAL DIGESTION COMPLETE!", GAME_W / 2, statusY);
         phase1Complete = true;
-        if (!phase1ProceedSoundPlayed) { phase1ProceedSoundPlayed = true; }  // sound plays on click, not on pop-up
+
+        // --- UPDATED LOGIC BLOCK ---
+        // Success sound triggers once immediately when the button/text pops up
+        if (!phase1SuccessPlayed) { 
+            playSoundOnce(successSfx);  
+            phase1SuccessPlayed = true; 
+        }
+        
         drawProceedButton(GAME_W / 2, statusY + spacing);
       } else {
         fill(0, 255, 150);  textStyle(NORMAL);  textSize(20);
@@ -1839,7 +1882,14 @@ function phase2() {
   if (homeostasisReached) {
     fill(0, 200, 140);  textStyle(NORMAL);  textSize(20);
     text("Acid neutralized — ready for digestion!", GAME_W / 2, warningY);
-    if (!phase2ProceedSoundPlayed) { phase2ProceedSoundPlayed = true; }  // sound plays on click, not on pop-up
+
+    // --- UPDATED LOGIC BLOCK ---
+    // Success sound triggers once immediately when the button pops up
+    if (!phase2SuccessPlayed) {
+        playSoundOnce(successSfx);
+        phase2SuccessPlayed = true;
+    }
+    
     drawProceedButton(GAME_W / 2, warningY + 38);
   } else if (greenZoneTimer > 0) {
     // Counting — show text only, no progress bar
@@ -1881,8 +1931,8 @@ function phase3() {
   let capY = GAME_H * 0.28, nheY = GAME_H * 0.52, lacY = GAME_H * 0.76;
 
   renderZoneStrict(zoneX, capY, "BLOOD CAPILLARY",  color(255, 100, 100), zoneW, zoneH, capillaryPulse, glucoseSorted && sodiumSGLTSorted);
-  renderZoneStrict(zoneX, nheY, "SODIUM EXCHANGER", color(100, 150, 255), zoneW, zoneH, nhe3Pulse,      sodiumNHE3Sorted);
-  renderZoneStrict(zoneX, lacY, "LACTEAL",          color(100, 150, 255), zoneW, zoneH, lactealPulse,   lipidSorted);
+  renderZoneStrict(zoneX, nheY, "SODIUM EXCHANGER", color(100, 150, 255), zoneW, zoneH, nhe3Pulse,       sodiumNHE3Sorted);
+  renderZoneStrict(zoneX, lacY, "LACTEAL",          color(100, 150, 255), zoneW, zoneH, lactealPulse,      lipidSorted);
 
   // Guide text — only show drag instruction when nutrients still need absorbing
   let allAbsorbedCheck = glucoseSorted && sodiumSGLTSorted && sodiumNHE3Sorted && lipidSorted;
@@ -1893,7 +1943,7 @@ function phase3() {
 
   // Physics+mist already ticked in updateGameLogic(); draw nutrients
   for (let m of hormoneMist) m.display();
-  drawNutrient(glucoseImg, glucoseX,    glucoseY,    "Glucose",        [0, 255, 0],   glucoseSorted,    draggingGlucose,    gTimer);
+  drawNutrient(glucoseImg, glucoseX,    glucoseY,    "Glucose",        [0, 255, 0],    glucoseSorted,    draggingGlucose,    gTimer);
   drawNutrient(sodiumImg,  sodiumSGLTX, sodiumSGLTY, "Sodium (SGLT1)", [0, 200, 150], sodiumSGLTSorted, draggingSodiumSGLT, sGLTTimer);
   drawNutrient(sodiumImg,  sodiumNH3X,  sodiumNH3Y,  "Sodium (NHE3)",  [0, 100, 200], sodiumNHE3Sorted, draggingSodiumNHE3, nhe3Timer);
   drawNutrient(lipidImg,   lipidX,      lipidY,      "Lipids (Fats)",  [255, 255, 0], lipidSorted,      draggingLipid,      lTimer);
@@ -1909,7 +1959,14 @@ function phase3() {
       // "All nutrients successfully absorbed!" sits just above the proceed button
       fill(0, 200, 140);  textStyle(NORMAL);  textSize(20);  textAlign(CENTER);
       text("All nutrients successfully absorbed!", GAME_W / 2, 75);
-      if (!phase3ProceedSoundPlayed) { phase3ProceedSoundPlayed = true; }  // sound plays on click
+      
+      // --- UPDATED LOGIC BLOCK ---
+      // Trigger success sound once when the text/button pop up
+      if (!phase3SuccessPlayed) {
+        playSoundOnce(successSfx);
+        phase3SuccessPlayed = true;
+      }
+      
       drawProceedButton(GAME_W / 2, 115);
     }
   }
